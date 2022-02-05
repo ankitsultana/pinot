@@ -25,6 +25,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
+import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.ws.rs.DefaultValue;
@@ -37,6 +38,7 @@ import javax.ws.rs.core.MediaType;
 import org.apache.pinot.controller.helix.core.PinotHelixResourceManager;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.utils.JsonUtils;
+import org.apache.pinot.spi.utils.builder.TableNameBuilder;
 
 
 @Api(tags = Constants.TABLE_TAG)
@@ -116,7 +118,7 @@ public class PinotTableInstances {
   }
 
   @GET
-  @Path("/tables/{tableNameWithType}/livebrokers")
+  @Path("/tables/{tableName}/livebrokers")
   @Produces(MediaType.APPLICATION_JSON)
   @ApiOperation(value = "List the brokers serving a table", notes = "List live brokers of the given table based on EV")
   @ApiResponses(value = {
@@ -124,8 +126,23 @@ public class PinotTableInstances {
       @ApiResponse(code = 404, message = "Table not found"),
       @ApiResponse(code = 500, message = "Internal server error")})
   public List<String> getLiveBrokersForTable(
-      @ApiParam(value = "Table name with type", required = true)
-      @PathParam("tableNameWithType") String tableNameWithType) {
-    return _pinotHelixResourceManager.getLiveBrokersForTable(tableNameWithType);
+      @ApiParam(value = "Table name with or without type", required = true)
+      @PathParam("tableName") String tableName) {
+    if (TableNameBuilder.OFFLINE.tableNameWithType(tableName).equals(tableName)) {
+      return _pinotHelixResourceManager.getLiveBrokersForTable(tableName);
+    }
+    if (TableNameBuilder.REALTIME.tableNameWithType(tableName).equals(tableName)) {
+      return _pinotHelixResourceManager.getLiveBrokersForTable(tableName);
+    }
+    List<String> result = new ArrayList<>();
+    if (_pinotHelixResourceManager.hasOfflineTable(tableName)) {
+      result.addAll(_pinotHelixResourceManager.getLiveBrokersForTable(
+              TableNameBuilder.OFFLINE.tableNameWithType(tableName)));
+    }
+    if (_pinotHelixResourceManager.hasRealtimeTable(tableName)) {
+      result.addAll(_pinotHelixResourceManager.getLiveBrokersForTable(
+              TableNameBuilder.REALTIME.tableNameWithType(tableName)));
+    }
+    return result;
   }
 }
