@@ -128,10 +128,10 @@ public class PinotTableInstances {
   public List<String> getLiveBrokersForTable(
       @ApiParam(value = "Table name with or without type", required = true)
       @PathParam("tableName") String tableName) {
-    if (TableNameBuilder.OFFLINE.tableNameWithType(tableName).equals(tableName)) {
+    if (TableNameBuilder.isOfflineTableResource(tableName)) {
       return _pinotHelixResourceManager.getLiveBrokersForTable(tableName);
     }
-    if (TableNameBuilder.REALTIME.tableNameWithType(tableName).equals(tableName)) {
+    if (TableNameBuilder.isRealtimeTableResource(tableName)) {
       return _pinotHelixResourceManager.getLiveBrokersForTable(tableName);
     }
     List<String> result = new ArrayList<>();
