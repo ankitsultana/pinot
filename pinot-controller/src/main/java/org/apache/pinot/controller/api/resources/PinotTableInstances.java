@@ -26,7 +26,9 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -134,15 +136,15 @@ public class PinotTableInstances {
     if (TableNameBuilder.isRealtimeTableResource(tableName)) {
       return _pinotHelixResourceManager.getLiveBrokersForTable(tableName);
     }
-    List<String> result = new ArrayList<>();
+    Set<String> liveBrokerSet = new HashSet<>();
     if (_pinotHelixResourceManager.hasOfflineTable(tableName)) {
-      result.addAll(_pinotHelixResourceManager.getLiveBrokersForTable(
+      liveBrokerSet.addAll(_pinotHelixResourceManager.getLiveBrokersForTable(
               TableNameBuilder.OFFLINE.tableNameWithType(tableName)));
     }
     if (_pinotHelixResourceManager.hasRealtimeTable(tableName)) {
-      result.addAll(_pinotHelixResourceManager.getLiveBrokersForTable(
+      liveBrokerSet.addAll(_pinotHelixResourceManager.getLiveBrokersForTable(
               TableNameBuilder.REALTIME.tableNameWithType(tableName)));
     }
-    return result;
+    return new ArrayList<>(liveBrokerSet);
   }
 }
