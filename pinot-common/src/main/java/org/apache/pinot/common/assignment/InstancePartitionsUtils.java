@@ -35,6 +35,7 @@ import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TenantConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
+import org.apache.zookeeper.data.Stat;
 
 
 /**
@@ -118,10 +119,14 @@ public class InstancePartitionsUtils {
    * data shuffling when instances get disabled.
    */
   public static InstancePartitions computeDefaultInstancePartitionsForTag(HelixManager helixManager,
-      String tableNameWithType, String instancePartitionsType, String serverTag) {
+      String tableNameWithType, TableConfig tableConfig, String instancePartitionsType, String serverTag) {
     List<String> instances = HelixHelper.getInstancesWithTag(helixManager, serverTag);
     int numInstances = instances.size();
     Preconditions.checkState(numInstances > 0, "No instance found with tag: %s", serverTag);
+
+    if (tableConfig.getTableGroupConfig().isSet()) {
+      helixManager.getHelixPropertyStore().get("", new Stat(), );
+    }
 
     // Sort the instances and rotate the list based on the table name
     instances.sort(null);

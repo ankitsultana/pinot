@@ -52,6 +52,7 @@ public class TableConfig extends BaseJsonConfig {
   public static final String INGESTION_CONFIG_KEY = "ingestionConfig";
   public static final String TIER_CONFIGS_LIST_KEY = "tierConfigs";
   public static final String TUNER_CONFIG_LIST_KEY = "tunerConfigs";
+  public static final String TABLE_GROUP_CONFIG_KEY = "tableGroup";
 
   // Double underscore is reserved for real-time segment name delimiter
   private static final String TABLE_NAME_FORBIDDEN_SUBSTRING = "__";
@@ -97,6 +98,9 @@ public class TableConfig extends BaseJsonConfig {
   @JsonPropertyDescription(value = "Configs for Table config tuner")
   private List<TunerConfig> _tunerConfigList;
 
+  @JsonPropertyDescription(value = "Configs for Table config tuner")
+  private TableGroupConfig _tableGroupConfig;
+
   @JsonCreator
   public TableConfig(@JsonProperty(value = TABLE_NAME_KEY, required = true) String tableName,
       @JsonProperty(value = TABLE_TYPE_KEY, required = true) String tableType,
@@ -116,7 +120,8 @@ public class TableConfig extends BaseJsonConfig {
       @JsonProperty(INGESTION_CONFIG_KEY) @Nullable IngestionConfig ingestionConfig,
       @JsonProperty(TIER_CONFIGS_LIST_KEY) @Nullable List<TierConfig> tierConfigsList,
       @JsonProperty(IS_DIM_TABLE_KEY) boolean dimTable,
-      @JsonProperty(TUNER_CONFIG_LIST_KEY) @Nullable List<TunerConfig> tunerConfigList) {
+      @JsonProperty(TUNER_CONFIG_LIST_KEY) @Nullable List<TunerConfig> tunerConfigList,
+      @JsonProperty(TABLE_GROUP_CONFIG_KEY) @Nullable TableGroupConfig tableGroupConfig) {
     Preconditions.checkArgument(tableName != null, "'tableName' must be configured");
     Preconditions.checkArgument(!tableName.contains(TABLE_NAME_FORBIDDEN_SUBSTRING),
         "'tableName' cannot contain double underscore ('__')");
@@ -144,6 +149,7 @@ public class TableConfig extends BaseJsonConfig {
     _tierConfigsList = tierConfigsList;
     _dimTable = dimTable;
     _tunerConfigList = tunerConfigList;
+    _tableGroupConfig = tableGroupConfig;
   }
 
   @JsonProperty(TABLE_NAME_KEY)
@@ -310,5 +316,14 @@ public class TableConfig extends BaseJsonConfig {
 
   public void setTunerConfigsList(List<TunerConfig> tunerConfigList) {
     _tunerConfigList = tunerConfigList;
+  }
+
+  @JsonProperty(TABLE_GROUP_CONFIG_KEY)
+  public TableGroupConfig getTableGroupConfig() {
+    return _tableGroupConfig;
+  }
+
+  public void setTableGroupKey(TableGroupConfig tableGroupConfig) {
+    _tableGroupConfig = tableGroupConfig;
   }
 }

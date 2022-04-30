@@ -35,6 +35,7 @@ import org.apache.pinot.spi.config.table.RoutingConfig;
 import org.apache.pinot.spi.config.table.SegmentsValidationAndRetentionConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableCustomConfig;
+import org.apache.pinot.spi.config.table.TableGroupConfig;
 import org.apache.pinot.spi.config.table.TableTaskConfig;
 import org.apache.pinot.spi.config.table.TenantConfig;
 import org.apache.pinot.spi.config.table.TierConfig;
@@ -74,6 +75,14 @@ public class TableConfigUtils {
     String tenantConfigString = simpleFields.get(TableConfig.TENANT_CONFIG_KEY);
     Preconditions.checkState(tenantConfigString != null, FIELD_MISSING_MESSAGE_TEMPLATE, TableConfig.TENANT_CONFIG_KEY);
     TenantConfig tenantConfig = JsonUtils.stringToObject(tenantConfigString, TenantConfig.class);
+
+    String tableGroupConfigString = simpleFields.get(TableConfig.TABLE_GROUP_CONFIG_KEY);
+    TableGroupConfig tableGroupConfig;
+    if (tableGroupConfigString == null) {
+      tableGroupConfig = TableGroupConfig.ofEmpty();
+    } else {
+      tableGroupConfig = JsonUtils.stringToObject(tableGroupConfigString, TableGroupConfig.class);
+    }
 
     String indexingConfigString = simpleFields.get(TableConfig.INDEXING_CONFIG_KEY);
     Preconditions
@@ -152,7 +161,7 @@ public class TableConfigUtils {
 
     return new TableConfig(tableName, tableType, validationConfig, tenantConfig, indexingConfig, customConfig,
         quotaConfig, taskConfig, routingConfig, queryConfig, instanceAssignmentConfigMap, fieldConfigList, upsertConfig,
-        ingestionConfig, tierConfigList, isDimTable, tunerConfigList);
+        ingestionConfig, tierConfigList, isDimTable, tunerConfigList, tableGroupConfig);
   }
 
   public static ZNRecord toZNRecord(TableConfig tableConfig)
@@ -167,6 +176,7 @@ public class TableConfigUtils {
     simpleFields.put(TableConfig.INDEXING_CONFIG_KEY, tableConfig.getIndexingConfig().toJsonString());
     simpleFields.put(TableConfig.CUSTOM_CONFIG_KEY, tableConfig.getCustomConfig().toJsonString());
     simpleFields.put(TableConfig.IS_DIM_TABLE_KEY, Boolean.toString(tableConfig.isDimTable()));
+    simpleFields.put(TableConfig.TABLE_GROUP_CONFIG_KEY, tableConfig.getTableGroupConfig().toJsonString());
 
     // Optional fields
     QuotaConfig quotaConfig = tableConfig.getQuotaConfig();

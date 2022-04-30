@@ -33,6 +33,7 @@ import org.apache.pinot.common.utils.SegmentName;
 import org.apache.pinot.common.utils.config.TableConfigUtils;
 import org.apache.pinot.spi.config.ConfigUtils;
 import org.apache.pinot.spi.config.table.TableConfig;
+import org.apache.pinot.spi.config.table.TableGroupConfig;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.CommonConstants;
@@ -54,6 +55,7 @@ public class ZKMetadataProvider {
   private static final String PROPERTYSTORE_SCHEMAS_PREFIX = "/SCHEMAS";
   private static final String PROPERTYSTORE_INSTANCE_PARTITIONS_PREFIX = "/INSTANCE_PARTITIONS";
   private static final String PROPERTYSTORE_TABLE_CONFIGS_PREFIX = "/CONFIGS/TABLE";
+  private static final String PROPERTYSTORE_TABLE_GROUP_PREFIX = "/CONFIGS/TABLE_GROUPS";
   private static final String PROPERTYSTORE_INSTANCE_CONFIGS_PREFIX = "/CONFIGS/INSTANCE";
   private static final String PROPERTYSTORE_CLUSTER_CONFIGS_PREFIX = "/CONFIGS/CLUSTER";
   private static final String PROPERTYSTORE_SEGMENT_LINEAGE = "/SEGMENT_LINEAGE";
@@ -105,6 +107,10 @@ public class ZKMetadataProvider {
 
   public static String constructPropertyStorePathForResourceConfig(String resourceName) {
     return StringUtil.join("/", PROPERTYSTORE_TABLE_CONFIGS_PREFIX, resourceName);
+  }
+
+  public static String constructPropertyStorePathForGroupConfig(String tableGroupId) {
+    return StringUtil.join("/", PROPERTYSTORE_TABLE_GROUP_PREFIX, tableGroupId);
   }
 
   public static String constructPropertyStorePathForControllerConfig(String controllerConfigKey) {
@@ -204,6 +210,9 @@ public class ZKMetadataProvider {
     return toTableConfig(propertyStore.get(constructPropertyStorePathForResourceConfig(tableNameWithType), null,
         AccessOption.PERSISTENT));
   }
+
+  @Nullable
+  public static TableGroupConfig getTableGr
 
   @Nullable
   public static TableConfig getOfflineTableConfig(ZkHelixPropertyStore<ZNRecord> propertyStore, String tableName) {
