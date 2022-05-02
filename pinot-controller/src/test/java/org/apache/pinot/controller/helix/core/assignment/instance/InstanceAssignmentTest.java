@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import org.apache.helix.ZNRecord;
 import org.apache.helix.model.InstanceConfig;
+import org.apache.helix.store.zk.ZkHelixPropertyStore;
 import org.apache.pinot.common.assignment.InstanceAssignmentConfigUtils;
 import org.apache.pinot.common.assignment.InstancePartitions;
 import org.apache.pinot.common.utils.config.InstanceUtils;
@@ -40,6 +42,7 @@ import org.apache.pinot.spi.utils.CommonConstants.Segment.AssignmentStrategy;
 import org.apache.pinot.spi.utils.builder.TableConfigBuilder;
 import org.testng.annotations.Test;
 
+import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.fail;
@@ -50,6 +53,7 @@ public class InstanceAssignmentTest {
   private static final String TENANT_NAME = "tenant";
   private static final String OFFLINE_TAG = TagNameUtils.getOfflineTagForTenant(TENANT_NAME);
   private static final String SERVER_INSTANCE_ID_PREFIX = "Server_localhost_";
+  private static final ZkHelixPropertyStore<ZNRecord> PROPERTY_STORE = mock(ZkHelixPropertyStore.class);
 
   @Test
   public void testDefaultOfflineReplicaGroup() {
@@ -61,7 +65,7 @@ public class InstanceAssignmentTest {
     int numInstancesPerPartition = 2;
     tableConfig.getValidationConfig()
         .setReplicaGroupStrategyConfig(new ReplicaGroupStrategyConfig(null, numInstancesPerPartition));
-    InstanceAssignmentDriver driver = new InstanceAssignmentDriver(tableConfig);
+    InstanceAssignmentDriver driver = new InstanceAssignmentDriver(PROPERTY_STORE, tableConfig);
     int numInstances = 10;
     List<InstanceConfig> instanceConfigs = new ArrayList<>(numInstances);
     for (int i = 0; i < numInstances; i++) {
@@ -150,7 +154,7 @@ public class InstanceAssignmentTest {
     TableConfig tableConfig = new TableConfigBuilder(TableType.OFFLINE).setTableName(RAW_TABLE_NAME)
         .setInstanceAssignmentConfigMap(Collections.singletonMap(InstancePartitionsType.OFFLINE,
             new InstanceAssignmentConfig(tagPoolConfig, null, replicaPartitionConfig))).build();
-    InstanceAssignmentDriver driver = new InstanceAssignmentDriver(tableConfig);
+    InstanceAssignmentDriver driver = new InstanceAssignmentDriver(PROPERTY_STORE, tableConfig);
 
     // Math.abs("myTable_OFFLINE".hashCode()) % 2 = 0
     // All instances in pool 0 should be assigned to replica-group 0, and all instances in pool 1 should be assigned to
@@ -258,7 +262,7 @@ public class InstanceAssignmentTest {
   @Test
   public void testIllegalConfig() {
     TableConfig tableConfig = new TableConfigBuilder(TableType.OFFLINE).setTableName(RAW_TABLE_NAME).build();
-    InstanceAssignmentDriver driver = new InstanceAssignmentDriver(tableConfig);
+    InstanceAssignmentDriver driver = new InstanceAssignmentDriver(PROPERTY_STORE, tableConfig);
 
     int numInstances = 10;
     List<InstanceConfig> instanceConfigs = new ArrayList<>(numInstances);

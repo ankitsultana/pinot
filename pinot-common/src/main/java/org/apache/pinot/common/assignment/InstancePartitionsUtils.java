@@ -32,10 +32,10 @@ import org.apache.pinot.common.metadata.ZKMetadataProvider;
 import org.apache.pinot.common.utils.config.TagNameUtils;
 import org.apache.pinot.common.utils.helix.HelixHelper;
 import org.apache.pinot.spi.config.table.TableConfig;
+import org.apache.pinot.spi.config.table.TableGroupConfig;
 import org.apache.pinot.spi.config.table.TenantConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
-import org.apache.zookeeper.data.Stat;
 
 
 /**
@@ -86,6 +86,17 @@ public class InstancePartitionsUtils {
   }
 
   /**
+   * Fetches the instance partitions from Helix property store.
+   */
+  @Nullable
+  public static InstancePartitions fetchInstancePartitions(HelixPropertyStore<ZNRecord> propertyStore,
+      TableGroupConfig tableGroupConfig) {
+    String path = ZKMetadataProvider.constructPropertyStorePathForGroupInstancePartitions(tableGroupConfig.getId());
+    ZNRecord znRecord = propertyStore.get(path, null, AccessOption.PERSISTENT);
+    return znRecord != null ? InstancePartitions.fromZNRecord(znRecord) : null;
+  }
+
+  /**
    * Computes the default instance partitions. Sort all qualified instances and rotate the list based on the table name
    * to prevent creating hotspot servers.
    * <p>Choose both enabled and disabled instances with the server tag as the qualified instances to avoid unexpected
@@ -119,14 +130,10 @@ public class InstancePartitionsUtils {
    * data shuffling when instances get disabled.
    */
   public static InstancePartitions computeDefaultInstancePartitionsForTag(HelixManager helixManager,
-      String tableNameWithType, TableConfig tableConfig, String instancePartitionsType, String serverTag) {
+      String tableNameWithType, String instancePartitionsType, String serverTag) {
     List<String> instances = HelixHelper.getInstancesWithTag(helixManager, serverTag);
     int numInstances = instances.size();
     Preconditions.checkState(numInstances > 0, "No instance found with tag: %s", serverTag);
-
-    if (tableConfig.getTableGroupConfig().isSet()) {
-      helixManager.getHelixPropertyStore().get("", new Stat(), );
-    }
 
     // Sort the instances and rotate the list based on the table name
     instances.sort(null);
@@ -144,6 +151,16 @@ public class InstancePartitionsUtils {
       InstancePartitions instancePartitions) {
     String path = ZKMetadataProvider
         .constructPropertyStorePathForInstancePartitions(instancePartitions.getInstancePartitionsName());
+    if (!propertyStore.set(path, instancePartitions.toZNRecord(), AccessOption.PERSISTENT)) {
+      throw new ZkException("Failed to persist instance partitions: " + instancePartitions);
+    }
+  }
+
+  public static void persistInstancePartitionsForTableGroup(HelixPropertyStore<ZNRecord> propertyStore,
+      String tableGroupId,
+      InstancePartitions instancePartitions) {
+    String path = ZKMetadataProvider
+      .constructPropertyStorePathForGroupInstancePartitions(tableGroupId);
     if (!propertyStore.set(path, instancePartitions.toZNRecord(), AccessOption.PERSISTENT)) {
       throw new ZkException("Failed to persist instance partitions: " + instancePartitions);
     }

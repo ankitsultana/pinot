@@ -18,9 +18,13 @@
  */
 package org.apache.pinot.common.metadata;
 
+import com.google.common.base.Preconditions;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 import org.I0Itec.zkclient.exception.ZkBadVersionException;
 import org.apache.helix.AccessOption;
@@ -35,8 +39,10 @@ import org.apache.pinot.spi.config.ConfigUtils;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableGroupConfig;
 import org.apache.pinot.spi.config.table.TableType;
+import org.apache.pinot.spi.config.table.assignment.InstanceAssignmentConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.CommonConstants;
+import org.apache.pinot.spi.utils.JsonUtils;
 import org.apache.pinot.spi.utils.StringUtil;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
 import org.apache.zookeeper.data.Stat;
@@ -60,6 +66,8 @@ public class ZKMetadataProvider {
   private static final String PROPERTYSTORE_CLUSTER_CONFIGS_PREFIX = "/CONFIGS/CLUSTER";
   private static final String PROPERTYSTORE_SEGMENT_LINEAGE = "/SEGMENT_LINEAGE";
   private static final String PROPERTYSTORE_MINION_TASK_METADATA_PREFIX = "/MINION_TASK_METADATA";
+  private static final String PROPERTYSTORE_TABLE_GROUP_IP_FORMAT = "/CONFIGS/TABLE_GROUPS/%s/INSTANCE_PARTITIONS";
+  private static final String PROPERTYSTORE_TABLE_GROUP_CONFIG_FORMAT = "/CONFIGS/TABLE_GROUPS/%s/CONFIG";
 
   public static void setRealtimeTableConfig(ZkHelixPropertyStore<ZNRecord> propertyStore, String realtimeTableName,
       ZNRecord znRecord) {
@@ -110,7 +118,11 @@ public class ZKMetadataProvider {
   }
 
   public static String constructPropertyStorePathForGroupConfig(String tableGroupId) {
-    return StringUtil.join("/", PROPERTYSTORE_TABLE_GROUP_PREFIX, tableGroupId);
+    return StringUtil.join("/", String.format(PROPERTYSTORE_TABLE_GROUP_CONFIG_FORMAT, tableGroupId));
+  }
+
+  public static String constructPropertyStorePathForGroupInstancePartitions(String tableGroupId) {
+    return StringUtil.join("/", String.format(PROPERTYSTORE_TABLE_GROUP_IP_FORMAT, tableGroupId));
   }
 
   public static String constructPropertyStorePathForControllerConfig(String controllerConfigKey) {
@@ -210,9 +222,6 @@ public class ZKMetadataProvider {
     return toTableConfig(propertyStore.get(constructPropertyStorePathForResourceConfig(tableNameWithType), null,
         AccessOption.PERSISTENT));
   }
-
-  @Nullable
-  public static TableGroupConfig getTableGr
 
   @Nullable
   public static TableConfig getOfflineTableConfig(ZkHelixPropertyStore<ZNRecord> propertyStore, String tableName) {
@@ -421,5 +430,43 @@ public class ZKMetadataProvider {
     } else {
       return true;
     }
+  }
+
+  @Nullable
+  public static InstanceAssignmentConfig getInstanceAssignmentConfigForTableGroup(
+      ZkHelixPropertyStore<ZNRecord> propertyStore,
+      TableGroupConfig tableGroupConfig) {
+    if (!tableGroupConfig.isSet()) {
+      return null;
+    }
+    String path = String.format(PROPERTYSTORE_TABLE_GROUP_CONFIG_FORMAT, tableGroupConfig.getId());
+    if (!propertyStore.exists(path, AccessOption.PERSISTENT)) {
+      return null;
+    }
+    ZNRecord znRecord = propertyStore.get(path, null, AccessOption.PERSISTENT);
+    if (znRecord.getMapField("instanceAssignmentConfig") == null) {
+      return null;
+    }
+    try {
+      return JsonUtils.stringToObject(znRecord.getMapField("instanceAssignmentConfig").toString(),
+          InstanceAssignmentConfig.class);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static void setInstanceAssignmentConfigForTableGroup(ZkHelixPropertyStore<ZNRecord> propertyStore,
+      TableGroupConfig tableGroupConfig, InstanceAssignmentConfig instanceAssignmentConfig) {
+    Preconditions.checkArgument(tableGroupConfig != null && tableGroupConfig.isSet());
+    String path = String.format(PROPERTYSTORE_TABLE_GROUP_CONFIG_FORMAT, tableGroupConfig.getId());
+    ZNRecord znRecord = new ZNRecord(tableGroupConfig.getId());
+    Map<String, String> mapFields = new HashMap<>();
+    try {
+      mapFields = JsonUtils.stringToObject(JsonUtils.objectToString(instanceAssignmentConfig), Map.class);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    znRecord.setMapField("instanceAssignmentConfig", mapFields);
+    propertyStore.create(path, znRecord, AccessOption.PERSISTENT);
   }
 }

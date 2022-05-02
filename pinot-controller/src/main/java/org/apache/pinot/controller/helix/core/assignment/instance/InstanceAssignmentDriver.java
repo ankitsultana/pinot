@@ -21,9 +21,12 @@ package org.apache.pinot.controller.helix.core.assignment.instance;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.helix.ZNRecord;
 import org.apache.helix.model.InstanceConfig;
+import org.apache.helix.store.zk.ZkHelixPropertyStore;
 import org.apache.pinot.common.assignment.InstanceAssignmentConfigUtils;
 import org.apache.pinot.common.assignment.InstancePartitions;
+import org.apache.pinot.common.assignment.InstancePartitionsUtils;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.assignment.InstanceAssignmentConfig;
 import org.apache.pinot.spi.config.table.assignment.InstanceConstraintConfig;
@@ -46,18 +49,29 @@ public class InstanceAssignmentDriver {
   private static final Logger LOGGER = LoggerFactory.getLogger(InstanceAssignmentDriver.class);
 
   private final TableConfig _tableConfig;
+  private final ZkHelixPropertyStore<ZNRecord> _propertyStore;
 
-  public InstanceAssignmentDriver(TableConfig tableConfig) {
+  public InstanceAssignmentDriver(ZkHelixPropertyStore<ZNRecord> propertyStore, TableConfig tableConfig) {
     _tableConfig = tableConfig;
+    _propertyStore = propertyStore;
   }
 
   public InstancePartitions assignInstances(InstancePartitionsType instancePartitionsType,
       List<InstanceConfig> instanceConfigs) {
     String tableNameWithType = _tableConfig.getTableName();
     LOGGER.info("Starting {} instance assignment for table: {}", instancePartitionsType, tableNameWithType);
+    String tableGroupId = _tableConfig.getTableGroupConfig().getId();
+    if (!tableGroupId.isBlank()) {
+      InstancePartitions instancePartitions = InstancePartitionsUtils.fetchInstancePartitions(_propertyStore,
+          _tableConfig.getTableGroupConfig());
+      if (instancePartitions != null) {
+        LOGGER.info("Getting pre-computed instance partitions for table-group: " + tableGroupId);
+        return instancePartitions;
+      }
+    }
 
     InstanceAssignmentConfig assignmentConfig =
-        InstanceAssignmentConfigUtils.getInstanceAssignmentConfig(_tableConfig, instancePartitionsType);
+        InstanceAssignmentConfigUtils.getInstanceAssignmentConfig(_propertyStore, _tableConfig, instancePartitionsType);
     InstanceTagPoolSelector tagPoolSelector =
         new InstanceTagPoolSelector(assignmentConfig.getTagPoolConfig(), tableNameWithType);
     Map<Integer, List<InstanceConfig>> poolToInstanceConfigsMap = tagPoolSelector.selectInstances(instanceConfigs);
@@ -78,6 +92,9 @@ public class InstanceAssignmentDriver {
     InstancePartitions instancePartitions = new InstancePartitions(
         instancePartitionsType.getInstancePartitionsName(TableNameBuilder.extractRawTableName(tableNameWithType)));
     replicaPartitionSelector.selectInstances(poolToInstanceConfigsMap, instancePartitions);
+    if (!tableGroupId.isBlank()) {
+      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_propertyStore, tableGroupId, instancePartitions);
+    }
     return instancePartitions;
   }
 }

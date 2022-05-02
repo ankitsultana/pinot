@@ -20,6 +20,9 @@ package org.apache.pinot.common.assignment;
 
 import com.google.common.base.Preconditions;
 import java.util.Map;
+import org.apache.helix.ZNRecord;
+import org.apache.helix.store.zk.ZkHelixPropertyStore;
+import org.apache.pinot.common.metadata.ZKMetadataProvider;
 import org.apache.pinot.common.utils.config.TagNameUtils;
 import org.apache.pinot.spi.config.table.ReplicaGroupStrategyConfig;
 import org.apache.pinot.spi.config.table.SegmentsValidationAndRetentionConfig;
@@ -30,9 +33,13 @@ import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.config.table.assignment.InstanceReplicaGroupPartitionConfig;
 import org.apache.pinot.spi.config.table.assignment.InstanceTagPoolConfig;
 import org.apache.pinot.spi.utils.CommonConstants.Segment.AssignmentStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class InstanceAssignmentConfigUtils {
+  private static final Logger LOGGER = LoggerFactory.getLogger(InstanceAssignmentConfigUtils.class);
+
   private InstanceAssignmentConfigUtils() {
   }
 
@@ -79,8 +86,18 @@ public class InstanceAssignmentConfigUtils {
   /**
    * Extracts or generates default instance assignment config from the given table config.
    */
-  public static InstanceAssignmentConfig getInstanceAssignmentConfig(TableConfig tableConfig,
+  public static InstanceAssignmentConfig getInstanceAssignmentConfig(ZkHelixPropertyStore<ZNRecord> propertyStore,
+      TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType) {
+    String tableGroupId = tableConfig.getTableGroupConfig().getId();
+    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+      InstanceAssignmentConfig config = ZKMetadataProvider.getInstanceAssignmentConfigForTableGroup(propertyStore,
+          tableConfig.getTableGroupConfig());
+      if (config != null) {
+        LOGGER.info("Using pre-generated instance assignment config for table-group: " + tableGroupId);
+        return config;
+      }
+    }
     Preconditions.checkState(allowInstanceAssignment(tableConfig, instancePartitionsType),
         "Instance assignment is not allowed for the given table config");
 
@@ -118,7 +135,13 @@ public class InstanceAssignmentConfigUtils {
       replicaGroupPartitionConfig = new InstanceReplicaGroupPartitionConfig(true, 0, numReplicaGroups,
           replicaGroupStrategyConfig.getNumInstancesPerPartition(), 0, 0);
     }
-
-    return new InstanceAssignmentConfig(tagPoolConfig, null, replicaGroupPartitionConfig);
+    InstanceAssignmentConfig instanceAssignmentConfig = new InstanceAssignmentConfig(tagPoolConfig, null,
+        replicaGroupPartitionConfig);
+    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+      LOGGER.info("First instance assignment config detected for table group: " + tableGroupId);
+      ZKMetadataProvider.setInstanceAssignmentConfigForTableGroup(propertyStore, tableConfig.getTableGroupConfig(),
+          instanceAssignmentConfig);
+    }
+    return instanceAssignmentConfig;
   }
 }

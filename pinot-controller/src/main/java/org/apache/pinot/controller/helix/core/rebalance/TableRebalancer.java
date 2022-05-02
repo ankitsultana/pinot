@@ -413,25 +413,48 @@ public class TableRebalancer {
     return instancePartitionsMap;
   }
 
+  /**
+   * Given a table, returns the instance partitions for the given type (OFFLINE, CONSUMING, COMPLETED).
+   * It first checks whether the given table belongs to a table-group and whether the table-group
+   * already has an assignment. If yes, then it returns the same assignment.
+   */
   private InstancePartitions getInstancePartitions(TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType, boolean reassignInstances, boolean dryRun) {
+    String tableGroupId = tableConfig.getTableGroupConfig() == null ? "" : tableConfig.getTableGroupConfig().getId();
+    if (!tableGroupId.isBlank()) {
+      InstancePartitions ip = InstancePartitionsUtils.fetchInstancePartitions(_helixManager.getHelixPropertyStore(),
+          tableConfig.getTableGroupConfig());
+      if (ip != null) {
+        return ip;
+      }
+    }
     String tableNameWithType = tableConfig.getTableName();
     if (InstanceAssignmentConfigUtils.allowInstanceAssignment(tableConfig, instancePartitionsType)) {
       if (reassignInstances) {
         LOGGER.info("Reassigning {} instances for table: {}", instancePartitionsType, tableNameWithType);
-        InstanceAssignmentDriver instanceAssignmentDriver = new InstanceAssignmentDriver(tableConfig);
+        InstanceAssignmentDriver instanceAssignmentDriver = new InstanceAssignmentDriver(
+            _helixManager.getHelixPropertyStore(), tableConfig);
         InstancePartitions instancePartitions = instanceAssignmentDriver.assignInstances(instancePartitionsType,
             _helixDataAccessor.getChildValues(_helixDataAccessor.keyBuilder().instanceConfigs(), true));
         if (!dryRun) {
           LOGGER.info("Persisting instance partitions: {} to ZK", instancePartitions);
           InstancePartitionsUtils.persistInstancePartitions(_helixManager.getHelixPropertyStore(), instancePartitions);
+          if (tableConfig.getTableGroupConfig().isSet()) {
+            InstancePartitionsUtils.persistInstancePartitions(_helixManager.getHelixPropertyStore(),
+                instancePartitions);
+          }
         }
         return instancePartitions;
       } else {
         LOGGER.info("Fetching/computing {} instance partitions for table: {}", instancePartitionsType,
             tableNameWithType);
-        return InstancePartitionsUtils.fetchOrComputeInstancePartitions(_helixManager, tableConfig,
+        InstancePartitions ip = InstancePartitionsUtils.fetchOrComputeInstancePartitions(_helixManager, tableConfig,
             instancePartitionsType);
+        if (!tableGroupId.isBlank()) {
+          InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_helixManager.getHelixPropertyStore(),
+              tableGroupId, ip);
+        }
+        return ip;
       }
     } else {
       LOGGER.info("{} instance assignment is not allowed, using default instance partitions for table: {}",
@@ -446,6 +469,10 @@ public class TableRebalancer {
         String instancePartitionsName = instancePartitions.getInstancePartitionsName();
         LOGGER.info("Removing instance partitions: {} from ZK if it exists", instancePartitionsName);
         InstancePartitionsUtils.removeInstancePartitions(_helixManager.getHelixPropertyStore(), instancePartitionsName);
+        if (!tableGroupId.isBlank()) {
+          InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_helixManager.getHelixPropertyStore(),
+              tableGroupId, instancePartitions);
+        }
       }
       return instancePartitions;
     }

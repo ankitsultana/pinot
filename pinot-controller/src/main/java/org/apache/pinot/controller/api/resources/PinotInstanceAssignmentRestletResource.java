@@ -136,7 +136,9 @@ public class PinotInstanceAssignmentRestletResource {
         try {
           if (InstanceAssignmentConfigUtils
               .allowInstanceAssignment(offlineTableConfig, InstancePartitionsType.OFFLINE)) {
-            instancePartitionsMap.put(InstancePartitionsType.OFFLINE, new InstanceAssignmentDriver(offlineTableConfig)
+            instancePartitionsMap.put(InstancePartitionsType.OFFLINE, new InstanceAssignmentDriver(
+                _resourceManager.getPropertyStore(),
+                offlineTableConfig)
                 .assignInstances(InstancePartitionsType.OFFLINE, instanceConfigs));
           }
         } catch (IllegalStateException e) {
@@ -152,7 +154,9 @@ public class PinotInstanceAssignmentRestletResource {
       TableConfig realtimeTableConfig = _resourceManager.getRealtimeTableConfig(tableName);
       if (realtimeTableConfig != null) {
         try {
-          InstanceAssignmentDriver instanceAssignmentDriver = new InstanceAssignmentDriver(realtimeTableConfig);
+          InstanceAssignmentDriver instanceAssignmentDriver = new InstanceAssignmentDriver(
+              _resourceManager.getPropertyStore(),
+              realtimeTableConfig);
           if (instancePartitionsType == InstancePartitionsType.CONSUMING || instancePartitionsType == null) {
             if (InstanceAssignmentConfigUtils
                 .allowInstanceAssignment(realtimeTableConfig, InstancePartitionsType.CONSUMING)) {

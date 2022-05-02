@@ -19,6 +19,7 @@
 package org.apache.pinot.spi.config.table;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import javax.annotation.Nullable;
@@ -42,6 +43,7 @@ public class TableGroupConfig extends BaseJsonConfig {
     return _id;
   }
 
+  @JsonIgnore
   public boolean isSet() {
     return !_id.equals("");
   }

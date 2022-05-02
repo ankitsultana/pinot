@@ -55,6 +55,7 @@ public class TableConfigUtils {
 
   private static final String FIELD_MISSING_MESSAGE_TEMPLATE = "Mandatory field '%s' is missing";
 
+  // TODO: Add check to ensure partitioning is enabled if table-group is set.
   public static TableConfig fromZNRecord(ZNRecord znRecord)
       throws IOException {
     Map<String, String> simpleFields = znRecord.getSimpleFields();
@@ -176,9 +177,11 @@ public class TableConfigUtils {
     simpleFields.put(TableConfig.INDEXING_CONFIG_KEY, tableConfig.getIndexingConfig().toJsonString());
     simpleFields.put(TableConfig.CUSTOM_CONFIG_KEY, tableConfig.getCustomConfig().toJsonString());
     simpleFields.put(TableConfig.IS_DIM_TABLE_KEY, Boolean.toString(tableConfig.isDimTable()));
-    simpleFields.put(TableConfig.TABLE_GROUP_CONFIG_KEY, tableConfig.getTableGroupConfig().toJsonString());
 
     // Optional fields
+    if (tableConfig.getTableGroupConfig() != null) {
+      simpleFields.put(TableConfig.TABLE_GROUP_CONFIG_KEY, tableConfig.getTableGroupConfig().toJsonString());
+    }
     QuotaConfig quotaConfig = tableConfig.getQuotaConfig();
     if (quotaConfig != null) {
       simpleFields.put(TableConfig.QUOTA_CONFIG_KEY, quotaConfig.toJsonString());
