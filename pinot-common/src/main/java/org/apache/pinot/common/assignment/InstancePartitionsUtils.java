@@ -64,14 +64,24 @@ public class InstancePartitionsUtils {
 
     // Fetch the instance partitions from property store if it exists
     ZkHelixPropertyStore<ZNRecord> propertyStore = helixManager.getHelixPropertyStore();
-    InstancePartitions instancePartitions = fetchInstancePartitions(propertyStore,
-        getInstancePartitionsName(tableNameWithType, instancePartitionsType.toString()));
+    InstancePartitions instancePartitions;
+    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+      instancePartitions = fetchInstancePartitions(propertyStore, tableConfig.getTableGroupConfig());
+    } else {
+      instancePartitions = fetchInstancePartitions(propertyStore,
+          getInstancePartitionsName(tableNameWithType, instancePartitionsType.toString()));
+    }
     if (instancePartitions != null) {
       return instancePartitions;
     }
 
     // Compute the default instance partitions (for backward-compatibility)
-    return computeDefaultInstancePartitions(helixManager, tableConfig, instancePartitionsType);
+    instancePartitions = computeDefaultInstancePartitions(helixManager, tableConfig, instancePartitionsType);
+    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(propertyStore,
+          tableConfig.getTableGroupConfig().getId(), instancePartitions);
+    }
+    return instancePartitions;
   }
 
   /**

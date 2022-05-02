@@ -122,6 +122,7 @@ public final class TableConfigUtils {
       validateTierConfigList(tableConfig.getTierConfigsList());
       validateIndexingConfig(tableConfig.getIndexingConfig(), schema);
       validateFieldConfigList(tableConfig.getFieldConfigList(), tableConfig.getIndexingConfig(), schema);
+      validateTableGroupConfig(tableConfig);
       if (!skipTypes.contains(ValidationType.UPSERT)) {
         validateUpsertConfig(tableConfig, schema);
         validatePartialUpsertStrategies(tableConfig, schema);
@@ -752,6 +753,16 @@ public final class TableConfigUtils {
         }
       }
     }
+  }
+
+  private static void validateTableGroupConfig(TableConfig tableConfig) {
+    if (tableConfig.getTableGroupConfig() == null || !tableConfig.getTableGroupConfig().isSet()) {
+      return;
+    }
+    Preconditions.checkState(tableConfig.getValidationConfig().getReplicaGroupStrategyConfig() != null, "Must provide"
+        + " a partitioning column via replicaGroupStrategyConfig when using table-groups");
+    Preconditions.checkState(tableConfig.getInstanceAssignmentConfigMap() == null, "Should not"
+        + "provide instance assignment config when using table-groups");
   }
 
   private static void sanitize(TableConfig tableConfig) {

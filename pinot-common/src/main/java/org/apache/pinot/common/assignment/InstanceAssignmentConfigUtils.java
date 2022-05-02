@@ -107,6 +107,11 @@ public class InstanceAssignmentConfigUtils {
     if (instanceAssignmentConfigMap != null) {
       InstanceAssignmentConfig instanceAssignmentConfig = instanceAssignmentConfigMap.get(instancePartitionsType);
       if (instanceAssignmentConfig != null) {
+        if (!tableGroupId.isBlank()) {
+          LOGGER.info("First instance assignment config detected for table group: " + tableGroupId);
+          ZKMetadataProvider.setInstanceAssignmentConfigForTableGroup(propertyStore, tableConfig.getTableGroupConfig(),
+              instanceAssignmentConfig);
+        }
         return instanceAssignmentConfig;
       }
     }
@@ -137,7 +142,7 @@ public class InstanceAssignmentConfigUtils {
     }
     InstanceAssignmentConfig instanceAssignmentConfig = new InstanceAssignmentConfig(tagPoolConfig, null,
         replicaGroupPartitionConfig);
-    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+    if (!tableGroupId.isBlank()) {
       LOGGER.info("First instance assignment config detected for table group: " + tableGroupId);
       ZKMetadataProvider.setInstanceAssignmentConfigForTableGroup(propertyStore, tableConfig.getTableGroupConfig(),
           instanceAssignmentConfig);
