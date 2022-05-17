@@ -97,7 +97,7 @@ public class Quickstart extends QuickStartBase {
     File dataDir = new File("/Users/ankitsultana/.pinot-data/quickstar/");
 
     QuickstartRunner runner =
-        new QuickstartRunner(getTables(), 1, 1, 2,
+        new QuickstartRunner(getTables(), 1, 1, 4,
             getNumMinions(), dataDir, true, getAuthToken(),
             getConfigOverrides(), null, true);
 

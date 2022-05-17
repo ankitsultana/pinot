@@ -5,7 +5,11 @@
     "segmentPushType": "APPEND",
     "segmentAssignmentStrategy": "BalanceNumSegmentAssignmentStrategy",
     "schemaName": "baseball",
-    "replication": "1"
+    "replication": "2",
+    "replicaGroupStrategyConfig": {
+      "partitionColumn": "teamID",
+      "numInstancesPerPartition": 1
+    }
   },
   "tenants": {
   },
