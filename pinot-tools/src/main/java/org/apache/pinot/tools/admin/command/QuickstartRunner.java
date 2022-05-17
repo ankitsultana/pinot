@@ -58,7 +58,7 @@ public class QuickstartRunner {
   private static final int DEFAULT_CONTROLLER_PORT = 9000;
   private static final int DEFAULT_BROKER_PORT = 8000;
   private static final int DEFAULT_SERVER_ADMIN_API_PORT = 7500;
-  private static final int DEFAULT_SERVER_NETTY_PORT = 7000;
+  private static final int DEFAULT_SERVER_NETTY_PORT = 17000;
   private static final int DEFAULT_MINION_PORT = 6000;
 
   private static final String DEFAULT_ZK_DIR = "PinotZkDir";
@@ -231,6 +231,7 @@ public class QuickstartRunner {
   public void bootstrapTable()
       throws Exception {
     for (QuickstartTableRequest request : _tableRequests) {
+      LOGGER.info(String.format("Bootstrapping: %s", request.getBootstrapTableDir()));
       if (!new BootstrapTableTool("http", "localhost", _controllerPorts.get(0), request.getBootstrapTableDir(),
           _authToken).execute()) {
         throw new RuntimeException("Failed to bootstrap table with request - " + request);

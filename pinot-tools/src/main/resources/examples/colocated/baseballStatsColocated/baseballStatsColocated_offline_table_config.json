@@ -1,0 +1,46 @@
+{
+  "tableName": "baseballStatsColocated",
+  "tableType": "OFFLINE",
+  "segmentsConfig": {
+    "segmentPushType": "APPEND",
+    "segmentAssignmentStrategy": "BalanceNumSegmentAssignmentStrategy",
+    "schemaName": "baseball",
+    "replication": "1"
+  },
+  "tenants": {
+  },
+  "tableIndexConfig": {
+    "loadMode": "HEAP",
+    "invertedIndexColumns": [
+      "playerID",
+      "teamID"
+    ],
+    "segmentPartitionConfig": {
+      "columnPartitionMap": {
+        "teamID": {
+          "functionName": "Murmur",
+          "numPartitions": 4
+        }
+      }
+    }
+  },
+  "instanceAssignmentConfigMap": {
+    "OFFLINE": {
+      "tagPoolConfig": {
+        "tag": "DefaultTenant_OFFLINE"
+      },
+      "replicaGroupPartitionConfig": {
+        "replicaGroupBased": true,
+        "numReplicaGroups": 2,
+        "numInstancesPerReplicaGroup": 1
+      }
+    }
+  },
+  "tableGroup": {
+    "id": "group1"
+  },
+  "metadata": {
+    "customConfigs": {
+    }
+  }
+}

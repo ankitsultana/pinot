@@ -20,13 +20,17 @@ package org.apache.pinot.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.tools.admin.PinotAdministrator;
 import org.apache.pinot.tools.admin.command.QuickstartRunner;
@@ -89,21 +93,11 @@ public class Quickstart extends QuickStartBase {
 
   public void execute()
       throws Exception {
-    String tableName = getTableName(DEFAULT_BOOTSTRAP_DIRECTORY);
     File quickstartTmpDir = new File(_dataDir, String.valueOf(System.currentTimeMillis()));
-    File baseDir = new File(quickstartTmpDir, tableName);
-    File dataDir = new File(baseDir, "rawdata");
-    Preconditions.checkState(dataDir.mkdirs());
+    File dataDir = new File("/Users/ankitsultana/.pinot-data/quickstar/");
 
-    if (useDefaultBootstrapTableDir()) {
-      copyResourceTableToTmpDirectory(getBootstrapDataDir(DEFAULT_BOOTSTRAP_DIRECTORY), tableName, baseDir, dataDir);
-    } else {
-      copyFilesystemTableToTmpDirectory(getBootstrapDataDir(DEFAULT_BOOTSTRAP_DIRECTORY), tableName, baseDir);
-    }
-
-    QuickstartTableRequest request = new QuickstartTableRequest(baseDir.getAbsolutePath());
     QuickstartRunner runner =
-        new QuickstartRunner(Lists.newArrayList(request), 1, 1, 1,
+        new QuickstartRunner(getTables(), 1, 1, 2,
             getNumMinions(), dataDir, true, getAuthToken(),
             getConfigOverrides(), null, true);
 
@@ -118,7 +112,6 @@ public class Quickstart extends QuickStartBase {
         e.printStackTrace();
       }
     }));
-    printStatus(Color.CYAN, "***** Bootstrap " + tableName + " table *****");
     runner.bootstrapTable();
 
     waitForBootstrapToComplete(runner);
@@ -133,22 +126,40 @@ public class Quickstart extends QuickStartBase {
     printStatus(Color.GREEN, "You can always go to http://localhost:9000 to play around in the query console");
   }
 
+  private List<QuickstartTableRequest> getTables()
+      throws IOException {
+    return Arrays.asList(
+        getTableRequest("examples/batch/baseballStats"),
+        getTableRequest("examples/colocated/baseballStatsColocated"));
+  }
+
+  private QuickstartTableRequest getTableRequest(String bootstrapDataDir)
+      throws IOException {
+    String tableName = getTableName(bootstrapDataDir);
+    File quickstartTmpDir = new File(_dataDir, String.valueOf(System.currentTimeMillis()));
+    File baseDir = new File(quickstartTmpDir, tableName);
+    File dataDir = new File(baseDir, "rawdata");
+    Preconditions.checkState(dataDir.mkdirs());
+    if (useDefaultBootstrapTableDir()) {
+      copyResourceTableToTmpDirectory(getBootstrapDataDir(bootstrapDataDir), tableName, baseDir, dataDir);
+    } else {
+      copyFilesystemTableToTmpDirectory(getBootstrapDataDir(bootstrapDataDir), tableName, baseDir);
+    }
+    return new QuickstartTableRequest(baseDir.getAbsolutePath());
+  }
+
   private static void copyResourceTableToTmpDirectory(String sourcePath, String tableName, File baseDir, File dataDir)
       throws IOException {
 
     File schemaFile = new File(baseDir, tableName + "_schema.json");
     File tableConfigFile = new File(baseDir, tableName + "_offline_table_config.json");
     File ingestionJobSpecFile = new File(baseDir, "ingestionJobSpec.yaml");
-    File dataFile = new File(dataDir, tableName + "_data.csv");
 
     ClassLoader classLoader = Quickstart.class.getClassLoader();
     URL resource = classLoader.getResource(sourcePath + File.separator + tableName + "_schema.json");
     com.google.common.base.Preconditions.checkNotNull(resource);
     FileUtils.copyURLToFile(resource, schemaFile);
-    resource =
-        classLoader.getResource(sourcePath + File.separator + "rawdata" + File.separator + tableName + "_data.csv");
-    com.google.common.base.Preconditions.checkNotNull(resource);
-    FileUtils.copyURLToFile(resource, dataFile);
+    copyMultipleDataFiles(tableName, sourcePath, dataDir);
     resource = classLoader.getResource(sourcePath + File.separator + "ingestionJobSpec.yaml");
     if (resource != null) {
       FileUtils.copyURLToFile(resource, ingestionJobSpecFile);
@@ -156,6 +167,47 @@ public class Quickstart extends QuickStartBase {
     resource = classLoader.getResource(sourcePath + File.separator + tableName + "_offline_table_config.json");
     com.google.common.base.Preconditions.checkNotNull(resource);
     FileUtils.copyURLToFile(resource, tableConfigFile);
+  }
+
+  private static void copyMultipleDataFiles(String tableName, String sourcePath, File dataDir)
+      throws IOException {
+    String baseDir = sourcePath + File.separator + "rawdata";
+    System.out.println(tableName);
+    System.out.println(sourcePath);
+    System.out.println(baseDir);
+    URL url = Quickstart.class.getClassLoader().getResource(baseDir);
+    Preconditions.checkNotNull(url, "couldn't find rawdata resource");
+    List<URL> files = getFoo(url, baseDir);
+    int cnt = 0;
+    for (URL f : files) {
+      System.out.println("Copying file: " + f);
+      copyDataFile(f, new File(dataDir, tableName + "_" + cnt++ + "_data.csv"));
+    }
+  }
+
+  private static List<URL> getFoo(URL url, String directoryName)
+      throws IOException {
+    List<URL> filenames = new ArrayList<>();
+    String dirname = directoryName + "/";
+    String path = url.getPath();
+    String jarPath = path.substring(5, path.indexOf("!"));
+    try (JarFile jar = new JarFile(URLDecoder.decode(jarPath, StandardCharsets.UTF_8.name()))) {
+      Enumeration<JarEntry> entries = jar.entries();
+      while (entries.hasMoreElements()) {
+        JarEntry entry = entries.nextElement();
+        String name = entry.getName();
+        if (name.startsWith(dirname) && !dirname.equals(name)) {
+          URL resource = Thread.currentThread().getContextClassLoader().getResource(name);
+          filenames.add(resource);
+        }
+      }
+    }
+    return filenames;
+  }
+
+  private static void copyDataFile(URL resource, File outputFile)
+      throws IOException {
+    FileUtils.copyURLToFile(resource, outputFile);
   }
 
   private static void copyFilesystemTableToTmpDirectory(String sourcePath, String tableName, File baseDir)
