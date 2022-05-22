@@ -130,7 +130,8 @@ public class Quickstart extends QuickStartBase {
       throws IOException {
     return Arrays.asList(
         getTableRequest("examples/batch/baseballStats"),
-        getTableRequest("examples/colocated/baseballStatsColocated"));
+        getTableRequest("examples/colocated/baseballStatsColocated"),
+        getTableRequest("examples/colocated/dimBaseballTeamsColocated"));
   }
 
   private QuickstartTableRequest getTableRequest(String bootstrapDataDir)
