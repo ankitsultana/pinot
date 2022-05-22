@@ -30,9 +30,12 @@ import io.swagger.annotations.ApiResponses;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -55,6 +58,7 @@ import org.apache.helix.ZNRecord;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
 import org.apache.pinot.common.exception.InvalidConfigException;
 import org.apache.pinot.common.metadata.ZKMetadataProvider;
+import org.apache.pinot.common.metadata.segment.SegmentPartitionMetadata;
 import org.apache.pinot.common.metadata.segment.SegmentZKMetadata;
 import org.apache.pinot.common.utils.SegmentName;
 import org.apache.pinot.common.utils.URIUtils;
@@ -66,6 +70,7 @@ import org.apache.pinot.controller.helix.core.PinotHelixResourceManager;
 import org.apache.pinot.controller.helix.core.PinotResourceManagerResponse;
 import org.apache.pinot.controller.util.ConsumingSegmentInfoReader;
 import org.apache.pinot.controller.util.TableMetadataReader;
+import org.apache.pinot.segment.spi.partition.metadata.ColumnPartitionMetadata;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
@@ -207,6 +212,40 @@ public class PinotSegmentRestletResource {
       resultList.add(resultForTable);
     }
     return resultList;
+  }
+
+  @GET
+  @Path("segments/{tableName}/xdebug")
+  @Produces(MediaType.APPLICATION_JSON)
+  @ApiOperation(value = "Debug co-location")
+    public Map<Integer, Set<String>> getCoLocationDebugInfo(
+      @ApiParam(value = "Name of the table", required = true) @PathParam("tableName") String tableName) {
+    String tableNameWithType = TableNameBuilder.forType(TableType.OFFLINE).tableNameWithType(tableName);
+    List<String> segmentNames =
+        _pinotHelixResourceManager.getSegmentsFor(tableNameWithType, false);
+    Map<Integer, Set<String>> result = new HashMap<>();
+    for (String segmentName: segmentNames) {
+      SegmentPartitionMetadata partitionMetadata = _pinotHelixResourceManager.getSegmentZKMetadata(tableNameWithType,
+          segmentName).getPartitionMetadata();
+      if (partitionMetadata == null) {
+        throw new WebApplicationException("partition metadata is null", Status.INTERNAL_SERVER_ERROR);
+      }
+      Map<String, ColumnPartitionMetadata> columnPartitionMap = partitionMetadata.getColumnPartitionMap();
+      if (columnPartitionMap.size() != 1) {
+        throw new WebApplicationException("column partition map doesn't have size 1", Status.INTERNAL_SERVER_ERROR);
+      }
+      Set<Integer> partitions = new HashSet<>();
+      for (ColumnPartitionMetadata partitionMetadata1 : columnPartitionMap.values()) {
+        partitions.addAll(partitionMetadata1.getPartitions());
+      }
+      if (partitions.size() != 1) {
+        throw new WebApplicationException("number of partitions in segment is not 1", Status.INTERNAL_SERVER_ERROR);
+      }
+      int segmentPartitionId = partitions.iterator().next();
+      result.computeIfAbsent(segmentPartitionId, (x) -> new HashSet<>()).addAll(
+          _pinotHelixResourceManager.getServersForSegment(tableNameWithType, segmentName));
+    }
+    return result;
   }
 
   @Deprecated
