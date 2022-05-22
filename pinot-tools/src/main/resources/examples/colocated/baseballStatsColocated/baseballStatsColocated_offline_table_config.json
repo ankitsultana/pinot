@@ -36,7 +36,7 @@
       "replicaGroupPartitionConfig": {
         "replicaGroupBased": true,
         "numReplicaGroups": 2,
-        "numInstancesPerReplicaGroup": 1
+        "numInstancesPerReplicaGroup": 2
       }
     }
   },
