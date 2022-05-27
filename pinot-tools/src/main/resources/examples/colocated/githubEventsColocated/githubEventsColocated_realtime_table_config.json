@@ -1,0 +1,68 @@
+{
+  "tableName": "githubEventsColocated",
+  "tableType": "REALTIME",
+  "segmentsConfig": {
+    "timeColumnName": "mergedTimeMillis",
+    "retentionTimeUnit": "DAYS",
+    "retentionTimeValue": "60",
+    "schemaName": "githubEventsColocated",
+    "replication": "1",
+    "replicasPerPartition": "1",
+    "replicaGroupStrategyConfig": {
+      "partitionColumn": "userId",
+      "numInstancesPerPartition": 1
+    }
+  },
+  "tenants": {},
+  "instanceAssignmentConfigMap": {
+    "COMPLETED": {
+      "tagPoolConfig": {
+        "tag": "DefaultTenant_REALTIME",
+        "poolBased": false,
+        "numPools": 0
+      },
+      "replicaGroupPartitionConfig": {
+        "replicaGroupBased": true,
+        "numInstances": 0,
+        "numReplicaGroups": 2,
+        "numInstancesPerReplicaGroup": 2,
+        "numPartitions": 0,
+        "numInstancesPerPartition": 0
+      }
+    }
+  },
+  "tableIndexConfig": {
+    "loadMode": "MMAP",
+    "invertedIndexColumns": [
+      "organization",
+      "repo"
+    ],
+    "streamConfigs": {
+      "streamType": "kafka",
+      "stream.kafka.consumer.type": "simple",
+      "stream.kafka.topic.name": "pullRequestMergedEvents",
+      "stream.kafka.decoder.class.name": "org.apache.pinot.plugin.stream.kafka.KafkaJSONMessageDecoder",
+      "stream.kafka.consumer.factory.class.name": "org.apache.pinot.plugin.stream.kafka20.KafkaConsumerFactory",
+      "stream.kafka.zk.broker.url": "localhost:2191/kafka",
+      "stream.kafka.broker.list": "localhost:19092",
+      "realtime.segment.flush.threshold.time": "12h",
+      "realtime.segment.flush.threshold.size": "100000",
+      "stream.kafka.consumer.prop.auto.offset.reset": "smallest"
+    },
+    "segmentPartitionConfig": {
+      "columnPartitionMap": {
+        "userId": {
+          "functionName": "Hashcode",
+          "numPartitions": 4
+        }
+      }
+    }
+  },
+  "tableGroup": {
+    "id": "group1"
+  },
+  "metadata": {
+    "customConfigs": {}
+  }
+}
+

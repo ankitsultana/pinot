@@ -40,7 +40,11 @@ public class SegmentAssignmentFactory {
             tableConfig.isDimTable() ? new OfflineDimTableSegmentAssignment() : new OfflineSegmentAssignment();
       }
     } else {
-      segmentAssignment = new RealtimeSegmentAssignment();
+      if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+        segmentAssignment = new ColocatedRealtimeSegmentAssignment();
+      } else {
+        segmentAssignment = new RealtimeSegmentAssignment();
+      }
     }
     segmentAssignment.init(helixManager, tableConfig);
     return segmentAssignment;
