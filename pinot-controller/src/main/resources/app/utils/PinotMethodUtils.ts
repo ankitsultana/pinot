@@ -67,7 +67,8 @@ import {
   getState,
   getInfo,
   authenticateUser,
-  getSegmentDebugInfo
+  getSegmentDebugInfo,
+  getTableGroup, getTableGroupList
 } from '../requests';
 import { baseApi } from './axios-config';
 import Utils from './Utils';
@@ -470,6 +471,22 @@ const getTableSummaryData = (tableName) => {
     };
   });
 };
+
+const getTableGroupListData = () => {
+  return getTableGroupList().then(({data}) => {
+    return data.groups
+  })
+}
+
+const getTableGroupData = (groupName) => {
+  return getTableGroup(groupName).then(({ data }) => {
+    return {
+      groupName: data.tableGroup,
+      tables: data.tables,
+      config: data.config,
+    }
+  })
+}
 
 // This method is used to display segment list of a particular tenant table
 // API: /tables/:tableName/idealstate
@@ -900,6 +917,8 @@ export default {
   getTenantTableData,
   getAllTableDetails,
   getTableSummaryData,
+  getTableGroupData,
+  getTableGroupListData,
   getSegmentList,
   getSegmentStatus,
   getTableDetails,

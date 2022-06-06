@@ -18,9 +18,25 @@
  */
 
 import { AxiosResponse } from 'axios';
-import { TableData, Instances, Instance, Tenants, ClusterConfig, TableName, TableSize,
-  IdealState, QueryTables, TableSchema, SQLResult, ClusterName, ZKGetList, ZKConfig, OperationResponse,
-  BrokerList, ServerList
+import {
+  TableData,
+  Instances,
+  Instance,
+  Tenants,
+  ClusterConfig,
+  TableName,
+  TableSize,
+  IdealState,
+  QueryTables,
+  TableSchema,
+  SQLResult,
+  ClusterName,
+  ZKGetList,
+  ZKConfig,
+  OperationResponse,
+  BrokerList,
+  ServerList,
+  TableGroup, Groups
 } from 'Models';
 
 const headers = {
@@ -59,6 +75,12 @@ export const getSegmentMetadata = (tableName: string, segmentName: string): Prom
 
 export const getTableSize = (name: string): Promise<AxiosResponse<TableSize>> =>
   baseApi.get(`/tables/${name}/size`);
+
+export const getTableGroupList = (): Promise<AxiosResponse<Groups>> =>
+  baseApi.get(`/groups`)
+
+export const getTableGroup = (name: string): Promise<AxiosResponse<TableGroup>> =>
+  baseApi.get(`/groups/${name}`)
 
 export const getIdealState = (name: string): Promise<AxiosResponse<IdealState>> =>
   baseApi.get(`/tables/${name}/idealstate`);

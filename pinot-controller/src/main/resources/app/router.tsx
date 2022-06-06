@@ -23,17 +23,20 @@ import InstanceListingPage from './pages/InstanceListingPage';
 import TablesListingPage from './pages/TablesListingPage';
 import TenantsPage from './pages/Tenants';
 import TenantPageDetails from './pages/TenantDetails';
+import TableGroupsPage from "./pages/TableGroupsPage";
 import QueryPage from './pages/Query';
 import SegmentDetails from './pages/SegmentDetails';
 import InstanceDetails from './pages/InstanceDetails';
 import ZookeeperPage from './pages/ZookeeperPage';
 import SchemaPageDetails from './pages/SchemaPageDetails';
 import LoginPage from './pages/LoginPage';
+import GroupsListingPage from "./pages/GroupsListingPage";
 
 export default [
   { path: '/', Component: HomePage },
   { path: '/query', Component: QueryPage },
   { path: '/tenants', Component: TenantsListingPage },
+  { path: '/groups', Component: GroupsListingPage },
   { path: '/controllers', Component: InstanceListingPage },
   { path: '/brokers', Component: InstanceListingPage },
   { path: '/servers', Component: InstanceListingPage },
