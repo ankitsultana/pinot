@@ -71,9 +71,8 @@ declare module 'Models' {
   };
 
   export type TableGroup = {
-    tableGroup: string;
-    tables: Array<string>;
-    config: string;
+    groupName: string;
+    instanceAssignmentConfig: string;
   }
 
   type Segments = {

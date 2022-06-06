@@ -99,6 +99,7 @@ import org.apache.pinot.common.minion.MinionTaskMetadataUtils;
 import org.apache.pinot.common.utils.HashUtil;
 import org.apache.pinot.common.utils.config.InstanceUtils;
 import org.apache.pinot.common.utils.config.TableConfigUtils;
+import org.apache.pinot.common.utils.config.TableGroupConfigUtils;
 import org.apache.pinot.common.utils.config.TagNameUtils;
 import org.apache.pinot.common.utils.helix.HelixHelper;
 import org.apache.pinot.common.utils.helix.PinotHelixPropertyStoreZnRecordProvider;
@@ -130,6 +131,7 @@ import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.config.table.TenantConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
+import org.apache.pinot.spi.config.table.assignment.TableGroupConfig;
 import org.apache.pinot.spi.config.tenant.Tenant;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.stream.StreamConfig;
@@ -1483,6 +1485,16 @@ public class PinotHelixResourceManager {
           .put(tableNameWithType, SegmentAssignmentUtils.getInstanceStateMap(brokers, BrokerResourceStateModel.ONLINE));
       return idealState;
     });
+  }
+
+  public void addTableGroup(String groupName, TableGroupConfig tableGroupConfig)
+      throws IOException {
+    String groupPath = ZKMetadataProvider.constructPropertyStorePathForTableGroup(groupName);
+    if (_propertyStore.exists(groupPath, AccessOption.PERSISTENT)) {
+      throw new IllegalArgumentException(String.format("Group=%s already exists", groupName));
+    }
+    ZNRecord znRecord = TableGroupConfigUtils.toZNRecord(tableGroupConfig);
+    _propertyStore.create(groupPath, znRecord, AccessOption.PERSISTENT);
   }
 
   /**

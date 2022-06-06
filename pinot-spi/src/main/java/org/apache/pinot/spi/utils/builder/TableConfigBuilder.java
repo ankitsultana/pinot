@@ -34,7 +34,6 @@ import org.apache.pinot.spi.config.table.SegmentsValidationAndRetentionConfig;
 import org.apache.pinot.spi.config.table.StarTreeIndexConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableCustomConfig;
-import org.apache.pinot.spi.config.table.TableGroupConfig;
 import org.apache.pinot.spi.config.table.TableTaskConfig;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.config.table.TagOverrideConfig;
@@ -113,7 +112,7 @@ public class TableConfigBuilder {
   private IngestionConfig _ingestionConfig;
   private List<TierConfig> _tierConfigList;
   private List<TunerConfig> _tunerConfigList;
-  private TableGroupConfig _tableGroupConfig;
+  private String _tableGroupConfig;
 
   public TableConfigBuilder(TableType tableType) {
     _tableType = tableType;
@@ -363,7 +362,7 @@ public class TableConfigBuilder {
     return this;
   }
 
-  public TableConfigBuilder setTableGroupConfig(TableGroupConfig tableGroupConfig) {
+  public TableConfigBuilder setTableGroupConfig(String tableGroupConfig) {
     _tableGroupConfig = tableGroupConfig;
     return this;
   }
@@ -414,10 +413,6 @@ public class TableConfigBuilder {
 
     if (_customConfig == null) {
       _customConfig = new TableCustomConfig(null);
-    }
-
-    if (_tableGroupConfig == null) {
-      _tableGroupConfig = TableGroupConfig.ofEmpty();
     }
 
     return new TableConfig(_tableName, _tableType.toString(), validationConfig, tenantConfig, indexingConfig,

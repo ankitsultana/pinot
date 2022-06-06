@@ -17,32 +17,28 @@
  * under the License.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { makeStyles } from '@material-ui/core/styles';
-import { FormControlLabel, Grid, Switch, Tooltip } from '@material-ui/core';
-import { RouteComponentProps, useHistory, useLocation } from 'react-router-dom';
+import { Grid } from '@material-ui/core';
+import { RouteComponentProps, useHistory } from 'react-router-dom';
 import { UnControlled as CodeMirror } from 'react-codemirror2';
 import { TableData } from 'Models';
 import _ from 'lodash';
 import AppLoader from '../components/AppLoader';
 import CustomizedTables from '../components/Table';
-import TableToolbar from '../components/TableToolbar';
 import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/material.css';
 import 'codemirror/mode/javascript/javascript';
 import 'codemirror/mode/sql/sql';
 import SimpleAccordion from '../components/SimpleAccordion';
 import PinotMethodUtils from '../utils/PinotMethodUtils';
-import CustomButton from '../components/CustomButton';
 import EditConfigOp from '../components/Homepage/Operations/EditConfigOp';
-import ReloadStatusOp from '../components/Homepage/Operations/ReloadStatusOp';
-import RebalanceServerTableOp from '../components/Homepage/Operations/RebalanceServerTableOp';
-import Confirm from '../components/Confirm';
 import { NotificationContext } from '../components/Notification/NotificationContext';
 import Utils from '../utils/Utils';
-import InfoOutlinedIcon from '@material-ui/icons/InfoOutlined';
+import CustomButton from '../components/CustomButton';
+import Confirm from '../components/Confirm';
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
     root: {
         border: '1px #BDCCD9 solid',
         borderRadius: 4,
@@ -86,65 +82,74 @@ const jsonoptions = {
 };
 
 type Props = {
+    tenantName: string;
     groupName: string;
+    instanceName: string;
 };
 
 type Summary = {
     groupName: string;
-    tables: Array<string>;
-    config: string;
 };
 
-const TableGroupsPage = ({ match }: RouteComponentProps<Props>) => {
-    const tableGroupName = match.params.groupName;
-    const {dispatch} = React.useContext(NotificationContext);
+const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
+    const { groupName } = match.params;
+    const classes = useStyles();
+    const [fetching, setFetching] = useState(true);
+    const [] = useState<Summary>({
+                                     groupName: match.params.groupName,
+                                 });
+
+    const [] = React.useState({
+                                  enabled: true,
+                              });
+
     const [confirmDialog, setConfirmDialog] = React.useState(false);
     const [dialogDetails, setDialogDetails] = React.useState(null);
-    const closeDialog = () => {
-        setConfirmDialog(false);
-        setDialogDetails(null);
+    const {dispatch} = React.useContext(NotificationContext);
+
+    const [showEditConfig, setShowEditConfig] = useState(false);
+    const [config, setConfig] = useState('{}');
+
+    const [tableConfig, setTableConfig] = useState('');
+    const [groupConfigJSON, setGroupConfigJSON] = useState(null);
+
+    const fetchGroupConfigJSON = async () => {
+        const result = await PinotMethodUtils.getTableGroupData(groupName);
+        setTableConfig(JSON.stringify(result, null, 2));
+        setFetching(false);
     };
-    const [groupSummary, setGroupSummary] = useState<Summary>({
-        groupName: tableGroupName,
-        tables: [],
-        config: "",
-   });
+
+    useEffect(()=>{
+        fetchGroupConfigJSON();
+    },[])
 
     const handleConfigChange = (value: string) => {
         setConfig(value);
     };
 
-    const fetchGroupData = async () => {
-        setFetching(true);
-        const result = await PinotMethodUtils.getTableGroupData(tableGroupName);
-        setGroupSummary(result);
+    const saveConfigAction = async () => {
+        console.log("saving config: ")
+        console.log(config)
+        let configObj = JSON.parse(config);
+        const result = await PinotMethodUtils.updateTableGroup(groupName, configObj)
+        syncResponse(result)
     };
+
     const syncResponse = (result) => {
         if(result.status){
             dispatch({type: 'success', message: result.status, show: true});
-            fetchGroupData();
             setShowEditConfig(false);
+            fetchGroupConfigJSON();
         } else {
             dispatch({type: 'error', message: result.error, show: true});
         }
-        closeDialog();
     };
-    const saveConfigAction = async () => {
-        let configObj = JSON.parse(config);
-        if(actionType === 'editGroup'){
-            if(configObj.OFFLINE || configObj.REALTIME){
-                configObj = configObj.OFFLINE || configObj.REALTIME;
-            }
-            const result = await PinotMethodUtils.updateTable(tableGroupName, configObj);
-            syncResponse(result);
-        }
+
+    const closeDialog = () => {
+        setConfirmDialog(false);
+        setDialogDetails(null);
     };
-    const [fetching, setFetching] = useState(true);
-    const [groupConfig, setTableConfig] = useState('');
-    const [showEditConfig, setShowEditConfig] = useState(false);
-    const [config, setConfig] = useState('{}');
-    const [actionType, setActionType] = useState(null);
-    const classes = useStyles();
+
     return fetching ? (
         <AppLoader />
     ) : (
@@ -166,29 +171,27 @@ const TableGroupsPage = ({ match }: RouteComponentProps<Props>) => {
                     <div>
                         <CustomButton
                             onClick={()=>{
-                                setActionType('editGroup');
-                                setConfig(groupConfig);
+                                setConfig(JSON.stringify(groupConfigJSON, null, 2));
                                 setShowEditConfig(true);
                             }}
-                            tooltipTitle="Edit Table"
+                            tooltipTitle="Edit Group"
                             enableTooltip={true}
                         >
-                            Edit Table
+                            Edit Group
                         </CustomButton>
                     </div>
                 </SimpleAccordion>
             </div>
-
             <Grid container spacing={2}>
                 <Grid item xs={6}>
                     <div className={classes.sqlDiv}>
                         <SimpleAccordion
-                            headerTitle="Table Group Config"
+                            headerTitle="Table Group Config Json"
                             showSearchBox={false}
                         >
                             <CodeMirror
                                 options={jsonoptions}
-                                value={groupConfig}
+                                value={tableConfig}
                                 className={classes.queryOutput}
                                 autoCursor={false}
                             />
@@ -214,6 +217,6 @@ const TableGroupsPage = ({ match }: RouteComponentProps<Props>) => {
             />}
         </Grid>
     );
-}
+};
 
-export default TableGroupsPage;
+export default GroupPageDetails;

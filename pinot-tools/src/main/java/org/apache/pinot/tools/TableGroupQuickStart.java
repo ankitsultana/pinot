@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,10 +33,13 @@ import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.pinot.common.utils.ZkStarter;
 import org.apache.pinot.spi.stream.StreamDataProvider;
 import org.apache.pinot.spi.stream.StreamDataServerStartable;
+import org.apache.pinot.spi.utils.builder.ControllerRequestURLBuilder;
 import org.apache.pinot.tools.admin.PinotAdministrator;
+import org.apache.pinot.tools.admin.command.AbstractBaseAdminCommand;
 import org.apache.pinot.tools.admin.command.QuickstartRunner;
 import org.apache.pinot.tools.streams.githubevents.PullRequestMergedEventsStream;
 import org.apache.pinot.tools.utils.KafkaStarterUtils;
@@ -132,6 +136,10 @@ public class TableGroupQuickStart extends QuickStartBase {
         e.printStackTrace();
       }
     }));
+    if (!createTableGroup()) {
+      printStatus(Quickstart.Color.YELLOW, "***** Error creating table-group *****");
+      throw new RuntimeException("Error creating table-group");
+    }
     runner.bootstrapTable();
 
     waitForBootstrapToComplete(runner);
@@ -292,6 +300,19 @@ public class TableGroupQuickStart extends QuickStartBase {
     }
 
     FileUtils.copyDirectory(fileDb, baseDir);
+  }
+
+  private boolean createTableGroup()
+      throws IOException {
+    String controllerAddress = "http://localhost:9000/";
+    String tableGroupConfigStr = IOUtils.toString(this.getClass().getClassLoader().getResourceAsStream("examples"
+            + "/colocated/group1.json"),
+        Charset.defaultCharset());
+    String res = AbstractBaseAdminCommand
+        .sendRequest("POST", ControllerRequestURLBuilder.baseUrl(controllerAddress).forGroupCreate(),
+            tableGroupConfigStr,
+            new ArrayList<>());
+    return res.contains("successfully");
   }
 
   private static void runSampleQueries(QuickstartRunner runner)

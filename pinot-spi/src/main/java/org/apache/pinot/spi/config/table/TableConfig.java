@@ -98,8 +98,8 @@ public class TableConfig extends BaseJsonConfig {
   @JsonPropertyDescription(value = "Configs for Table config tuner")
   private List<TunerConfig> _tunerConfigList;
 
-  @JsonPropertyDescription(value = "Configs for Table config tuner")
-  private TableGroupConfig _tableGroupConfig;
+  @JsonPropertyDescription(value = "Name of the group")
+  private String _tableGroupName;
 
   @JsonCreator
   public TableConfig(@JsonProperty(value = TABLE_NAME_KEY, required = true) String tableName,
@@ -121,7 +121,7 @@ public class TableConfig extends BaseJsonConfig {
       @JsonProperty(TIER_CONFIGS_LIST_KEY) @Nullable List<TierConfig> tierConfigsList,
       @JsonProperty(IS_DIM_TABLE_KEY) boolean dimTable,
       @JsonProperty(TUNER_CONFIG_LIST_KEY) @Nullable List<TunerConfig> tunerConfigList,
-      @JsonProperty(TABLE_GROUP_CONFIG_KEY) @Nullable TableGroupConfig tableGroupConfig) {
+      @JsonProperty(TABLE_GROUP_CONFIG_KEY) @Nullable String tableGroupName) {
     Preconditions.checkArgument(tableName != null, "'tableName' must be configured");
     Preconditions.checkArgument(!tableName.contains(TABLE_NAME_FORBIDDEN_SUBSTRING),
         "'tableName' cannot contain double underscore ('__')");
@@ -149,7 +149,7 @@ public class TableConfig extends BaseJsonConfig {
     _tierConfigsList = tierConfigsList;
     _dimTable = dimTable;
     _tunerConfigList = tunerConfigList;
-    _tableGroupConfig = tableGroupConfig;
+    _tableGroupName = tableGroupName;
   }
 
   @JsonProperty(TABLE_NAME_KEY)
@@ -319,11 +319,11 @@ public class TableConfig extends BaseJsonConfig {
   }
 
   @JsonProperty(TABLE_GROUP_CONFIG_KEY)
-  public TableGroupConfig getTableGroupConfig() {
-    return _tableGroupConfig;
+  public String getTableGroupName() {
+    return _tableGroupName;
   }
 
-  public void setTableGroupKey(TableGroupConfig tableGroupConfig) {
-    _tableGroupConfig = tableGroupConfig;
+  public void setTableGroupName(String tableGroupName) {
+    _tableGroupName = tableGroupName;
   }
 }

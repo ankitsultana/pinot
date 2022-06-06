@@ -68,7 +68,8 @@ import {
   getInfo,
   authenticateUser,
   getSegmentDebugInfo,
-  getTableGroup, getTableGroupList
+  getTableGroup,
+  getTableGroupList, putGroup
 } from '../requests';
 import { baseApi } from './axios-config';
 import Utils from './Utils';
@@ -480,11 +481,7 @@ const getTableGroupListData = () => {
 
 const getTableGroupData = (groupName) => {
   return getTableGroup(groupName).then(({ data }) => {
-    return {
-      groupName: data.tableGroup,
-      tables: data.tables,
-      config: data.config,
-    }
+    return data
   })
 }
 
@@ -771,6 +768,12 @@ const updateTable = (tableName: string, table: string) => {
   })
 };
 
+const updateTableGroup = (groupName: string, groupConfig: string) => {
+  return putGroup(groupName, groupConfig).then((res)=>{
+    return res.data
+  })
+}
+
 const updateSchema = (schemaName: string, schema: string) => {
   return putSchema(schemaName, schema).then((res)=>{
     return res.data;
@@ -919,6 +922,7 @@ export default {
   getTableSummaryData,
   getTableGroupData,
   getTableGroupListData,
+  updateTableGroup,
   getSegmentList,
   getSegmentStatus,
   getTableDetails,

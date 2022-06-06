@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.I0Itec.zkclient.exception.ZkException;
+import org.apache.commons.lang.StringUtils;
 import org.apache.helix.AccessOption;
 import org.apache.helix.HelixManager;
 import org.apache.helix.ZNRecord;
@@ -32,7 +33,6 @@ import org.apache.pinot.common.metadata.ZKMetadataProvider;
 import org.apache.pinot.common.utils.config.TagNameUtils;
 import org.apache.pinot.common.utils.helix.HelixHelper;
 import org.apache.pinot.spi.config.table.TableConfig;
-import org.apache.pinot.spi.config.table.TableGroupConfig;
 import org.apache.pinot.spi.config.table.TenantConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
@@ -65,8 +65,8 @@ public class InstancePartitionsUtils {
     // Fetch the instance partitions from property store if it exists
     ZkHelixPropertyStore<ZNRecord> propertyStore = helixManager.getHelixPropertyStore();
     InstancePartitions instancePartitions;
-    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
-      instancePartitions = fetchInstancePartitions(propertyStore, tableConfig.getTableGroupConfig());
+    if (StringUtils.isNotBlank(tableConfig.getTableGroupName())) {
+      instancePartitions = fetchInstancePartitions(propertyStore, tableConfig.getTableGroupName());
     } else {
       instancePartitions = fetchInstancePartitions(propertyStore,
           getInstancePartitionsName(tableNameWithType, instancePartitionsType.toString()));
@@ -77,9 +77,9 @@ public class InstancePartitionsUtils {
 
     // Compute the default instance partitions (for backward-compatibility)
     instancePartitions = computeDefaultInstancePartitions(helixManager, tableConfig, instancePartitionsType);
-    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
-      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(propertyStore,
-          tableConfig.getTableGroupConfig().getId(), instancePartitions);
+    if (StringUtils.isNotBlank(tableConfig.getTableGroupName())) {
+      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(
+          propertyStore, tableConfig.getTableGroupName(), instancePartitions);
     }
     return instancePartitions;
   }
@@ -99,9 +99,9 @@ public class InstancePartitionsUtils {
    * Fetches the instance partitions from Helix property store.
    */
   @Nullable
-  public static InstancePartitions fetchInstancePartitions(HelixPropertyStore<ZNRecord> propertyStore,
-      TableGroupConfig tableGroupConfig) {
-    String path = ZKMetadataProvider.constructPropertyStorePathForGroupInstancePartitions(tableGroupConfig.getId());
+  public static InstancePartitions fetchInstancePartitionsForGroup(HelixPropertyStore<ZNRecord> propertyStore,
+      String groupName) {
+    String path = ZKMetadataProvider.constructPropertyStorePathForGroupInstancePartitions(groupName);
     ZNRecord znRecord = propertyStore.get(path, null, AccessOption.PERSISTENT);
     return znRecord != null ? InstancePartitions.fromZNRecord(znRecord) : null;
   }

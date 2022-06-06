@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import org.I0Itec.zkclient.exception.ZkBadVersionException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.configuration.Configuration;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.apache.helix.AccessOption;
@@ -420,10 +421,11 @@ public class TableRebalancer {
    */
   private InstancePartitions getInstancePartitions(TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType, boolean reassignInstances, boolean dryRun) {
-    String tableGroupId = tableConfig.getTableGroupConfig() == null ? "" : tableConfig.getTableGroupConfig().getId();
-    if (!tableGroupId.isBlank()) {
-      InstancePartitions ip = InstancePartitionsUtils.fetchInstancePartitions(_helixManager.getHelixPropertyStore(),
-          tableConfig.getTableGroupConfig());
+    String tableGroupId = tableConfig.getTableGroupName();
+    if (StringUtils.isNotBlank(tableGroupId)) {
+      InstancePartitions ip =
+          InstancePartitionsUtils.fetchInstancePartitionsForGroup(_helixManager.getHelixPropertyStore(),
+          tableConfig.getTableGroupName());
       if (ip != null) {
         return ip;
       }
@@ -439,7 +441,7 @@ public class TableRebalancer {
         if (!dryRun) {
           LOGGER.info("Persisting instance partitions: {} to ZK", instancePartitions);
           InstancePartitionsUtils.persistInstancePartitions(_helixManager.getHelixPropertyStore(), instancePartitions);
-          if (tableConfig.getTableGroupConfig().isSet()) {
+          if (StringUtils.isNotBlank(tableGroupId)) {
             InstancePartitionsUtils.persistInstancePartitions(_helixManager.getHelixPropertyStore(),
                 instancePartitions);
           }
@@ -450,7 +452,7 @@ public class TableRebalancer {
             tableNameWithType);
         InstancePartitions ip = InstancePartitionsUtils.fetchOrComputeInstancePartitions(_helixManager, tableConfig,
             instancePartitionsType);
-        if (!tableGroupId.isBlank()) {
+        if (StringUtils.isNotBlank(tableGroupId)) {
           InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_helixManager.getHelixPropertyStore(),
               tableGroupId, ip);
         }
@@ -469,7 +471,7 @@ public class TableRebalancer {
         String instancePartitionsName = instancePartitions.getInstancePartitionsName();
         LOGGER.info("Removing instance partitions: {} from ZK if it exists", instancePartitionsName);
         InstancePartitionsUtils.removeInstancePartitions(_helixManager.getHelixPropertyStore(), instancePartitionsName);
-        if (!tableGroupId.isBlank()) {
+        if (StringUtils.isNotBlank(tableGroupId)) {
           InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_helixManager.getHelixPropertyStore(),
               tableGroupId, instancePartitions);
         }

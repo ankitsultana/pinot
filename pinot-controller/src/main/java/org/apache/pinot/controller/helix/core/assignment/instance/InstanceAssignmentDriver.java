@@ -21,6 +21,7 @@ package org.apache.pinot.controller.helix.core.assignment.instance;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang.StringUtils;
 import org.apache.helix.ZNRecord;
 import org.apache.helix.model.InstanceConfig;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
@@ -60,10 +61,10 @@ public class InstanceAssignmentDriver {
       List<InstanceConfig> instanceConfigs) {
     String tableNameWithType = _tableConfig.getTableName();
     LOGGER.info("Starting {} instance assignment for table: {}", instancePartitionsType, tableNameWithType);
-    String tableGroupId = _tableConfig.getTableGroupConfig().getId();
-    if (!tableGroupId.isBlank()) {
+    String tableGroupId = _tableConfig.getTableGroupName();
+    if (StringUtils.isNotBlank(tableGroupId)) {
       InstancePartitions instancePartitions = InstancePartitionsUtils.fetchInstancePartitions(_propertyStore,
-          _tableConfig.getTableGroupConfig());
+          _tableConfig.getTableGroupName());
       if (instancePartitions != null) {
         LOGGER.info("Getting pre-computed instance partitions for table-group: " + tableGroupId);
         return instancePartitions;
@@ -92,7 +93,7 @@ public class InstanceAssignmentDriver {
     InstancePartitions instancePartitions = new InstancePartitions(
         instancePartitionsType.getInstancePartitionsName(TableNameBuilder.extractRawTableName(tableNameWithType)));
     replicaPartitionSelector.selectInstances(poolToInstanceConfigsMap, instancePartitions);
-    if (!tableGroupId.isBlank()) {
+    if (StringUtils.isNotBlank(tableGroupId)) {
       InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_propertyStore, tableGroupId, instancePartitions);
     }
     return instancePartitions;

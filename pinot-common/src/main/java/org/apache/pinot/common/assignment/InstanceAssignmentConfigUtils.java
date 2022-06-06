@@ -20,6 +20,7 @@ package org.apache.pinot.common.assignment;
 
 import com.google.common.base.Preconditions;
 import java.util.Map;
+import org.apache.commons.lang.StringUtils;
 import org.apache.helix.ZNRecord;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
 import org.apache.pinot.common.metadata.ZKMetadataProvider;
@@ -89,14 +90,14 @@ public class InstanceAssignmentConfigUtils {
   public static InstanceAssignmentConfig getInstanceAssignmentConfig(ZkHelixPropertyStore<ZNRecord> propertyStore,
       TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType) {
-    String tableGroupId = tableConfig.getTableGroupConfig().getId();
-    if (tableConfig.getTableGroupConfig() != null && tableConfig.getTableGroupConfig().isSet()) {
+    String tableGroupId = tableConfig.getTableGroupName();
+    if (StringUtils.isNotBlank(tableGroupId)) {
       InstanceAssignmentConfig config = ZKMetadataProvider.getInstanceAssignmentConfigForTableGroup(propertyStore,
-          tableConfig.getTableGroupConfig());
-      if (config != null) {
-        LOGGER.info("Using pre-generated instance assignment config for table-group: " + tableGroupId);
-        return config;
+          tableGroupId);
+      if (config == null) {
+        throw new IllegalStateException("Instance assignment config is null for table-group");
       }
+      return config;
     }
     Preconditions.checkState(allowInstanceAssignment(tableConfig, instancePartitionsType),
         "Instance assignment is not allowed for the given table config");
@@ -107,11 +108,6 @@ public class InstanceAssignmentConfigUtils {
     if (instanceAssignmentConfigMap != null) {
       InstanceAssignmentConfig instanceAssignmentConfig = instanceAssignmentConfigMap.get(instancePartitionsType);
       if (instanceAssignmentConfig != null) {
-        if (!tableGroupId.isBlank()) {
-          LOGGER.info("First instance assignment config detected for table group: " + tableGroupId);
-          ZKMetadataProvider.setInstanceAssignmentConfigForTableGroup(propertyStore, tableConfig.getTableGroupConfig(),
-              instanceAssignmentConfig);
-        }
         return instanceAssignmentConfig;
       }
     }
@@ -142,11 +138,6 @@ public class InstanceAssignmentConfigUtils {
     }
     InstanceAssignmentConfig instanceAssignmentConfig = new InstanceAssignmentConfig(tagPoolConfig, null,
         replicaGroupPartitionConfig);
-    if (!tableGroupId.isBlank()) {
-      LOGGER.info("First instance assignment config detected for table group: " + tableGroupId);
-      ZKMetadataProvider.setInstanceAssignmentConfigForTableGroup(propertyStore, tableConfig.getTableGroupConfig(),
-          instanceAssignmentConfig);
-    }
     return instanceAssignmentConfig;
   }
 }

@@ -82,6 +82,9 @@ export const getTableGroupList = (): Promise<AxiosResponse<Groups>> =>
 export const getTableGroup = (name: string): Promise<AxiosResponse<TableGroup>> =>
   baseApi.get(`/groups/${name}`)
 
+export const putGroup = (groupName: string, params: string): Promise<AxiosResponse<OperationResponse>> =>
+    baseApi.put(`/groups/${groupName}`, params, { headers });
+
 export const getIdealState = (name: string): Promise<AxiosResponse<IdealState>> =>
   baseApi.get(`/tables/${name}/idealstate`);
 

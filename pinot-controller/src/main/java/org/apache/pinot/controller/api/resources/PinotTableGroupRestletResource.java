@@ -20,13 +20,25 @@ package org.apache.pinot.controller.api.resources;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import java.io.IOException;
 import java.util.List;
 import javax.inject.Inject;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import org.apache.helix.AccessOption;
+import org.apache.helix.ZNRecord;
+import org.apache.pinot.common.metadata.ZKMetadataProvider;
+import org.apache.pinot.common.utils.config.TableGroupConfigUtils;
+import org.apache.pinot.controller.api.exception.ControllerApplicationException;
 import org.apache.pinot.controller.helix.core.PinotHelixResourceManager;
+import org.apache.pinot.spi.config.table.assignment.TableGroupConfig;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,5 +60,59 @@ public class PinotTableGroupRestletResource {
     List<String> groups = _pinotHelixResourceManager.getZKChildNames(
         "/QuickStartCluster/PROPERTYSTORE/CONFIGS/TABLE_GROUPS");
     return JsonUtils.newObjectNode().set("groups", JsonUtils.objectToJsonNode(groups)).toString();
+  }
+
+  @GET
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("/groups/{groupName}")
+  @ApiOperation(value = "")
+  public String getTableGroup(@ApiParam(value = "name of group") @PathParam("groupName") String groupName) {
+    ZNRecord znRecord = _pinotHelixResourceManager.getPropertyStore().get(
+        ZKMetadataProvider.constructPropertyStorePathForTableGroup(groupName), null, AccessOption.PERSISTENT);
+    LOGGER.info(znRecord.getMapFields().toString());
+    try {
+      TableGroupConfig tableGroupConfig = TableGroupConfigUtils.fromZNRecord(znRecord);
+      return JsonUtils.objectToString(tableGroupConfig);
+    } catch (IOException e) {
+      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR, e);
+    }
+  }
+
+  @PUT
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("/groups/{groupName}")
+  @ApiOperation(value = "")
+  public SuccessResponse updateTableGroup(String groupConfigStr,
+      @ApiParam(value = "name of group") @PathParam("groupName") String groupName) {
+    try {
+      TableGroupConfig tableGroupConfig = JsonUtils.stringToObject(groupConfigStr, TableGroupConfig.class);
+      if (!tableGroupConfig.getGroupName().equals(groupName)) {
+        throw new ControllerApplicationException(LOGGER, "You cannot change group name", Response.Status.BAD_REQUEST);
+      }
+      ZNRecord znRecord = TableGroupConfigUtils.toZNRecord(tableGroupConfig);
+      if (!_pinotHelixResourceManager.getPropertyStore().set(
+          ZKMetadataProvider.constructPropertyStorePathForTableGroup(groupName), znRecord, AccessOption.PERSISTENT)) {
+        throw new ControllerApplicationException(LOGGER, "Error updating table group config",
+            Response.Status.BAD_REQUEST);
+      }
+      return new SuccessResponse("Updated group config successfully");
+    } catch (IOException e) {
+      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.BAD_REQUEST, e);
+    }
+  }
+
+  @POST
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("/groups")
+  @ApiOperation(value = "Create a new table group")
+  public SuccessResponse createTableGroup(String groupConfigStr) {
+    try {
+      TableGroupConfig tableGroupConfig = JsonUtils.stringToObject(groupConfigStr, TableGroupConfig.class);
+      String groupName = tableGroupConfig.getGroupName();
+      _pinotHelixResourceManager.addTableGroup(groupName, tableGroupConfig);
+      return new SuccessResponse(String.format("Group %s successfully created", groupName));
+    } catch (Exception e) {
+      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.BAD_REQUEST, e);
+    }
   }
 }

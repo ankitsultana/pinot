@@ -53,7 +53,7 @@ const GroupsListingPage = () => {
         columns: ['Group Name'],
         records: [],
     }
-    groupDetails.map(x => {
+    groupDetails != null && groupDetails.map(x => {
         groupList.records.push([x])
     })
 
