@@ -69,11 +69,13 @@ const HomePage = () => {
   const [instances, setInstances] = useState<DataTable>();
   const [clusterName, setClusterName] = useState('');
   const [tables, setTables] = useState([]);
+  const [groups, setGroups] = useState([]);
 
   const fetchData = async () => {
     const tenantsDataResponse = await PinotMethodUtils.getTenantsData();
     const instanceResponse = await PinotMethodUtils.getAllInstances();
     const tablesResponse = await PinotMethodUtils.getQueryTablesList({bothType: true});
+    const groupsResponse = await PinotMethodUtils.getTableGroupListData()
     const tablesList = [];
     tablesResponse.records.map((record)=>{
       tablesList.push(...record);
@@ -81,6 +83,7 @@ const HomePage = () => {
     setTenantsData(tenantsDataResponse);
     setInstances(instanceResponse);
     setTables(tablesList);
+    setGroups(groupsResponse)
     let clusterNameRes = localStorage.getItem('pinot_ui:clusterName');
     if(!clusterNameRes){
       clusterNameRes = await PinotMethodUtils.getClusterName();
@@ -134,6 +137,14 @@ const HomePage = () => {
             <Paper className={classes.paper}>
               <h4>Tables</h4>
               <h2>{Array.isArray(tables) ? tables.length : 0}</h2>
+            </Paper>
+          </Link>
+        </Grid>
+        <Grid item xs={2}>
+          <Link to="/groups" className={classes.paperLinks}>
+            <Paper className={classes.paper}>
+              <h4>Groups</h4>
+              <h2>{Array.isArray(groups) ? groups.length : 0}</h2>
             </Paper>
           </Link>
         </Grid>
