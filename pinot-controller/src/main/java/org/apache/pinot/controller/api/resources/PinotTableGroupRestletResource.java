@@ -33,11 +33,15 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import org.apache.helix.AccessOption;
+import org.apache.helix.HelixDataAccessor;
 import org.apache.helix.ZNRecord;
+import org.apache.pinot.common.assignment.InstancePartitions;
+import org.apache.pinot.common.assignment.InstancePartitionsUtils;
 import org.apache.pinot.common.metadata.ZKMetadataProvider;
 import org.apache.pinot.common.utils.config.TableGroupConfigUtils;
 import org.apache.pinot.controller.api.exception.ControllerApplicationException;
 import org.apache.pinot.controller.helix.core.PinotHelixResourceManager;
+import org.apache.pinot.controller.helix.core.assignment.instance.InstanceAssignmentDriver;
 import org.apache.pinot.spi.config.table.assignment.TableGroupConfig;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.slf4j.Logger;
@@ -62,16 +66,35 @@ public class PinotTableGroupRestletResource {
     return JsonUtils.newObjectNode().set("groups", JsonUtils.objectToJsonNode(groups)).toString();
   }
 
+  @POST
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("/groups")
+  @ApiOperation(value = "Create a new table group")
+  public SuccessResponse createTableGroup(String groupConfigStr) {
+    try {
+      TableGroupConfig tableGroupConfig = JsonUtils.stringToObject(groupConfigStr, TableGroupConfig.class);
+      String groupName = tableGroupConfig.getGroupName();
+      HelixDataAccessor helixDataAccessor = _pinotHelixResourceManager.getHelixZkManager().getHelixDataAccessor();
+      InstancePartitions instancePartitions = InstanceAssignmentDriver.assignInstances(groupName,
+          groupName,
+          helixDataAccessor.getChildValues(helixDataAccessor.keyBuilder().instanceConfigs(), true),
+          tableGroupConfig.getInstanceAssignmentConfig());
+      _pinotHelixResourceManager.addTableGroup(groupName, tableGroupConfig);
+      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_pinotHelixResourceManager.getPropertyStore(),
+          groupName, instancePartitions);
+      return new SuccessResponse(String.format("Group %s successfully created", groupName));
+    } catch (Exception e) {
+      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.BAD_REQUEST, e);
+    }
+  }
+
   @GET
   @Produces(MediaType.APPLICATION_JSON)
   @Path("/groups/{groupName}")
   @ApiOperation(value = "")
   public String getTableGroup(@ApiParam(value = "name of group") @PathParam("groupName") String groupName) {
-    ZNRecord znRecord = _pinotHelixResourceManager.getPropertyStore().get(
-        ZKMetadataProvider.constructPropertyStorePathForTableGroup(groupName), null, AccessOption.PERSISTENT);
-    LOGGER.info(znRecord.getMapFields().toString());
     try {
-      TableGroupConfig tableGroupConfig = TableGroupConfigUtils.fromZNRecord(znRecord);
+      TableGroupConfig tableGroupConfig = getTableGroupConfig(groupName);
       return JsonUtils.objectToString(tableGroupConfig);
     } catch (IOException e) {
       throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR, e);
@@ -101,18 +124,49 @@ public class PinotTableGroupRestletResource {
     }
   }
 
-  @POST
+  @PUT
   @Produces(MediaType.APPLICATION_JSON)
-  @Path("/groups")
-  @ApiOperation(value = "Create a new table group")
-  public SuccessResponse createTableGroup(String groupConfigStr) {
+  @Path("/groups/{groupName}/rebalance")
+  @ApiOperation(value = "")
+  public SuccessResponse rebalanceInstanceAssignmentForGroup(
+      @ApiParam(value = "name of group") @PathParam("groupName") String groupName) {
+    TableGroupConfig tableGroupConfig = null;
     try {
-      TableGroupConfig tableGroupConfig = JsonUtils.stringToObject(groupConfigStr, TableGroupConfig.class);
-      String groupName = tableGroupConfig.getGroupName();
+      tableGroupConfig = getTableGroupConfig(groupName);
+      HelixDataAccessor helixDataAccessor = _pinotHelixResourceManager.getHelixZkManager().getHelixDataAccessor();
+      InstancePartitions instancePartitions = InstanceAssignmentDriver.assignInstances(groupName,
+          groupName,
+          helixDataAccessor.getChildValues(helixDataAccessor.keyBuilder().instanceConfigs(), true),
+          tableGroupConfig.getInstanceAssignmentConfig());
       _pinotHelixResourceManager.addTableGroup(groupName, tableGroupConfig);
+      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_pinotHelixResourceManager.getPropertyStore(),
+          groupName, instancePartitions);
       return new SuccessResponse(String.format("Group %s successfully created", groupName));
-    } catch (Exception e) {
-      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.BAD_REQUEST, e);
+    } catch (IOException e) {
+      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR, e);
     }
+  }
+
+  @GET
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("/groups/{groupName}/instancePartitions")
+  @ApiOperation(value = "")
+  public String getTableGroupInstancePartitions(
+      @ApiParam(value = "name of group") @PathParam("groupName") String groupName) {
+    try {
+      InstancePartitions instancePartitions = InstancePartitionsUtils.fetchInstancePartitionsForGroup(
+          _pinotHelixResourceManager.getPropertyStore(), groupName);
+      return JsonUtils.objectToString(instancePartitions);
+    } catch (IOException e) {
+      throw new ControllerApplicationException(LOGGER, e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR, e);
+    }
+  }
+
+  private TableGroupConfig getTableGroupConfig(String groupName)
+      throws IOException {
+    ZNRecord znRecord = _pinotHelixResourceManager.getPropertyStore().get(
+        ZKMetadataProvider.constructPropertyStorePathForTableGroup(groupName), null, AccessOption.PERSISTENT);
+    LOGGER.info(znRecord.getMapFields().toString());
+    return TableGroupConfigUtils.fromZNRecord(znRecord);
   }
 }

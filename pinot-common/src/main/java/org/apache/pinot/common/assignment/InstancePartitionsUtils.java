@@ -101,7 +101,8 @@ public class InstancePartitionsUtils {
   @Nullable
   public static InstancePartitions fetchInstancePartitionsForGroup(HelixPropertyStore<ZNRecord> propertyStore,
       String groupName) {
-    String path = ZKMetadataProvider.constructPropertyStorePathForGroupInstancePartitions(groupName);
+    String path = ZKMetadataProvider.constructPropertyStorePathForInstancePartitions(
+        computeInstancePartitionNameForGroup(groupName));
     ZNRecord znRecord = propertyStore.get(path, null, AccessOption.PERSISTENT);
     return znRecord != null ? InstancePartitions.fromZNRecord(znRecord) : null;
   }
@@ -154,6 +155,10 @@ public class InstancePartitionsUtils {
     return instancePartitions;
   }
 
+  public static String computeInstancePartitionNameForGroup(String groupName) {
+    return String.format("%s_GROUP", groupName);
+  }
+
   /**
    * Persists the instance partitions to Helix property store.
    */
@@ -170,7 +175,7 @@ public class InstancePartitionsUtils {
       String tableGroupId,
       InstancePartitions instancePartitions) {
     String path = ZKMetadataProvider
-      .constructPropertyStorePathForGroupInstancePartitions(tableGroupId);
+      .constructPropertyStorePathForInstancePartitions(computeInstancePartitionNameForGroup(tableGroupId));
     if (!propertyStore.set(path, instancePartitions.toZNRecord(), AccessOption.PERSISTENT)) {
       throw new ZkException("Failed to persist instance partitions: " + instancePartitions);
     }

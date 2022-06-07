@@ -121,10 +121,6 @@ public class ZKMetadataProvider {
     return StringUtil.join("/", PROPERTYSTORE_TABLE_GROUP_PREFIX, tableGroupId);
   }
 
-  public static String constructPropertyStorePathForGroupInstancePartitions(String tableGroupId) {
-    return StringUtil.join("/", String.format(PROPERTYSTORE_TABLE_GROUP_IP_FORMAT, tableGroupId));
-  }
-
   public static String constructPropertyStorePathForControllerConfig(String controllerConfigKey) {
     return StringUtil.join("/", PROPERTYSTORE_CLUSTER_CONFIGS_PREFIX, controllerConfigKey);
   }

@@ -36,7 +36,8 @@ import {
   OperationResponse,
   BrokerList,
   ServerList,
-  TableGroup, Groups
+  TableGroup,
+  Groups, InstancePartitions
 } from 'Models';
 
 const headers = {
@@ -82,8 +83,14 @@ export const getTableGroupList = (): Promise<AxiosResponse<Groups>> =>
 export const getTableGroup = (name: string): Promise<AxiosResponse<TableGroup>> =>
   baseApi.get(`/groups/${name}`)
 
+export const getTableGroupInstancePartitions = (name: string): Promise<AxiosResponse<InstancePartitions>> =>
+  baseApi.get(`/groups/${name}/instancePartitions`)
+
 export const putGroup = (groupName: string, params: string): Promise<AxiosResponse<OperationResponse>> =>
-    baseApi.put(`/groups/${groupName}`, params, { headers });
+  baseApi.put(`/groups/${groupName}`, params, { headers });
+
+export const putGroupInstancePartitions = (groupName: string): Promise<AxiosResponse<OperationResponse>> =>
+  baseApi.put(`/groups/${groupName}/rebalance`, null, { headers })
 
 export const getIdealState = (name: string): Promise<AxiosResponse<IdealState>> =>
   baseApi.get(`/tables/${name}/idealstate`);

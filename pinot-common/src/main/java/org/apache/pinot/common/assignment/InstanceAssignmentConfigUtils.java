@@ -63,6 +63,9 @@ public class InstanceAssignmentConfigUtils {
    */
   public static boolean allowInstanceAssignment(TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType) {
+    if (StringUtils.isNotBlank(tableConfig.getTableGroupName())) {
+      return true;
+    }
     TableType tableType = tableConfig.getTableType();
     Map<InstancePartitionsType, InstanceAssignmentConfig> instanceAssignmentConfigMap =
         tableConfig.getInstanceAssignmentConfigMap();

@@ -69,7 +69,9 @@ import {
   authenticateUser,
   getSegmentDebugInfo,
   getTableGroup,
-  getTableGroupList, putGroup
+  getTableGroupList,
+  putGroup,
+  getTableGroupInstancePartitions, putGroupInstancePartitions
 } from '../requests';
 import { baseApi } from './axios-config';
 import Utils from './Utils';
@@ -485,6 +487,12 @@ const getTableGroupData = (groupName) => {
   })
 }
 
+const getTableGroupInstancePartitionsData = (groupName) => {
+  return getTableGroupInstancePartitions(groupName).then(({ data }) => {
+    return data
+  })
+}
+
 // This method is used to display segment list of a particular tenant table
 // API: /tables/:tableName/idealstate
 //      /tables/:tableName/externalview
@@ -774,6 +782,12 @@ const updateTableGroup = (groupName: string, groupConfig: string) => {
   })
 }
 
+const recomputeTableGroup = (groupName: string) => {
+  return putGroupInstancePartitions(groupName).then((res)=>{
+    return res.data
+  })
+}
+
 const updateSchema = (schemaName: string, schema: string) => {
   return putSchema(schemaName, schema).then((res)=>{
     return res.data;
@@ -922,7 +936,9 @@ export default {
   getTableSummaryData,
   getTableGroupData,
   getTableGroupListData,
+  getTableGroupInstancePartitionsData,
   updateTableGroup,
+  recomputeTableGroup,
   getSegmentList,
   getSegmentStatus,
   getTableDetails,

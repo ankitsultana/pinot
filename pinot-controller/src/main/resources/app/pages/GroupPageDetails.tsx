@@ -108,38 +108,62 @@ const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
     const {dispatch} = React.useContext(NotificationContext);
 
     const [showEditConfig, setShowEditConfig] = useState(false);
-    const [config, setConfig] = useState('{}');
+    const [configField, setConfigField] = useState('{}');
 
-    const [tableConfig, setTableConfig] = useState('');
-    const [groupConfigJSON, setGroupConfigJSON] = useState(null);
+    const [tableGroupConfig, setTableGroupConfig] = useState('');
+    const [instancePartitions, setInstancePartitions] = useState('');
 
-    const fetchGroupConfigJSON = async () => {
+    const fetchTableGroupConfig = async () => {
         const result = await PinotMethodUtils.getTableGroupData(groupName);
-        setTableConfig(JSON.stringify(result, null, 2));
+        setTableGroupConfig(JSON.stringify(result, null, 2));
         setFetching(false);
     };
 
+    const fetchInstancePartitions = async () => {
+        const result = await PinotMethodUtils.getTableGroupInstancePartitionsData(groupName)
+        setInstancePartitions(JSON.stringify(result, null, 2))
+        setFetching(false)
+    };
+
+    const recomputeTableGroup = async () => {
+        const result = await PinotMethodUtils.recomputeTableGroup(groupName);
+        syncResponse(result)
+    }
+
     useEffect(()=>{
-        fetchGroupConfigJSON();
+        fetchTableGroupConfig();
+    },[])
+
+    useEffect(()=>{
+        fetchInstancePartitions();
     },[])
 
     const handleConfigChange = (value: string) => {
-        setConfig(value);
+        setConfigField(value);
+    };
+
+    const handleRecompute = () => {
+        setDialogDetails({
+                             title: 'Re-compute Table Group Instances',
+                             content: 'Are you sure you want to re-compute table-group instances?',
+                             successCb: () => recomputeTableGroup()
+                         });
+        setConfirmDialog(true);
     };
 
     const saveConfigAction = async () => {
         console.log("saving config: ")
-        console.log(config)
-        let configObj = JSON.parse(config);
+        console.log(configField)
+        let configObj = JSON.parse(configField);
         const result = await PinotMethodUtils.updateTableGroup(groupName, configObj)
         syncResponse(result)
     };
 
     const syncResponse = (result) => {
-        if(result.status){
+        if (result.status) {
             dispatch({type: 'success', message: result.status, show: true});
             setShowEditConfig(false);
-            fetchGroupConfigJSON();
+            fetchTableGroupConfig();
         } else {
             dispatch({type: 'error', message: result.error, show: true});
         }
@@ -171,13 +195,20 @@ const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
                     <div>
                         <CustomButton
                             onClick={()=>{
-                                setConfig(JSON.stringify(groupConfigJSON, null, 2));
+                                setConfigField(JSON.stringify(tableGroupConfig, null, 2));
                                 setShowEditConfig(true);
                             }}
                             tooltipTitle="Edit Group"
                             enableTooltip={true}
                         >
                             Edit Group
+                        </CustomButton>
+                        <CustomButton
+                            onClick={handleRecompute}
+                            tooltipTitle="Reloads all segments of the table to apply changes such as indexing, column default values, etc"
+                            enableTooltip={true}
+                        >
+                            Recompute Table Group
                         </CustomButton>
                     </div>
                 </SimpleAccordion>
@@ -191,7 +222,22 @@ const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
                         >
                             <CodeMirror
                                 options={jsonoptions}
-                                value={tableConfig}
+                                value={tableGroupConfig}
+                                className={classes.queryOutput}
+                                autoCursor={false}
+                            />
+                        </SimpleAccordion>
+                    </div>
+                </Grid>
+                <Grid item xs={6}>
+                    <div className={classes.sqlDiv}>
+                        <SimpleAccordion
+                            headerTitle="Instance Partitions"
+                            showSearchBox={false}
+                        >
+                            <CodeMirror
+                                options={jsonoptions}
+                                value={instancePartitions}
                                 className={classes.queryOutput}
                                 autoCursor={false}
                             />
@@ -203,7 +249,7 @@ const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
                 showModal={showEditConfig}
                 hideModal={()=>{setShowEditConfig(false);}}
                 saveConfig={saveConfigAction}
-                config={config}
+                config={configField}
                 handleConfigChange={handleConfigChange}
             />
             {confirmDialog && dialogDetails && <Confirm

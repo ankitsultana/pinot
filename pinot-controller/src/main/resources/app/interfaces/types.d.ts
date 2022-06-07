@@ -75,6 +75,11 @@ declare module 'Models' {
     instanceAssignmentConfig: string;
   }
 
+  export type InstancePartitions = {
+    instancePartitionsName: string;
+    partitionToInstancesMap: string;
+  }
+
   type Segments = {
     reportedSizeInBytes: number;
     estimatedSizeInBytes: number;

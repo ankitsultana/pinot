@@ -63,25 +63,33 @@ public class InstanceAssignmentDriver {
     LOGGER.info("Starting {} instance assignment for table: {}", instancePartitionsType, tableNameWithType);
     String tableGroupId = _tableConfig.getTableGroupName();
     if (StringUtils.isNotBlank(tableGroupId)) {
-      InstancePartitions instancePartitions = InstancePartitionsUtils.fetchInstancePartitions(_propertyStore,
+      InstancePartitions instancePartitions = InstancePartitionsUtils.fetchInstancePartitionsForGroup(_propertyStore,
           _tableConfig.getTableGroupName());
-      if (instancePartitions != null) {
-        LOGGER.info("Getting pre-computed instance partitions for table-group: " + tableGroupId);
-        return instancePartitions;
-      }
+      LOGGER.info("Getting pre-computed instance partitions for table-group: " + tableGroupId);
+      return instancePartitions;
     }
 
     InstanceAssignmentConfig assignmentConfig =
         InstanceAssignmentConfigUtils.getInstanceAssignmentConfig(_propertyStore, _tableConfig, instancePartitionsType);
+    return assignInstances(tableNameWithType,
+        instancePartitionsType.getInstancePartitionsName(TableNameBuilder.extractRawTableName(tableNameWithType)),
+        instanceConfigs,
+        assignmentConfig);
+  }
+
+  public static InstancePartitions assignInstances(String key,
+      String instancePartitionsName,
+      List<InstanceConfig> instanceConfigs,
+      InstanceAssignmentConfig assignmentConfig) {
     InstanceTagPoolSelector tagPoolSelector =
-        new InstanceTagPoolSelector(assignmentConfig.getTagPoolConfig(), tableNameWithType);
+        new InstanceTagPoolSelector(assignmentConfig.getTagPoolConfig(), key);
     Map<Integer, List<InstanceConfig>> poolToInstanceConfigsMap = tagPoolSelector.selectInstances(instanceConfigs);
 
     InstanceConstraintConfig constraintConfig = assignmentConfig.getConstraintConfig();
     List<InstanceConstraintApplier> constraintAppliers = new ArrayList<>();
     if (constraintConfig == null) {
       LOGGER.info("No instance constraint is configured, using default hash-based-rotate instance constraint");
-      constraintAppliers.add(new HashBasedRotateInstanceConstraintApplier(tableNameWithType));
+      constraintAppliers.add(new HashBasedRotateInstanceConstraintApplier(key));
     }
     // TODO: support more constraints
     for (InstanceConstraintApplier constraintApplier : constraintAppliers) {
@@ -89,13 +97,9 @@ public class InstanceAssignmentDriver {
     }
 
     InstanceReplicaGroupPartitionSelector replicaPartitionSelector =
-        new InstanceReplicaGroupPartitionSelector(assignmentConfig.getReplicaGroupPartitionConfig(), tableNameWithType);
-    InstancePartitions instancePartitions = new InstancePartitions(
-        instancePartitionsType.getInstancePartitionsName(TableNameBuilder.extractRawTableName(tableNameWithType)));
+        new InstanceReplicaGroupPartitionSelector(assignmentConfig.getReplicaGroupPartitionConfig(), key);
+    InstancePartitions instancePartitions = new InstancePartitions(instancePartitionsName);
     replicaPartitionSelector.selectInstances(poolToInstanceConfigsMap, instancePartitions);
-    if (StringUtils.isNotBlank(tableGroupId)) {
-      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_propertyStore, tableGroupId, instancePartitions);
-    }
     return instancePartitions;
   }
 }
