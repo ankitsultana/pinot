@@ -138,7 +138,6 @@ public class PinotTableGroupRestletResource {
           groupName,
           helixDataAccessor.getChildValues(helixDataAccessor.keyBuilder().instanceConfigs(), true),
           tableGroupConfig.getInstanceAssignmentConfig());
-      _pinotHelixResourceManager.addTableGroup(groupName, tableGroupConfig);
       InstancePartitionsUtils.persistInstancePartitionsForTableGroup(_pinotHelixResourceManager.getPropertyStore(),
           groupName, instancePartitions);
       return new SuccessResponse(String.format("Group %s successfully created", groupName));
