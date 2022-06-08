@@ -105,6 +105,10 @@ public class InstancePartitions {
     return _numReplicaGroups;
   }
 
+  public InstancePartitions withName(String newName) {
+    return new InstancePartitions(newName, this.getPartitionToInstancesMap());
+  }
+
   public List<String> getInstances(int partitionId, int replicaGroupId) {
     return _partitionToInstancesMap
         .get(Integer.toString(partitionId) + PARTITION_REPLICA_GROUP_SEPARATOR + replicaGroupId);

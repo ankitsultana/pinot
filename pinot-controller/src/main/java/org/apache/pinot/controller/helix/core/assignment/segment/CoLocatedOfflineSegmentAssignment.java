@@ -19,12 +19,14 @@
 package org.apache.pinot.controller.helix.core.assignment.segment;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import javax.annotation.Nullable;
 import org.apache.commons.configuration.Configuration;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.helix.HelixManager;
 import org.apache.pinot.common.assignment.InstancePartitions;
 import org.apache.pinot.common.metadata.ZKMetadataProvider;
@@ -34,6 +36,7 @@ import org.apache.pinot.segment.spi.partition.metadata.ColumnPartitionMetadata;
 import org.apache.pinot.spi.config.table.ReplicaGroupStrategyConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
+import org.apache.pinot.spi.utils.CommonConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +83,33 @@ public class CoLocatedOfflineSegmentAssignment implements SegmentAssignment {
   public Map<String, Map<String, String>> rebalanceTable(Map<String, Map<String, String>> currentAssignment,
       Map<InstancePartitionsType, InstancePartitions> instancePartitionsMap, @Nullable List<Tier> sortedTiers,
       @Nullable Map<String, InstancePartitions> tierInstancePartitionsMap, Configuration config) {
-    throw new NotImplementedException("rebalancing is not implemented yet");
+    InstancePartitions instancePartitions = instancePartitionsMap.get(InstancePartitionsType.OFFLINE);
+    // Fetch partition id from segment ZK metadata
+    List<SegmentZKMetadata> segmentsZKMetadata =
+        ZKMetadataProvider.getSegmentsZKMetadata(_helixManager.getHelixPropertyStore(), _offlineTableName);
+    Map<String, SegmentZKMetadata> segmentZKMetadataMap = new HashMap<>();
+    for (SegmentZKMetadata segmentZKMetadata : segmentsZKMetadata) {
+      segmentZKMetadataMap.put(segmentZKMetadata.getSegmentName(), segmentZKMetadata);
+    }
+    Map<Integer, List<String>> partitionIdToSegmentsMap = new HashMap<>();
+    for (String segmentName : currentAssignment.keySet()) {
+      int partitionId = getPartitionId(segmentZKMetadataMap.get(segmentName));
+      partitionIdToSegmentsMap.computeIfAbsent(partitionId, k -> new ArrayList<>()).add(segmentName);
+    }
+
+    Map<String, Map<String, String>> newAssignment = new TreeMap<>();
+    for (Map.Entry<Integer, List<String>> entry : partitionIdToSegmentsMap.entrySet()) {
+      int segmentPartitionId = entry.getKey();
+      for (String segmentName : entry.getValue()) {
+        List<String> instancesAssigned = SegmentAssignmentUtils.assignSegmentForCoLocatedTable(
+            instancePartitions, segmentPartitionId);
+        Map<String, String> instanceStateMap = new TreeMap<>();
+        instancesAssigned.forEach(instance -> instanceStateMap.put(instance,
+            CommonConstants.Helix.StateModel.SegmentStateModel.ONLINE));
+        newAssignment.put(segmentName, instanceStateMap);
+      }
+    }
+    return newAssignment;
   }
 
   private int getPartitionId(SegmentZKMetadata segmentZKMetadata) {

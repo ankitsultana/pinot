@@ -19,11 +19,12 @@
 package org.apache.pinot.controller.helix.core.assignment.segment;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import javax.annotation.Nullable;
 import org.apache.commons.configuration.Configuration;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.helix.HelixManager;
 import org.apache.pinot.common.assignment.InstancePartitions;
 import org.apache.pinot.common.tier.Tier;
@@ -31,6 +32,7 @@ import org.apache.pinot.common.utils.SegmentUtils;
 import org.apache.pinot.spi.config.table.ReplicaGroupStrategyConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
+import org.apache.pinot.spi.utils.CommonConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,7 +83,26 @@ public class ColocatedRealtimeSegmentAssignment implements SegmentAssignment {
   public Map<String, Map<String, String>> rebalanceTable(Map<String, Map<String, String>> currentAssignment,
       Map<InstancePartitionsType, InstancePartitions> instancePartitionsMap, @Nullable List<Tier> sortedTiers,
       @Nullable Map<String, InstancePartitions> tierInstancePartitionsMap, Configuration config) {
-    throw new NotImplementedException("rebalancing not supported yet");
+    InstancePartitions instancePartitions = instancePartitionsMap.get(InstancePartitionsType.CONSUMING);
+    Map<Integer, List<String>> partitionIdToSegmentsMap = new TreeMap<>();
+    for (String segmentName : currentAssignment.keySet()) {
+      int segmentPartitionId = SegmentUtils.getRealtimeSegmentPartitionId(segmentName, _realtimeTableName,
+          _helixManager, _partitionColumn);
+      partitionIdToSegmentsMap.computeIfAbsent(segmentPartitionId, (x) -> new ArrayList<>()).add(segmentName);
+    }
+    Map<String, Map<String, String>> newAssignment = new TreeMap<>();
+    for (Map.Entry<Integer, List<String>> entry : partitionIdToSegmentsMap.entrySet()) {
+      int segmentPartitionId = entry.getKey();
+      for (String segmentName : entry.getValue()) {
+        List<String> instancesAssigned = SegmentAssignmentUtils.assignSegmentForCoLocatedTable(
+            instancePartitions, segmentPartitionId);
+        Map<String, String> instanceStateMap = new TreeMap<>();
+        instancesAssigned.forEach(instance -> instanceStateMap.put(
+            instance, CommonConstants.Helix.StateModel.SegmentStateModel.ONLINE));
+        newAssignment.put(segmentName, instanceStateMap);
+      }
+    }
+    return newAssignment;
   }
 
   /**

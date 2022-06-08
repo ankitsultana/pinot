@@ -64,9 +64,10 @@ public class InstanceAssignmentDriver {
     String tableGroupId = _tableConfig.getTableGroupName();
     if (StringUtils.isNotBlank(tableGroupId)) {
       InstancePartitions instancePartitions = InstancePartitionsUtils.fetchInstancePartitionsForGroup(_propertyStore,
-          _tableConfig.getTableGroupName());
+          tableGroupId);
       LOGGER.info("Getting pre-computed instance partitions for table-group: " + tableGroupId);
-      return instancePartitions;
+      return instancePartitions.withName(InstancePartitionsUtils.getInstancePartitionsName(
+          _tableConfig.getTableName(), instancePartitionsType.name()));
     }
 
     InstanceAssignmentConfig assignmentConfig =

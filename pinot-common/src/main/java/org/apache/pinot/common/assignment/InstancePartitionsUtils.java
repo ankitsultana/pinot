@@ -66,7 +66,7 @@ public class InstancePartitionsUtils {
     ZkHelixPropertyStore<ZNRecord> propertyStore = helixManager.getHelixPropertyStore();
     InstancePartitions instancePartitions;
     if (StringUtils.isNotBlank(tableConfig.getTableGroupName())) {
-      instancePartitions = fetchInstancePartitions(propertyStore, tableConfig.getTableGroupName());
+      instancePartitions = fetchInstancePartitionsForGroup(propertyStore, tableConfig.getTableGroupName());
     } else {
       instancePartitions = fetchInstancePartitions(propertyStore,
           getInstancePartitionsName(tableNameWithType, instancePartitionsType.toString()));
@@ -77,10 +77,6 @@ public class InstancePartitionsUtils {
 
     // Compute the default instance partitions (for backward-compatibility)
     instancePartitions = computeDefaultInstancePartitions(helixManager, tableConfig, instancePartitionsType);
-    if (StringUtils.isNotBlank(tableConfig.getTableGroupName())) {
-      InstancePartitionsUtils.persistInstancePartitionsForTableGroup(
-          propertyStore, tableConfig.getTableGroupName(), instancePartitions);
-    }
     return instancePartitions;
   }
 
@@ -98,13 +94,15 @@ public class InstancePartitionsUtils {
   /**
    * Fetches the instance partitions from Helix property store.
    */
-  @Nullable
   public static InstancePartitions fetchInstancePartitionsForGroup(HelixPropertyStore<ZNRecord> propertyStore,
       String groupName) {
     String path = ZKMetadataProvider.constructPropertyStorePathForInstancePartitions(
         computeInstancePartitionNameForGroup(groupName));
     ZNRecord znRecord = propertyStore.get(path, null, AccessOption.PERSISTENT);
-    return znRecord != null ? InstancePartitions.fromZNRecord(znRecord) : null;
+    if (znRecord == null) {
+      throw new RuntimeException("No instance partitions for group found");
+    }
+    return InstancePartitions.fromZNRecord(znRecord);
   }
 
   /**

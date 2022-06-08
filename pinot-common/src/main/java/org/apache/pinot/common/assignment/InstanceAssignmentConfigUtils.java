@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.commons.lang.StringUtils;
 import org.apache.helix.ZNRecord;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
-import org.apache.pinot.common.metadata.ZKMetadataProvider;
 import org.apache.pinot.common.utils.config.TagNameUtils;
 import org.apache.pinot.spi.config.table.ReplicaGroupStrategyConfig;
 import org.apache.pinot.spi.config.table.SegmentsValidationAndRetentionConfig;
@@ -64,7 +63,9 @@ public class InstanceAssignmentConfigUtils {
   public static boolean allowInstanceAssignment(TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType) {
     if (StringUtils.isNotBlank(tableConfig.getTableGroupName())) {
-      return true;
+      TableType tableType = tableConfig.getTableType();
+      return (tableType == TableType.OFFLINE && instancePartitionsType == InstancePartitionsType.OFFLINE)
+          || (tableType == TableType.REALTIME && instancePartitionsType == InstancePartitionsType.CONSUMING);
     }
     TableType tableType = tableConfig.getTableType();
     Map<InstancePartitionsType, InstanceAssignmentConfig> instanceAssignmentConfigMap =
@@ -93,15 +94,6 @@ public class InstanceAssignmentConfigUtils {
   public static InstanceAssignmentConfig getInstanceAssignmentConfig(ZkHelixPropertyStore<ZNRecord> propertyStore,
       TableConfig tableConfig,
       InstancePartitionsType instancePartitionsType) {
-    String tableGroupId = tableConfig.getTableGroupName();
-    if (StringUtils.isNotBlank(tableGroupId)) {
-      InstanceAssignmentConfig config = ZKMetadataProvider.getInstanceAssignmentConfigForTableGroup(propertyStore,
-          tableGroupId);
-      if (config == null) {
-        throw new IllegalStateException("Instance assignment config is null for table-group");
-      }
-      return config;
-    }
     Preconditions.checkState(allowInstanceAssignment(tableConfig, instancePartitionsType),
         "Instance assignment is not allowed for the given table config");
 

@@ -6,7 +6,7 @@
     "retentionTimeUnit": "DAYS",
     "retentionTimeValue": "60",
     "schemaName": "githubEventsColocated",
-    "replication": "1",
+    "replication": "2",
     "replicasPerPartition": "1",
     "replicaGroupStrategyConfig": {
       "partitionColumn": "userId",
