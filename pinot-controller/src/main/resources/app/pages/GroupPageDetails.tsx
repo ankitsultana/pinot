@@ -195,7 +195,7 @@ const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
                     <div>
                         <CustomButton
                             onClick={()=>{
-                                setConfigField(JSON.stringify(tableGroupConfig, null, 2));
+                                setConfigField(tableGroupConfig);
                                 setShowEditConfig(true);
                             }}
                             tooltipTitle="Edit Group"
