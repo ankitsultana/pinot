@@ -83,6 +83,26 @@ public class ColocatedRealtimeSegmentAssignment implements SegmentAssignment {
   public Map<String, Map<String, String>> rebalanceTable(Map<String, Map<String, String>> currentAssignment,
       Map<InstancePartitionsType, InstancePartitions> instancePartitionsMap, @Nullable List<Tier> sortedTiers,
       @Nullable Map<String, InstancePartitions> tierInstancePartitionsMap, Configuration config) {
+    SegmentAssignmentUtils.CompletedConsumingOfflineSegmentAssignment completedConsumingOfflineSegmentAssignment =
+        new SegmentAssignmentUtils.CompletedConsumingOfflineSegmentAssignment(currentAssignment);
+    Map<String, Map<String, String>> completedAssignment = assignForOneType(
+        completedConsumingOfflineSegmentAssignment.getCompletedSegmentAssignment(), instancePartitionsMap,
+        CommonConstants.Helix.StateModel.SegmentStateModel.ONLINE);
+    Map<String, Map<String, String>> consumingAssignment = assignForOneType(
+        completedConsumingOfflineSegmentAssignment.getConsumingSegmentAssignment(), instancePartitionsMap,
+        CommonConstants.Helix.StateModel.SegmentStateModel.CONSUMING);
+    Map<String, Map<String, String>> newAssignment = new TreeMap<>();
+    for (Map.Entry<String, Map<String, String>> entry : completedAssignment.entrySet()) {
+      newAssignment.put(entry.getKey(), entry.getValue());
+    }
+    for (Map.Entry<String, Map<String, String>> entry : consumingAssignment.entrySet()) {
+      newAssignment.put(entry.getKey(), entry.getValue());
+    }
+    return newAssignment;
+  }
+
+  private Map<String, Map<String, String>> assignForOneType(Map<String, Map<String, String>> currentAssignment,
+      Map<InstancePartitionsType, InstancePartitions> instancePartitionsMap, String segmentStateModel) {
     InstancePartitions instancePartitions = instancePartitionsMap.get(InstancePartitionsType.CONSUMING);
     Map<Integer, List<String>> partitionIdToSegmentsMap = new TreeMap<>();
     for (String segmentName : currentAssignment.keySet()) {
@@ -98,7 +118,7 @@ public class ColocatedRealtimeSegmentAssignment implements SegmentAssignment {
             instancePartitions, segmentPartitionId);
         Map<String, String> instanceStateMap = new TreeMap<>();
         instancesAssigned.forEach(instance -> instanceStateMap.put(
-            instance, CommonConstants.Helix.StateModel.SegmentStateModel.ONLINE));
+            instance, segmentStateModel));
         newAssignment.put(segmentName, instanceStateMap);
       }
     }
