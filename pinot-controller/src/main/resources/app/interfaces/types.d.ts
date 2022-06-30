@@ -37,6 +37,10 @@ declare module 'Models' {
     BROKER_TENANTS: Array<string>;
   };
 
+  export type Groups = {
+    groups: Array<string>;
+  }
+
   export type Instances = {
     instances: Array<string>;
   };
@@ -65,6 +69,16 @@ declare module 'Models' {
     offlineSegments: Segments | null;
     realtimeSegments: Segments | null;
   };
+
+  export type TableGroup = {
+    groupName: string;
+    instanceAssignmentConfig: string;
+  }
+
+  export type InstancePartitions = {
+    instancePartitionsName: string;
+    partitionToInstancesMap: string;
+  }
 
   type Segments = {
     reportedSizeInBytes: number;

@@ -18,9 +18,29 @@
  */
 
 import { AxiosResponse } from 'axios';
-import { TableData, Instances, Instance, Tenants, ClusterConfig, TableName, TableSize,
-  IdealState, QueryTables, TableSchema, SQLResult, ClusterName, ZKGetList, ZKConfig, OperationResponse,
-  BrokerList, ServerList, UserList, TableList, UserObject
+import {
+  TableData,
+  Instances,
+  Instance,
+  Tenants,
+  ClusterConfig,
+  TableName,
+  TableSize,
+  IdealState,
+  QueryTables,
+  TableSchema,
+  SQLResult,
+  ClusterName,
+  ZKGetList,
+  ZKConfig,
+  OperationResponse,
+  BrokerList,
+  ServerList,
+  TableGroup,
+  Groups,
+  InstancePartitions,
+  TableList,
+  UserList, UserObject
 } from 'Models';
 
 const headers = {
@@ -59,6 +79,21 @@ export const getSegmentMetadata = (tableName: string, segmentName: string): Prom
 
 export const getTableSize = (name: string): Promise<AxiosResponse<TableSize>> =>
   baseApi.get(`/tables/${name}/size`);
+
+export const getTableGroupList = (): Promise<AxiosResponse<Groups>> =>
+  baseApi.get(`/groups`)
+
+export const getTableGroup = (name: string): Promise<AxiosResponse<TableGroup>> =>
+  baseApi.get(`/groups/${name}`)
+
+export const getTableGroupInstancePartitions = (name: string): Promise<AxiosResponse<InstancePartitions>> =>
+  baseApi.get(`/groups/${name}/instancePartitions`)
+
+export const putGroup = (groupName: string, params: string): Promise<AxiosResponse<OperationResponse>> =>
+  baseApi.put(`/groups/${groupName}`, params, { headers });
+
+export const putGroupInstancePartitions = (groupName: string): Promise<AxiosResponse<OperationResponse>> =>
+  baseApi.put(`/groups/${groupName}/recompute`, null, { headers })
 
 export const getIdealState = (name: string): Promise<AxiosResponse<IdealState>> =>
   baseApi.get(`/tables/${name}/idealstate`);

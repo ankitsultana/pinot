@@ -1,0 +1,268 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { makeStyles } from '@material-ui/core/styles';
+import { Grid } from '@material-ui/core';
+import { RouteComponentProps, useHistory } from 'react-router-dom';
+import { UnControlled as CodeMirror } from 'react-codemirror2';
+import { TableData } from 'Models';
+import _ from 'lodash';
+import AppLoader from '../components/AppLoader';
+import CustomizedTables from '../components/Table';
+import 'codemirror/lib/codemirror.css';
+import 'codemirror/theme/material.css';
+import 'codemirror/mode/javascript/javascript';
+import 'codemirror/mode/sql/sql';
+import SimpleAccordion from '../components/SimpleAccordion';
+import PinotMethodUtils from '../utils/PinotMethodUtils';
+import EditConfigOp from '../components/Homepage/Operations/EditConfigOp';
+import { NotificationContext } from '../components/Notification/NotificationContext';
+import Utils from '../utils/Utils';
+import CustomButton from '../components/CustomButton';
+import Confirm from '../components/Confirm';
+
+const useStyles = makeStyles(() => ({
+    root: {
+        border: '1px #BDCCD9 solid',
+        borderRadius: 4,
+        marginBottom: '20px',
+    },
+    highlightBackground: {
+        border: '1px #4285f4 solid',
+        backgroundColor: 'rgba(66, 133, 244, 0.05)',
+        borderRadius: 4,
+        marginBottom: '20px',
+    },
+    body: {
+        borderTop: '1px solid #BDCCD9',
+        fontSize: '16px',
+        lineHeight: '3rem',
+        paddingLeft: '15px',
+    },
+    queryOutput: {
+        border: '1px solid #BDCCD9',
+        '& .CodeMirror': { height: 532 },
+    },
+    sqlDiv: {
+        border: '1px #BDCCD9 solid',
+        borderRadius: 4,
+        marginBottom: '20px',
+    },
+    operationDiv: {
+        border: '1px #BDCCD9 solid',
+        borderRadius: 4,
+        marginBottom: 20
+    }
+}));
+
+const jsonoptions = {
+    lineNumbers: true,
+    mode: 'application/json',
+    styleActiveLine: true,
+    gutters: ['CodeMirror-lint-markers'],
+    theme: 'default',
+    readOnly: true
+};
+
+type Props = {
+    tenantName: string;
+    groupName: string;
+    instanceName: string;
+};
+
+type Summary = {
+    groupName: string;
+};
+
+const GroupPageDetails = ({ match }: RouteComponentProps<Props>) => {
+    const { groupName } = match.params;
+    const classes = useStyles();
+    const [fetching, setFetching] = useState(true);
+    const [] = useState<Summary>({
+                                     groupName: match.params.groupName,
+                                 });
+
+    const [] = React.useState({
+                                  enabled: true,
+                              });
+
+    const [confirmDialog, setConfirmDialog] = React.useState(false);
+    const [dialogDetails, setDialogDetails] = React.useState(null);
+    const {dispatch} = React.useContext(NotificationContext);
+
+    const [showEditConfig, setShowEditConfig] = useState(false);
+    const [configField, setConfigField] = useState('{}');
+
+    const [tableGroupConfig, setTableGroupConfig] = useState('');
+    const [instancePartitions, setInstancePartitions] = useState('');
+
+    const fetchTableGroupConfig = async () => {
+        const result = await PinotMethodUtils.getTableGroupData(groupName);
+        setTableGroupConfig(JSON.stringify(result, null, 2));
+        setFetching(false);
+    };
+
+    const fetchInstancePartitions = async () => {
+        const result = await PinotMethodUtils.getTableGroupInstancePartitionsData(groupName)
+        setInstancePartitions(JSON.stringify(result, null, 2))
+        setFetching(false)
+    };
+
+    const recomputeTableGroup = async () => {
+        const result = await PinotMethodUtils.recomputeTableGroup(groupName);
+        syncResponse(result)
+    }
+
+    useEffect(()=>{
+        fetchTableGroupConfig();
+    },[])
+
+    useEffect(()=>{
+        fetchInstancePartitions();
+    },[])
+
+    const handleConfigChange = (value: string) => {
+        setConfigField(value);
+    };
+
+    const handleRecompute = () => {
+        setDialogDetails({
+                             title: 'Re-compute Table Group Instances',
+                             content: 'Are you sure you want to re-compute table-group instances?',
+                             successCb: () => recomputeTableGroup()
+                         });
+        setConfirmDialog(true);
+    };
+
+    const saveConfigAction = async () => {
+        console.log("saving config: ")
+        console.log(configField)
+        let configObj = JSON.parse(configField);
+        const result = await PinotMethodUtils.updateTableGroup(groupName, configObj)
+        syncResponse(result)
+    };
+
+    const syncResponse = (result) => {
+        if (result.status) {
+            dispatch({type: 'success', message: result.status, show: true});
+            setShowEditConfig(false);
+            fetchTableGroupConfig();
+        } else {
+            dispatch({type: 'error', message: result.error, show: true});
+        }
+    };
+
+    const closeDialog = () => {
+        setConfirmDialog(false);
+        setDialogDetails(null);
+    };
+
+    return fetching ? (
+        <AppLoader />
+    ) : (
+        <Grid
+            item
+            xs
+            style={{
+                padding: 20,
+                backgroundColor: 'white',
+                maxHeight: 'calc(100vh - 70px)',
+                overflowY: 'auto',
+            }}
+        >
+            <div className={classes.operationDiv}>
+                <SimpleAccordion
+                    headerTitle="Operations"
+                    showSearchBox={false}
+                >
+                    <div>
+                        <CustomButton
+                            onClick={()=>{
+                                setConfigField(tableGroupConfig);
+                                setShowEditConfig(true);
+                            }}
+                            tooltipTitle="Edit Group"
+                            enableTooltip={true}
+                        >
+                            Edit Group
+                        </CustomButton>
+                        <CustomButton
+                            onClick={handleRecompute}
+                            tooltipTitle="Reloads all segments of the table to apply changes such as indexing, column default values, etc"
+                            enableTooltip={true}
+                        >
+                            Recompute Table Group
+                        </CustomButton>
+                    </div>
+                </SimpleAccordion>
+            </div>
+            <Grid container spacing={2}>
+                <Grid item xs={6}>
+                    <div className={classes.sqlDiv}>
+                        <SimpleAccordion
+                            headerTitle="Table Group Config Json"
+                            showSearchBox={false}
+                        >
+                            <CodeMirror
+                                options={jsonoptions}
+                                value={tableGroupConfig}
+                                className={classes.queryOutput}
+                                autoCursor={false}
+                            />
+                        </SimpleAccordion>
+                    </div>
+                </Grid>
+                <Grid item xs={6}>
+                    <div className={classes.sqlDiv}>
+                        <SimpleAccordion
+                            headerTitle="Instance Partitions"
+                            showSearchBox={false}
+                        >
+                            <CodeMirror
+                                options={jsonoptions}
+                                value={instancePartitions}
+                                className={classes.queryOutput}
+                                autoCursor={false}
+                            />
+                        </SimpleAccordion>
+                    </div>
+                </Grid>
+            </Grid>
+            <EditConfigOp
+                showModal={showEditConfig}
+                hideModal={()=>{setShowEditConfig(false);}}
+                saveConfig={saveConfigAction}
+                config={configField}
+                handleConfigChange={handleConfigChange}
+            />
+            {confirmDialog && dialogDetails && <Confirm
+                openDialog={confirmDialog}
+                dialogTitle={dialogDetails.title}
+                dialogContent={dialogDetails.content}
+                successCallback={dialogDetails.successCb}
+                closeDialog={closeDialog}
+                dialogYesLabel='Yes'
+                dialogNoLabel='No'
+            />}
+        </Grid>
+    );
+};
+
+export default GroupPageDetails;

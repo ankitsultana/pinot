@@ -72,7 +72,12 @@ import {
   requestUserList,
   requestAddUser,
   requestDeleteUser,
-  requestUpdateUser
+  requestUpdateUser,
+  getTableGroup,
+  getTableGroupList,
+  putGroup,
+  getTableGroupInstancePartitions,
+  putGroupInstancePartitions
 } from '../requests';
 import { baseApi } from './axios-config';
 import Utils from './Utils';
@@ -474,6 +479,36 @@ const getTableSummaryData = (tableName) => {
     };
   });
 };
+
+const getTableGroupListData = () => {
+  return getTableGroupList().then(({data}) => {
+    return data.groups
+  })
+}
+
+const getTableGroupData = (groupName) => {
+  return getTableGroup(groupName).then(({ data }) => {
+    return data
+  })
+}
+
+const getTableGroupInstancePartitionsData = (groupName) => {
+  return getTableGroupInstancePartitions(groupName).then(({ data }) => {
+    return data
+  })
+}
+
+const updateTableGroup = (groupName: string, groupConfig: string) => {
+  return putGroup(groupName, groupConfig).then((res)=>{
+    return res.data
+  })
+}
+
+const recomputeTableGroup = (groupName: string) => {
+  return putGroupInstancePartitions(groupName).then((res)=>{
+    return res.data
+  })
+}
 
 // This method is used to display segment list of a particular tenant table
 // API: /tables/:tableName/idealstate
@@ -999,5 +1034,10 @@ export default {
   getUserList,
   addUser,
   deleteUser,
-  updateUser
+  updateUser,
+  getTableGroupData,
+  getTableGroupListData,
+  getTableGroupInstancePartitionsData,
+  updateTableGroup,
+  recomputeTableGroup
 };

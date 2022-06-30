@@ -30,11 +30,15 @@ import ZookeeperPage from './pages/ZookeeperPage';
 import SchemaPageDetails from './pages/SchemaPageDetails';
 import LoginPage from './pages/LoginPage';
 import UserPage from "./pages/UserPage";
+import GroupsListingPage from "./pages/GroupsListingPage";
+import GroupPageDetails from "./pages/GroupPageDetails";
 
 export default [
   { path: '/', Component: HomePage },
   { path: '/query', Component: QueryPage },
   { path: '/tenants', Component: TenantsListingPage },
+  { path: '/groups', Component: GroupsListingPage },
+  { path: '/groups/:groupName', Component: GroupPageDetails },
   { path: '/controllers', Component: InstanceListingPage },
   { path: '/brokers', Component: InstanceListingPage },
   { path: '/servers', Component: InstanceListingPage },
