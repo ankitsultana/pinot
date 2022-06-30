@@ -181,6 +181,10 @@ public class ControllerRequestURLBuilder {
     return StringUtil.join("/", _baseUrl, "brokers", "tables", table, params.toString());
   }
 
+  public String forGroupCreate() {
+    return StringUtil.join("/", _baseUrl, "groups");
+  }
+
   public String forTableCreate() {
     return StringUtil.join("/", _baseUrl, "tables");
   }

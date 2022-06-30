@@ -1,0 +1,35 @@
+{
+  "tableName": "riderAttributes",
+  "tableType": "OFFLINE",
+  "segmentsConfig": {
+    "segmentPushType": "APPEND",
+    "segmentAssignmentStrategy": "BalanceNumSegmentAssignmentStrategy",
+    "schemaName": "riderAttributes",
+    "replication": "2",
+    "replicaGroupStrategyConfig": {
+      "partitionColumn": "userUUID",
+      "numInstancesPerPartition": 1
+    }
+  },
+  "tenants": {
+  },
+  "tableIndexConfig": {
+    "loadMode": "HEAP",
+    "invertedIndexColumns": [
+      "userUUID"
+    ],
+    "segmentPartitionConfig": {
+      "columnPartitionMap": {
+        "userUUID": {
+          "functionName": "Murmur",
+          "numPartitions": 4
+        }
+      }
+    }
+  },
+  "tableGroup": "riderIdGroup",
+  "metadata": {
+    "customConfigs": {
+    }
+  }
+}
