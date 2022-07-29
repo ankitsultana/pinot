@@ -40,6 +40,7 @@ import org.apache.pinot.spi.config.table.ReplicaGroupStrategyConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.utils.CommonConstants.Helix.StateModel.SegmentStateModel;
+import org.apache.pinot.spi.utils.CommonConstants.Segment.AssignmentStrategy;
 import org.apache.pinot.spi.utils.RebalanceConfigConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,12 +76,16 @@ public class OfflineSegmentAssignment implements SegmentAssignment {
   private String _offlineTableName;
   private int _replication;
   private String _partitionColumn;
+  private boolean _isColocatedSegmentAssignment;
 
   @Override
   public void init(HelixManager helixManager, TableConfig tableConfig) {
     _helixManager = helixManager;
     _offlineTableName = tableConfig.getTableName();
     _replication = tableConfig.getValidationConfig().getReplicationNumber();
+    _isColocatedSegmentAssignment =
+        tableConfig.getValidationConfig().getSegmentAssignmentStrategy().equals(
+            AssignmentStrategy.COLOCATED_SEGMENT_ASSIGNMENT_STRATEGY);
     ReplicaGroupStrategyConfig replicaGroupStrategyConfig =
         tableConfig.getValidationConfig().getReplicaGroupStrategyConfig();
     _partitionColumn = replicaGroupStrategyConfig != null ? replicaGroupStrategyConfig.getPartitionColumn() : null;
@@ -132,6 +137,10 @@ public class OfflineSegmentAssignment implements SegmentAssignment {
    */
   private List<String> assignSegment(String segmentName, Map<String, Map<String, String>> currentAssignment,
       InstancePartitions instancePartitions) {
+    if (_isColocatedSegmentAssignment) {
+      int segmentPartitionId = getPartitionId(segmentName);
+      return SegmentAssignmentUtils.assignSegmentForColocatedTable(instancePartitions, segmentPartitionId);
+    }
     int numReplicaGroups = instancePartitions.getNumReplicaGroups();
     if (numReplicaGroups == 1) {
       // Non-replica-group based assignment
@@ -146,12 +155,7 @@ public class OfflineSegmentAssignment implements SegmentAssignment {
       if (_partitionColumn == null) {
         partitionId = 0;
       } else {
-        SegmentZKMetadata segmentZKMetadata = ZKMetadataProvider
-            .getSegmentZKMetadata(_helixManager.getHelixPropertyStore(), _offlineTableName, segmentName);
-        Preconditions
-            .checkState(segmentZKMetadata != null, "Failed to find segment ZK metadata for segment: %s of table: %s",
-                segmentName, _offlineTableName);
-        int segmentPartitionId = getPartitionId(segmentZKMetadata);
+        int segmentPartitionId = getPartitionId(segmentName);
 
         // Uniformly spray the segment partitions over the instance partitions
         int numPartitions = instancePartitions.getNumPartitions();
@@ -231,7 +235,9 @@ public class OfflineSegmentAssignment implements SegmentAssignment {
   private Map<String, Map<String, String>> reassignSegments(String instancePartitionType,
       Map<String, Map<String, String>> currentAssignment, InstancePartitions instancePartitions, boolean bootstrap) {
     Map<String, Map<String, String>> newAssignment;
-    if (bootstrap) {
+    if (bootstrap || _isColocatedSegmentAssignment) {
+      // For ColocatedSegmentAssignmentStrategy, the assignment is deterministic so it's equivalent to
+      // the bootstrap case
       LOGGER.info("Bootstrapping segment assignment for {} segments of table: {}", instancePartitionType,
           _offlineTableName);
 
@@ -284,7 +290,7 @@ public class OfflineSegmentAssignment implements SegmentAssignment {
     int numPartitions = instancePartitions.getNumPartitions();
     Map<Integer, List<String>> instancePartitionIdToSegmentsMap = new HashMap<>();
     for (String segmentName : currentAssignment.keySet()) {
-      int partitionId = getPartitionId(segmentZKMetadataMap.get(segmentName));
+      int partitionId = getPartitionId(segmentName, segmentZKMetadataMap.get(segmentName));
       int instancePartitionId = partitionId % numPartitions;
       instancePartitionIdToSegmentsMap.computeIfAbsent(instancePartitionId, k -> new ArrayList<>()).add(segmentName);
     }
@@ -301,8 +307,23 @@ public class OfflineSegmentAssignment implements SegmentAssignment {
         .rebalanceReplicaGroupBasedTable(currentAssignment, instancePartitions, instancePartitionIdToSegmentsMap);
   }
 
-  private int getPartitionId(SegmentZKMetadata segmentZKMetadata) {
-    String segmentName = segmentZKMetadata.getSegmentName();
+  /**
+   * Computes segment partition id for the given segment by fetching the metadata from ZK. If the ZK metadata
+   * for the segment is already available, choose the overloaded option that takes SegmentZKMetadata in its args.
+   */
+  private int getPartitionId(String segmentName) {
+    SegmentZKMetadata segmentZKMetadata = ZKMetadataProvider
+        .getSegmentZKMetadata(_helixManager.getHelixPropertyStore(), _offlineTableName, segmentName);
+    Preconditions
+        .checkState(segmentZKMetadata != null, "Failed to find segment ZK metadata for segment: %s of table: %s",
+            segmentName, _offlineTableName);
+    return getPartitionId(segmentName, segmentZKMetadata);
+  }
+
+  /**
+   * A helper method to extract segment partition-id when the SegmentZKMetadata is already available
+   */
+  private int getPartitionId(String segmentName, SegmentZKMetadata segmentZKMetadata) {
     ColumnPartitionMetadata partitionMetadata =
         segmentZKMetadata.getPartitionMetadata().getColumnPartitionMap().get(_partitionColumn);
     Preconditions.checkState(partitionMetadata != null,

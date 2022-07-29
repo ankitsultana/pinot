@@ -36,6 +36,7 @@ import org.apache.pinot.common.utils.SegmentUtils;
 import org.apache.pinot.spi.config.table.ReplicaGroupStrategyConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
+import org.apache.pinot.spi.utils.CommonConstants;
 import org.apache.pinot.spi.utils.CommonConstants.Helix.StateModel.SegmentStateModel;
 import org.apache.pinot.spi.utils.RebalanceConfigConstants;
 import org.slf4j.Logger;
@@ -87,12 +88,16 @@ public class RealtimeSegmentAssignment implements SegmentAssignment {
   private String _realtimeTableName;
   private int _replication;
   private String _partitionColumn;
+  private boolean _isColocatedSegmentAssignment;
 
   @Override
   public void init(HelixManager helixManager, TableConfig tableConfig) {
     _helixManager = helixManager;
     _realtimeTableName = tableConfig.getTableName();
     _replication = tableConfig.getValidationConfig().getReplicasPerPartitionNumber();
+    _isColocatedSegmentAssignment =
+        tableConfig.getValidationConfig().getSegmentAssignmentStrategy().equals(
+            CommonConstants.Segment.AssignmentStrategy.COLOCATED_SEGMENT_ASSIGNMENT_STRATEGY);
     ReplicaGroupStrategyConfig replicaGroupStrategyConfig =
         tableConfig.getValidationConfig().getReplicaGroupStrategyConfig();
     _partitionColumn = replicaGroupStrategyConfig != null ? replicaGroupStrategyConfig.getPartitionColumn() : null;
@@ -143,6 +148,10 @@ public class RealtimeSegmentAssignment implements SegmentAssignment {
    * Helper method to assign instances for CONSUMING segment based on the segment partition id and instance partitions.
    */
   private List<String> assignConsumingSegment(String segmentName, InstancePartitions instancePartitions) {
+    if (_isColocatedSegmentAssignment) {
+      int partitionGroupId = getPartitionGroupIdStrict(segmentName);
+      return SegmentAssignmentUtils.assignSegmentForColocatedTable(instancePartitions, partitionGroupId);
+    }
     int partitionGroupId = getPartitionGroupId(segmentName);
     int numReplicaGroups = instancePartitions.getNumReplicaGroups();
     if (numReplicaGroups == 1) {
@@ -308,7 +317,7 @@ public class RealtimeSegmentAssignment implements SegmentAssignment {
   private Map<String, Map<String, String>> reassignSegments(String instancePartitionType,
       Map<String, Map<String, String>> currentAssignment, InstancePartitions instancePartitions, boolean bootstrap) {
     Map<String, Map<String, String>> newAssignment;
-    if (bootstrap) {
+    if (bootstrap || _isColocatedSegmentAssignment) {
       LOGGER.info("Bootstrapping segment assignment for {} segments of table: {}", instancePartitionType,
           _realtimeTableName);
 
@@ -359,6 +368,10 @@ public class RealtimeSegmentAssignment implements SegmentAssignment {
    */
   private List<String> assignCompletedSegment(String segmentName, Map<String, Map<String, String>> currentAssignment,
       InstancePartitions instancePartitions) {
+    if (_isColocatedSegmentAssignment) {
+      int partitionId = getPartitionGroupIdStrict(segmentName) % instancePartitions.getNumPartitions();
+      return SegmentAssignmentUtils.assignSegmentForColocatedTable(instancePartitions, partitionId);
+    }
     int numReplicaGroups = instancePartitions.getNumReplicaGroups();
     if (numReplicaGroups == 1) {
       // Non-replica-group based assignment
@@ -384,6 +397,18 @@ public class RealtimeSegmentAssignment implements SegmentAssignment {
       // instance assignment formula.
       segmentPartitionId = Math.abs(segmentName.hashCode() % 10_000);
     }
+    return segmentPartitionId;
+  }
+
+  /**
+   * Same as getPartitionsGroupId with the only difference that this would throw an exception if there's
+   * no partition information in the segment. This is useful for Colocated Segment Assignment since it
+   * relies on the partition-id to figure out where to store a segment.
+   */
+  private int getPartitionGroupIdStrict(String segmentName) {
+    Integer segmentPartitionId =
+        SegmentUtils.getRealtimeSegmentPartitionId(segmentName, _realtimeTableName, _helixManager, _partitionColumn);
+    Preconditions.checkNotNull(segmentPartitionId, String.format("No partition id found in segment=%s", segmentName));
     return segmentPartitionId;
   }
 }
