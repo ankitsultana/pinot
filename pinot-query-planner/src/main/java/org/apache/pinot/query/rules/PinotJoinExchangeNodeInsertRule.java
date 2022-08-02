@@ -20,6 +20,7 @@ package org.apache.pinot.query.rules;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.hep.HepRelVertex;
@@ -55,7 +56,9 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
     }
     if (call.rel(0) instanceof Join) {
       Join join = call.rel(0);
-      return !isExchange(join.getLeft()) && !isExchange(join.getRight());
+      List<String> hints = join.getHints().stream().map(x -> x.hintName).collect(Collectors.toList());
+      boolean isColocatedJoin = hints.contains(PinotRelationalHints.USE_COLOCATED_JOIN.hintName);
+      return !isColocatedJoin && !isExchange(join.getLeft()) && !isExchange(join.getRight());
     }
     return false;
   }

@@ -29,6 +29,7 @@ public class PinotRelationalHints {
   public static final RelHint USE_BROADCAST_DISTRIBUTE = RelHint.builder("USE_BROADCAST_DISTRIBUTE").build();
   public static final RelHint AGG_INTERMEDIATE_STAGE = RelHint.builder("AGG_INTERMEDIATE_STAGE").build();
   public static final RelHint AGG_LEAF_STAGE = RelHint.builder("AGG_LEAF_STAGE").build();
+  public static final RelHint USE_COLOCATED_JOIN = RelHint.builder("USE_COLOCATED_JOIN").build();
 
   private PinotRelationalHints() {
     // do not instantiate.

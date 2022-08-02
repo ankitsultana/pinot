@@ -58,7 +58,8 @@ public class WorkerManager {
 
   public void assignWorkerToStage(int stageId, StageMetadata stageMetadata) {
     List<String> scannedTables = stageMetadata.getScannedTables();
-    if (scannedTables.size() == 1) { // table scan stage, need to attach server as well as segment info.
+    if (scannedTables.size() == 1 || scannedTables.size() == 2) {
+      // table scan stage, need to attach server as well as segment info.
       RoutingTable routingTable = getRoutingTable(scannedTables.get(0));
       Map<ServerInstance, List<String>> serverInstanceToSegmentsMap = routingTable.getServerInstanceToSegmentsMap();
       stageMetadata.setServerInstances(new ArrayList<>(serverInstanceToSegmentsMap.keySet()));

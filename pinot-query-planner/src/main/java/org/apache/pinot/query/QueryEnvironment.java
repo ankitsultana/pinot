@@ -34,6 +34,7 @@ import org.apache.calcite.prepare.PlannerImpl;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.hint.HintPredicates;
 import org.apache.calcite.rel.hint.HintStrategyTable;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
@@ -48,6 +49,7 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.parser.CalciteSqlParser;
 import org.apache.pinot.query.planner.QueryPlan;
+import org.apache.pinot.query.planner.hints.PinotRelationalHints;
 import org.apache.pinot.query.planner.logical.LogicalPlanner;
 import org.apache.pinot.query.planner.logical.StagePlanner;
 import org.apache.pinot.query.routing.WorkerManager;
@@ -170,7 +172,9 @@ public class QueryEnvironment {
 
   // TODO: add hint strategy table based on plannerContext.
   private HintStrategyTable getHintStrategyTable(PlannerContext plannerContext) {
-    return HintStrategyTable.builder().build();
+    return HintStrategyTable.builder()
+        .hintStrategy(PinotRelationalHints.USE_COLOCATED_JOIN.hintName, HintPredicates.JOIN)
+        .build();
   }
 
   protected RelNode optimize(RelRoot relRoot, PlannerContext plannerContext) {
