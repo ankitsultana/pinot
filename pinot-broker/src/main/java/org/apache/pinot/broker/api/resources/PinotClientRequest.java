@@ -159,6 +159,9 @@ public class PinotClientRequest {
       case DQL:
         try (RequestScope requestStatistics = Tracing.getTracer().createRequestScope()) {
           return _requestHandler.handleRequest(sqlRequestJson, httpRequesterIdentity, requestStatistics);
+        } catch (Exception e) {
+          LOGGER.error("err", e);
+          throw e;
         }
       case DML:
         Map<String, String> headers = new HashMap<>();

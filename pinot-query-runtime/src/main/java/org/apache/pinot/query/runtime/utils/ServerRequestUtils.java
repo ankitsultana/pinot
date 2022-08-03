@@ -18,12 +18,16 @@
  */
 package org.apache.pinot.query.runtime.utils;
 
+import com.google.common.base.Preconditions;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.InstanceRequest;
+import org.apache.pinot.common.request.JoinInfo;
+import org.apache.pinot.common.request.JoinKey;
 import org.apache.pinot.common.request.PinotQuery;
 import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.common.utils.request.RequestUtils;
@@ -31,6 +35,7 @@ import org.apache.pinot.core.query.request.ServerQueryRequest;
 import org.apache.pinot.query.parser.CalciteRexExpressionParser;
 import org.apache.pinot.query.planner.stage.AggregateNode;
 import org.apache.pinot.query.planner.stage.FilterNode;
+import org.apache.pinot.query.planner.stage.JoinNode;
 import org.apache.pinot.query.planner.stage.MailboxSendNode;
 import org.apache.pinot.query.planner.stage.ProjectNode;
 import org.apache.pinot.query.planner.stage.StageNode;
@@ -87,8 +92,47 @@ public class ServerRequestUtils {
     PinotQuery pinotQuery = new PinotQuery();
     pinotQuery.setLimit(DEFAULT_LEAF_NODE_LIMIT);
     pinotQuery.setExplain(false);
-    walkStageTree(distributedStagePlan.getStageRoot(), pinotQuery);
+    walkStageTreeForJoin(distributedStagePlan.getStageRoot(), pinotQuery);
     return pinotQuery;
+  }
+
+  private static void walkStageTreeForJoin(StageNode node, PinotQuery pinotQuery) {
+    if (node instanceof JoinNode) {
+      JoinNode joinNode = (JoinNode) node;
+      JoinKey leftJoinKey =
+          new JoinKey();
+      leftJoinKey.setColumnIndices(
+          joinNode.getCriteria().get(0).getLeftJoinKeySelector().getColumnIndices()
+              .stream().map(x -> (short) x.intValue()).collect(Collectors.toList()));
+      JoinKey rightJoinKey =
+          new JoinKey();
+      rightJoinKey.setColumnIndices(
+          joinNode.getCriteria().get(0).getRightJoinKeySelector().getColumnIndices()
+              .stream().map(x -> (short) x.intValue()).collect(Collectors.toList()));
+      JoinInfo joinInfo = new JoinInfo();
+      joinInfo.setLeftJoinKey(leftJoinKey);
+      joinInfo.setRightJoinKey(rightJoinKey);
+      PinotQuery rightQuery = createPinotQuery();
+      PinotQuery leftQuery = createPinotQuery();
+      Preconditions.checkState(joinNode.getInputs().size() == 2, "Join should have 2 inputs");
+      walkStageTree(joinNode.getInputs().get(0), leftQuery);
+      walkStageTree(joinNode.getInputs().get(1), rightQuery);
+      joinInfo.setLeftQuery(leftQuery);
+      joinInfo.setRightQuery(rightQuery);
+      DataSource dataSource = new DataSource();
+      dataSource.setTableName("joined_table");
+      pinotQuery.setDataSource(dataSource);
+      pinotQuery.setSelectList(Arrays.stream(joinNode.getDataSchema().getColumnNames())
+          .map(RequestUtils::getIdentifierExpression)
+          .collect(Collectors.toList()));
+      pinotQuery.setJoinInfo(joinInfo);
+      return;
+    }
+    // this walkStageTree should only be a sequential walk.
+    for (StageNode child : node.getInputs()) {
+      walkStageTreeForJoin(child, pinotQuery);
+    }
+    walkCommon(node, pinotQuery);
   }
 
   private static void walkStageTree(StageNode node, PinotQuery pinotQuery) {
@@ -96,6 +140,10 @@ public class ServerRequestUtils {
     for (StageNode child : node.getInputs()) {
       walkStageTree(child, pinotQuery);
     }
+    walkCommon(node, pinotQuery);
+  }
+
+  private static void walkCommon(StageNode node, PinotQuery pinotQuery) {
     if (node instanceof TableScanNode) {
       TableScanNode tableScanNode = (TableScanNode) node;
       DataSource dataSource = new DataSource();
@@ -116,11 +164,34 @@ public class ServerRequestUtils {
       // set group-by list
       pinotQuery.setGroupByList(CalciteRexExpressionParser.convertGroupByList(
           ((AggregateNode) node).getGroupSet(), pinotQuery));
+    } else if (node instanceof JoinNode) {
+      JoinNode joinNode = (JoinNode) node;
+      JoinKey leftJoinKey =
+          new JoinKey();
+      leftJoinKey.setColumnIndices(
+          joinNode.getCriteria().get(0).getLeftJoinKeySelector().getColumnIndices()
+              .stream().map(x -> (short) x.intValue()).collect(Collectors.toList()));
+      JoinKey rightJoinKey =
+          new JoinKey();
+      rightJoinKey.setColumnIndices(
+          joinNode.getCriteria().get(0).getRightJoinKeySelector().getColumnIndices()
+              .stream().map(x -> (short) x.intValue()).collect(Collectors.toList()));
+      JoinInfo joinInfo = new JoinInfo();
+      joinInfo.setLeftJoinKey(leftJoinKey);
+      joinInfo.setRightJoinKey(rightJoinKey);
+      pinotQuery.setJoinInfo(joinInfo);
     } else if (node instanceof MailboxSendNode) {
       // TODO: MailboxSendNode should be the root of the leaf stage. but ignore for now since it is handle seperately
       // in QueryRunner as a single step sender.
     } else {
       throw new UnsupportedOperationException("Unsupported logical plan node: " + node);
     }
+  }
+
+  private static PinotQuery createPinotQuery() {
+    PinotQuery pinotQuery = new PinotQuery();
+    pinotQuery.setLimit(DEFAULT_LEAF_NODE_LIMIT);
+    pinotQuery.setExplain(false);
+    return pinotQuery;
   }
 }

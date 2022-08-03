@@ -340,6 +340,52 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
     }
   }
 
+  private DataTable processJoinQueryInternal(ServerQueryRequest queryRequest, ExecutorService executorService,
+      @Nullable StreamObserver<Server.ServerResponse> responseObserver) {
+    // Get the two tables being queried
+    // Get their table data managers
+    // Get index segments for both the tables
+    long requestId = queryRequest.getRequestId();
+    String tableNameWithType = queryRequest.getTableNameWithType();
+    QueryContext queryContext = queryRequest.getQueryContext();
+    LOGGER.debug("Incoming request Id: {}, query: {}", requestId, queryContext);
+
+    queryContext.setEnablePrefetch(_enablePrefetch);
+
+    TableDataManager tableDataManager = _instanceDataManager.getTableDataManager(tableNameWithType);
+    if (tableDataManager == null) {
+      String errorMessage = String.format("Failed to find table: %s on server: %s", tableNameWithType,
+          _instanceDataManager.getInstanceId());
+      DataTable dataTable = DataTableFactory.getEmptyDataTable();
+      dataTable.addException(QueryException.getException(QueryException.SERVER_TABLE_MISSING_ERROR, errorMessage));
+      LOGGER.error("{} while processing requestId: {}", errorMessage, requestId);
+      return dataTable;
+    }
+
+    List<String> segmentsToQuery = queryRequest.getSegmentsToQuery();
+    List<String> missingSegments = new ArrayList<>();
+    List<SegmentDataManager> segmentDataManagers = tableDataManager.acquireSegments(segmentsToQuery, missingSegments);
+    int numSegmentsAcquired = segmentDataManagers.size();
+    List<IndexSegment> indexSegments = new ArrayList<>(numSegmentsAcquired);
+    for (SegmentDataManager segmentDataManager : segmentDataManagers) {
+      indexSegments.add(segmentDataManager.getSegment());
+    }
+
+    DataTable dataTable = null;
+    try {
+      dataTable = processQuery(indexSegments, queryContext, null, executorService, responseObserver,
+          queryRequest.isEnableStreaming());
+    } catch (Exception e) {
+      dataTable = DataTableFactory.getEmptyDataTable();
+      dataTable.addException(QueryException.getException(QueryException.QUERY_EXECUTION_ERROR, e));
+    } finally {
+      for (SegmentDataManager segmentDataManager : segmentDataManagers) {
+        tableDataManager.releaseSegment(segmentDataManager);
+      }
+    }
+    return dataTable;
+  }
+
   /** @return EXPLAIN_PLAN query result {@link DataTable} when no segments get selected for query execution.*/
   private static DataTable getExplainPlanResultsForNoMatchingSegment(int totalNumSegments) {
     DataTableBuilder dataTableBuilder = DataTableFactory.getDataTableBuilder(DataSchema.EXPLAIN_RESULT_SCHEMA);

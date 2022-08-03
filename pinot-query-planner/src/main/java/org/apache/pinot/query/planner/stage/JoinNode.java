@@ -22,7 +22,6 @@ import java.util.List;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
-import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.planner.serde.ProtoProperties;
 
 
@@ -52,9 +51,9 @@ public class JoinNode extends AbstractStageNode {
 
   public static class JoinClause {
     @ProtoProperties
-    private KeySelector<Object[], Object[]> _leftJoinKeySelector;
+    private FieldSelectionKeySelector _leftJoinKeySelector;
     @ProtoProperties
-    private KeySelector<Object[], Object[]> _rightJoinKeySelector;
+    private FieldSelectionKeySelector _rightJoinKeySelector;
 
     public JoinClause() {
     }
@@ -64,11 +63,11 @@ public class JoinNode extends AbstractStageNode {
       _rightJoinKeySelector = rightKeySelector;
     }
 
-    public KeySelector<Object[], Object[]> getLeftJoinKeySelector() {
+    public FieldSelectionKeySelector getLeftJoinKeySelector() {
       return _leftJoinKeySelector;
     }
 
-    public KeySelector<Object[], Object[]> getRightJoinKeySelector() {
+    public FieldSelectionKeySelector getRightJoinKeySelector() {
       return _rightJoinKeySelector;
     }
   }

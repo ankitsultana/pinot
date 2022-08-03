@@ -37,6 +37,18 @@ struct PinotQuery {
   11: optional map<string, string> queryOptions;
   12: optional bool explain;
   13: optional map<Expression, Expression> expressionOverrideHints;
+  14: optional JoinInfo joinInfo;
+}
+
+struct JoinInfo {
+  1: required JoinKey leftJoinKey;
+  2: required JoinKey rightJoinKey;
+  3: required PinotQuery leftQuery;
+  4: required PinotQuery rightQuery;
+}
+
+struct JoinKey {
+  1: required list<i16> columnIndices;
 }
 
 enum ExpressionType {
