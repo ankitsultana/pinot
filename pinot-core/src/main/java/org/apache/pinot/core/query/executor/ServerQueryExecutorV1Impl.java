@@ -417,9 +417,10 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
     int totalSegments = leftIndexSegments.size() + rightIndexSegments.size();
 
     SegmentPrunerStatistics prunerStats = new SegmentPrunerStatistics();
-    List<IndexSegment> leftSelectedSegments = _segmentPrunerService.prune(leftIndexSegments, queryContext, prunerStats);
-    List<IndexSegment> rightSelectedSegments = _segmentPrunerService.prune(rightIndexSegments, queryContext,
-        prunerStats);
+    List<IndexSegment> leftSelectedSegments = _segmentPrunerService.prune(leftIndexSegments,
+        queryContext.getLeftQueryContext(), prunerStats);
+    List<IndexSegment> rightSelectedSegments = _segmentPrunerService.prune(rightIndexSegments,
+        queryContext.getRightQueryContext(), prunerStats);
     int numSelectedSegments = leftSelectedSegments.size() + rightSelectedSegments.size();
     if (numSelectedSegments == 0) {
       // Only return metadata for streaming query
@@ -444,7 +445,9 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
     if (enableStreaming) {
       throw new IllegalArgumentException("Cannot use streaming for local join");
     }
-    Plan queryPlan = _planMaker.makeInstancePlan(leftIndexSegments, queryContext, executorService, _serverMetrics);
+    Preconditions.checkState(_planMaker instanceof InstancePlanMakerImplV2);
+    Plan queryPlan = ((InstancePlanMakerImplV2) _planMaker).makeInstancePlanForJoin(
+        leftIndexSegments, rightIndexSegments, queryContext, executorService, _serverMetrics);
     DataTable dataTable = queryPlan.execute();
     Map<String, String> metadata = dataTable.getMetadata();
     // Update the total docs in the metadata based on the un-pruned segments

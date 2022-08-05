@@ -158,11 +158,15 @@ public class QueryContextConverterUtils {
 
     QueryContext leftQueryContext = null;
     QueryContext rightQueryContext = null;
+    List<Short> leftColumnIndices = null;
+    List<Short> rightColumnIndices = null;
     if (pinotQuery.isSetJoinInfo()) {
       Preconditions.checkNotNull(pinotQuery.getJoinInfo().getLeftQuery(), "Couldn't find left query for local join");
       Preconditions.checkNotNull(pinotQuery.getJoinInfo().getRightQuery(), "Couldn't find right query for local join");
       leftQueryContext = getQueryContext(pinotQuery.getJoinInfo().getLeftQuery());
       rightQueryContext = getQueryContext(pinotQuery.getJoinInfo().getRightQuery());
+      leftColumnIndices = pinotQuery.getJoinInfo().getLeftJoinKey().getColumnIndices();
+      rightColumnIndices = pinotQuery.getJoinInfo().getRightJoinKey().getColumnIndices();
     }
 
     return new QueryContext.Builder().setTableName(tableName).setSubquery(subquery)
@@ -171,6 +175,7 @@ public class QueryContextConverterUtils {
         .setHavingFilter(havingFilter).setLimit(pinotQuery.getLimit()).setOffset(pinotQuery.getOffset())
         .setQueryOptions(pinotQuery.getQueryOptions()).setExpressionOverrideHints(expressionContextOverrideHints)
         .setExplain(pinotQuery.isExplain()).setLeftQueryContext(leftQueryContext)
-        .setRightQueryContext(rightQueryContext).build();
+        .setRightQueryContext(rightQueryContext).setLeftJoinColumnIndices(leftColumnIndices)
+        .setRightJoinColumnIndices(rightColumnIndices).build();
   }
 }

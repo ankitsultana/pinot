@@ -122,13 +122,16 @@ public class QueryContext {
   private boolean _nullHandlingEnabled;
   private QueryContext _leftQueryContext;
   private QueryContext _rightQueryContext;
+  private List<Short> _leftJoinColumnIndices;
+  private List<Short> _rightJoinColumnIndices;
 
   private QueryContext(@Nullable String tableName, @Nullable QueryContext subquery,
       List<ExpressionContext> selectExpressions, List<String> aliasList, @Nullable FilterContext filter,
       @Nullable List<ExpressionContext> groupByExpressions, @Nullable FilterContext havingFilter,
       @Nullable List<OrderByExpressionContext> orderByExpressions, int limit, int offset,
       Map<String, String> queryOptions, @Nullable Map<ExpressionContext, ExpressionContext> expressionOverrideHints,
-      boolean explain, QueryContext leftQueryContext, QueryContext rightQueryContext) {
+      boolean explain, @Nullable QueryContext leftQueryContext, @Nullable QueryContext rightQueryContext,
+      @Nullable List<Short> leftJoinColumnIndices, @Nullable List<Short> rightJoinColumnIndices) {
     _tableName = tableName;
     _subquery = subquery;
     _selectExpressions = selectExpressions;
@@ -144,6 +147,8 @@ public class QueryContext {
     _explain = explain;
     _leftQueryContext = leftQueryContext;
     _rightQueryContext = rightQueryContext;
+    _leftJoinColumnIndices = leftJoinColumnIndices;
+    _rightJoinColumnIndices = rightJoinColumnIndices;
   }
 
   /**
@@ -243,12 +248,24 @@ public class QueryContext {
     return _explain;
   }
 
+  @Nullable
   public QueryContext getLeftQueryContext() {
     return _leftQueryContext;
   }
 
+  @Nullable
   public QueryContext getRightQueryContext() {
     return _rightQueryContext;
+  }
+
+  @Nullable
+  public List<Short> getLeftJoinColumnIndices() {
+    return _leftJoinColumnIndices;
+  }
+
+  @Nullable
+  public List<Short> getRightJoinColumnIndices() {
+    return _rightJoinColumnIndices;
   }
 
   /**
@@ -438,6 +455,8 @@ public class QueryContext {
     private boolean _explain;
     private QueryContext _leftQueryContext;
     private QueryContext _rightQueryContext;
+    private List<Short> _leftJoinColumnIndices;
+    private List<Short> _rightJoinColumnIndices;
 
     public Builder setTableName(String tableName) {
       _tableName = tableName;
@@ -514,6 +533,16 @@ public class QueryContext {
       return this;
     }
 
+    public Builder setLeftJoinColumnIndices(List<Short> leftJoinColumnIndices) {
+      _leftJoinColumnIndices = leftJoinColumnIndices;
+      return this;
+    }
+
+    public Builder setRightJoinColumnIndices(List<Short> rightJoinColumnIndices) {
+      _rightJoinColumnIndices = rightJoinColumnIndices;
+      return this;
+    }
+
     public QueryContext build() {
       // TODO: Add validation logic here
 
@@ -523,7 +552,7 @@ public class QueryContext {
       QueryContext queryContext =
           new QueryContext(_tableName, _subquery, _selectExpressions, _aliasList, _filter, _groupByExpressions,
               _havingFilter, _orderByExpressions, _limit, _offset, _queryOptions, _expressionOverrideHints, _explain,
-              _leftQueryContext, _rightQueryContext);
+              _leftQueryContext, _rightQueryContext, _leftJoinColumnIndices, _rightJoinColumnIndices);
       queryContext.setNullHandlingEnabled(QueryOptionsUtils.isNullHandlingEnabled(_queryOptions));
 
       // Pre-calculate the aggregation functions and columns for the query

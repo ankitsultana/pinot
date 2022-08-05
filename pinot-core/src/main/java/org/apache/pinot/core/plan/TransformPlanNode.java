@@ -73,4 +73,8 @@ public class TransformPlanNode implements PlanNode {
       return new PassThroughTransformOperator(projectionOperator, _expressions);
     }
   }
+
+  public Collection<ExpressionContext> getExpressions() {
+    return _expressions;
+  }
 }

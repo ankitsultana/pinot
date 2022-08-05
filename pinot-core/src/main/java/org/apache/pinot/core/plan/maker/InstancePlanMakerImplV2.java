@@ -41,16 +41,20 @@ import org.apache.pinot.core.plan.AggregationGroupByOrderByPlanNode;
 import org.apache.pinot.core.plan.AggregationPlanNode;
 import org.apache.pinot.core.plan.CombinePlanNode;
 import org.apache.pinot.core.plan.DistinctPlanNode;
+import org.apache.pinot.core.plan.DocIdSetPlanNode;
 import org.apache.pinot.core.plan.GlobalPlanImplV0;
 import org.apache.pinot.core.plan.InstanceResponsePlanNode;
+import org.apache.pinot.core.plan.LocalJoinPlanNode;
 import org.apache.pinot.core.plan.Plan;
 import org.apache.pinot.core.plan.PlanNode;
 import org.apache.pinot.core.plan.SelectionPlanNode;
 import org.apache.pinot.core.plan.StreamingInstanceResponsePlanNode;
 import org.apache.pinot.core.plan.StreamingSelectionPlanNode;
+import org.apache.pinot.core.plan.TransformPlanNode;
 import org.apache.pinot.core.query.config.QueryExecutorConfig;
 import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.core.query.request.context.utils.QueryContextUtils;
+import org.apache.pinot.core.query.selection.SelectionOperatorUtils;
 import org.apache.pinot.core.util.GroupByUtils;
 import org.apache.pinot.core.util.QueryOptionsUtils;
 import org.apache.pinot.segment.spi.FetchContext;
@@ -186,6 +190,28 @@ public class InstancePlanMakerImplV2 implements PlanMaker {
         queryContext, serverMetrics));
   }
 
+  public Plan makeInstancePlanForJoin(List<IndexSegment> leftIndexSegments, List<IndexSegment> rightIndexSegments,
+      QueryContext queryContext, ExecutorService executorService, ServerMetrics serverMetrics) {
+    applyQueryOptions(queryContext);
+
+    List<TransformPlanNode> leftPlanNodes = new ArrayList<>(leftIndexSegments.size());
+    List<TransformPlanNode> rightPlanNodes = new ArrayList<>(rightIndexSegments.size());
+    List<FetchContext> fetchContexts = Collections.emptyList();
+    for (IndexSegment indexSegment : leftIndexSegments) {
+      leftPlanNodes.add(makeSegmentTransformPlanNode(indexSegment, queryContext.getLeftQueryContext()));
+    }
+    for (IndexSegment indexSegment : rightIndexSegments) {
+      rightPlanNodes.add(makeSegmentTransformPlanNode(indexSegment, queryContext.getRightQueryContext()));
+    }
+    List<IndexSegment> indexSegments = new ArrayList<>();
+    indexSegments.addAll(leftIndexSegments);
+    indexSegments.addAll(rightIndexSegments);
+    CombinePlanNode combinePlanNode = new LocalJoinPlanNode(leftPlanNodes, rightPlanNodes, executorService,
+        queryContext);
+    return new GlobalPlanImplV0(new InstanceResponsePlanNode(combinePlanNode, indexSegments, fetchContexts,
+        queryContext, serverMetrics));
+  }
+
   private void applyQueryOptions(QueryContext queryContext) {
     Map<String, String> queryOptions = queryContext.getQueryOptions();
 
@@ -257,6 +283,13 @@ public class InstancePlanMakerImplV2 implements PlanMaker {
       assert QueryContextUtils.isDistinctQuery(queryContext);
       return new DistinctPlanNode(indexSegment, queryContext);
     }
+  }
+
+  public TransformPlanNode makeSegmentTransformPlanNode(IndexSegment indexSegment, QueryContext queryContext) {
+    int limit = queryContext.getLimit();
+    List<ExpressionContext> expressions = SelectionOperatorUtils.extractExpressions(queryContext, indexSegment);
+    return new TransformPlanNode(indexSegment, queryContext, expressions,
+        Math.min(limit, DocIdSetPlanNode.MAX_DOC_PER_CALL));
   }
 
   @Override
