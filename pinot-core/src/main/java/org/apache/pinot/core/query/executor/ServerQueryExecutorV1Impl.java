@@ -127,6 +127,9 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
   public DataTable processQuery(ServerQueryRequest queryRequest, ExecutorService executorService,
       @Nullable StreamObserver<Server.ServerResponse> responseObserver) {
     if (!queryRequest.isEnableTrace()) {
+      if (queryRequest.getQueryContext().getLeftQueryContext() != null) {
+        return processJoinQueryInternal(queryRequest, executorService, null);
+      }
       return processQueryInternal(queryRequest, executorService, responseObserver);
     }
     try {
@@ -346,43 +349,112 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
     // Get their table data managers
     // Get index segments for both the tables
     long requestId = queryRequest.getRequestId();
-    String tableNameWithType = queryRequest.getTableNameWithType();
+    String leftTableNameWithType = queryRequest.getQueryContext().getLeftQueryContext().getTableName();
+    String rightTableNameWithType = queryRequest.getQueryContext().getRightQueryContext().getTableName();
+
+
     QueryContext queryContext = queryRequest.getQueryContext();
     LOGGER.debug("Incoming request Id: {}, query: {}", requestId, queryContext);
 
     queryContext.setEnablePrefetch(_enablePrefetch);
-
-    TableDataManager tableDataManager = _instanceDataManager.getTableDataManager(tableNameWithType);
-    if (tableDataManager == null) {
-      String errorMessage = String.format("Failed to find table: %s on server: %s", tableNameWithType,
-          _instanceDataManager.getInstanceId());
+    TableDataManager leftTableDataManager = _instanceDataManager.getTableDataManager(leftTableNameWithType);
+    TableDataManager rightTableDataManager = _instanceDataManager.getTableDataManager(rightTableNameWithType);
+    if (leftTableDataManager == null || rightTableDataManager == null) {
+      String errorMessage = String.format("Failed to find table: %s on server: %s", leftTableDataManager == null
+          ? leftTableNameWithType : rightTableNameWithType, _instanceDataManager.getInstanceId());
       DataTable dataTable = DataTableFactory.getEmptyDataTable();
       dataTable.addException(QueryException.getException(QueryException.SERVER_TABLE_MISSING_ERROR, errorMessage));
       LOGGER.error("{} while processing requestId: {}", errorMessage, requestId);
       return dataTable;
     }
-
     List<String> segmentsToQuery = queryRequest.getSegmentsToQuery();
     List<String> missingSegments = new ArrayList<>();
-    List<SegmentDataManager> segmentDataManagers = tableDataManager.acquireSegments(segmentsToQuery, missingSegments);
-    int numSegmentsAcquired = segmentDataManagers.size();
-    List<IndexSegment> indexSegments = new ArrayList<>(numSegmentsAcquired);
-    for (SegmentDataManager segmentDataManager : segmentDataManagers) {
-      indexSegments.add(segmentDataManager.getSegment());
+    List<SegmentDataManager> leftSegmentDataManagers = leftTableDataManager.acquireSegments(segmentsToQuery,
+        missingSegments);
+    List<SegmentDataManager> rightSegmentDataManagers = rightTableDataManager.acquireSegments(segmentsToQuery,
+        missingSegments);
+    int leftNumSegmentsAcquired = leftSegmentDataManagers.size();
+    int rightNumSegmentsAcquired = rightSegmentDataManagers.size();
+    List<IndexSegment> leftIndexSegments = new ArrayList<>(leftNumSegmentsAcquired);
+    List<IndexSegment> rightIndexSegments = new ArrayList<>(rightNumSegmentsAcquired);
+    for (SegmentDataManager segmentDataManager : leftSegmentDataManagers) {
+      leftIndexSegments.add(segmentDataManager.getSegment());
+    }
+    for (SegmentDataManager segmentDataManager : rightSegmentDataManagers) {
+      rightIndexSegments.add(segmentDataManager.getSegment());
     }
 
     DataTable dataTable = null;
     try {
-      dataTable = processQuery(indexSegments, queryContext, null, executorService, responseObserver,
-          queryRequest.isEnableStreaming());
+      dataTable = processJoinQuery(leftIndexSegments, rightIndexSegments, queryContext, null, executorService,
+          responseObserver, queryRequest.isEnableStreaming());
     } catch (Exception e) {
       dataTable = DataTableFactory.getEmptyDataTable();
       dataTable.addException(QueryException.getException(QueryException.QUERY_EXECUTION_ERROR, e));
     } finally {
-      for (SegmentDataManager segmentDataManager : segmentDataManagers) {
-        tableDataManager.releaseSegment(segmentDataManager);
+      for (SegmentDataManager segmentDataManager : leftSegmentDataManagers) {
+        leftTableDataManager.releaseSegment(segmentDataManager);
+      }
+      for (SegmentDataManager segmentDataManager : rightSegmentDataManagers) {
+        rightTableDataManager.releaseSegment(segmentDataManager);
       }
     }
+    return dataTable;
+  }
+
+  private DataTable processJoinQuery(List<IndexSegment> leftIndexSegments, List<IndexSegment> rightIndexSegments,
+      QueryContext queryContext, TimerContext timerContext, ExecutorService executorService,
+      @Nullable StreamObserver<Server.ServerResponse> responseObserver, boolean enableStreaming)
+      throws Exception {
+    // Compute total docs for the table before pruning the segments
+    long numTotalDocs = 0;
+    for (IndexSegment indexSegment : leftIndexSegments) {
+      numTotalDocs += indexSegment.getSegmentMetadata().getTotalDocs();
+    }
+    for (IndexSegment indexSegment : rightIndexSegments) {
+      numTotalDocs += indexSegment.getSegmentMetadata().getTotalDocs();
+    }
+    int totalSegments = leftIndexSegments.size() + rightIndexSegments.size();
+
+    SegmentPrunerStatistics prunerStats = new SegmentPrunerStatistics();
+    List<IndexSegment> leftSelectedSegments = _segmentPrunerService.prune(leftIndexSegments, queryContext, prunerStats);
+    List<IndexSegment> rightSelectedSegments = _segmentPrunerService.prune(rightIndexSegments, queryContext,
+        prunerStats);
+    int numSelectedSegments = leftSelectedSegments.size() + rightSelectedSegments.size();
+    if (numSelectedSegments == 0) {
+      // Only return metadata for streaming query
+      DataTable dataTable;
+      if (queryContext.isExplain()) {
+        dataTable = getExplainPlanResultsForNoMatchingSegment(totalSegments);
+      } else {
+        dataTable = DataTableUtils.buildEmptyDataTable(queryContext);
+      }
+
+      Map<String, String> metadata = dataTable.getMetadata();
+      metadata.put(MetadataKey.TOTAL_DOCS.getName(), String.valueOf(numTotalDocs));
+      metadata.put(MetadataKey.NUM_DOCS_SCANNED.getName(), "0");
+      metadata.put(MetadataKey.NUM_ENTRIES_SCANNED_IN_FILTER.getName(), "0");
+      metadata.put(MetadataKey.NUM_ENTRIES_SCANNED_POST_FILTER.getName(), "0");
+      metadata.put(MetadataKey.NUM_SEGMENTS_PROCESSED.getName(), "0");
+      metadata.put(MetadataKey.NUM_SEGMENTS_MATCHED.getName(), "0");
+      metadata.put(MetadataKey.NUM_SEGMENTS_PRUNED_BY_SERVER.getName(), String.valueOf(totalSegments));
+      addPrunerStats(metadata, prunerStats);
+      return dataTable;
+    }
+    if (enableStreaming) {
+      throw new IllegalArgumentException("Cannot use streaming for local join");
+    }
+    Plan queryPlan = _planMaker.makeInstancePlan(leftIndexSegments, queryContext, executorService, _serverMetrics);
+    DataTable dataTable = queryPlan.execute();
+    Map<String, String> metadata = dataTable.getMetadata();
+    // Update the total docs in the metadata based on the un-pruned segments
+    metadata.put(MetadataKey.TOTAL_DOCS.getName(), Long.toString(numTotalDocs));
+
+    // Set the number of pruned segments. This count does not include the segments which returned empty filters
+    int prunedSegments = totalSegments - numSelectedSegments;
+    metadata.put(MetadataKey.NUM_SEGMENTS_PRUNED_BY_SERVER.getName(), String.valueOf(prunedSegments));
+    addPrunerStats(metadata, prunerStats);
+
     return dataTable;
   }
 

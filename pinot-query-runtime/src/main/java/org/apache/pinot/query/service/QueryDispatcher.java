@@ -31,6 +31,7 @@ import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.common.datablock.BaseDataBlock;
+import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.planner.QueryPlan;
@@ -124,6 +125,9 @@ public class QueryDispatcher {
         if (transferableBlock.isErrorBlock()) {
           throw new RuntimeException("Received error query execution result block: "
               + transferableBlock.getDataBlock().getExceptions());
+        }
+        if (resultDataBlocks.isEmpty()) {
+          resultDataBlocks.add(new MetadataBlock(transferableBlock.getDataSchema()));
         }
         break;
       }

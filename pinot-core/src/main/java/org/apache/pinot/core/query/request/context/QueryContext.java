@@ -120,13 +120,15 @@ public class QueryContext {
   private int _groupTrimThreshold = InstancePlanMakerImplV2.DEFAULT_GROUPBY_TRIM_THRESHOLD;
   // Whether null handling is enabled
   private boolean _nullHandlingEnabled;
+  private QueryContext _leftQueryContext;
+  private QueryContext _rightQueryContext;
 
   private QueryContext(@Nullable String tableName, @Nullable QueryContext subquery,
       List<ExpressionContext> selectExpressions, List<String> aliasList, @Nullable FilterContext filter,
       @Nullable List<ExpressionContext> groupByExpressions, @Nullable FilterContext havingFilter,
       @Nullable List<OrderByExpressionContext> orderByExpressions, int limit, int offset,
       Map<String, String> queryOptions, @Nullable Map<ExpressionContext, ExpressionContext> expressionOverrideHints,
-      boolean explain) {
+      boolean explain, QueryContext leftQueryContext, QueryContext rightQueryContext) {
     _tableName = tableName;
     _subquery = subquery;
     _selectExpressions = selectExpressions;
@@ -140,6 +142,8 @@ public class QueryContext {
     _queryOptions = queryOptions;
     _expressionOverrideHints = expressionOverrideHints;
     _explain = explain;
+    _leftQueryContext = leftQueryContext;
+    _rightQueryContext = rightQueryContext;
   }
 
   /**
@@ -237,6 +241,14 @@ public class QueryContext {
    */
   public boolean isExplain() {
     return _explain;
+  }
+
+  public QueryContext getLeftQueryContext() {
+    return _leftQueryContext;
+  }
+
+  public QueryContext getRightQueryContext() {
+    return _rightQueryContext;
   }
 
   /**
@@ -424,6 +436,8 @@ public class QueryContext {
     private Map<String, String> _debugOptions;
     private Map<ExpressionContext, ExpressionContext> _expressionOverrideHints;
     private boolean _explain;
+    private QueryContext _leftQueryContext;
+    private QueryContext _rightQueryContext;
 
     public Builder setTableName(String tableName) {
       _tableName = tableName;
@@ -490,6 +504,16 @@ public class QueryContext {
       return this;
     }
 
+    public Builder setLeftQueryContext(QueryContext leftQueryContext) {
+      _leftQueryContext = leftQueryContext;
+      return this;
+    }
+
+    public Builder setRightQueryContext(QueryContext rightQueryContext) {
+      _rightQueryContext = rightQueryContext;
+      return this;
+    }
+
     public QueryContext build() {
       // TODO: Add validation logic here
 
@@ -498,7 +522,8 @@ public class QueryContext {
       }
       QueryContext queryContext =
           new QueryContext(_tableName, _subquery, _selectExpressions, _aliasList, _filter, _groupByExpressions,
-              _havingFilter, _orderByExpressions, _limit, _offset, _queryOptions, _expressionOverrideHints, _explain);
+              _havingFilter, _orderByExpressions, _limit, _offset, _queryOptions, _expressionOverrideHints, _explain,
+              _leftQueryContext, _rightQueryContext);
       queryContext.setNullHandlingEnabled(QueryOptionsUtils.isNullHandlingEnabled(_queryOptions));
 
       // Pre-calculate the aggregation functions and columns for the query
