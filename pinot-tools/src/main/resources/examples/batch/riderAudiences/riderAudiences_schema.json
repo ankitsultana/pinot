@@ -1,0 +1,15 @@
+{
+  "metricFieldSpecs": [
+  ],
+  "dimensionFieldSpecs": [
+    {
+      "dataType": "STRING",
+      "name": "audienceUUID"
+    },
+    {
+      "dataType": "STRING",
+      "name": "userUUID"
+    }
+  ],
+  "schemaName": "riderAudiences"
+}

@@ -1,0 +1,50 @@
+{
+  "tableName": "riderAudiences",
+  "tableType": "OFFLINE",
+  "segmentsConfig": {
+    "segmentPushType": "APPEND",
+    "segmentAssignmentStrategy": "BalanceNumSegmentAssignmentStrategy",
+    "schemaName": "riderAudiences",
+    "replication": "1"
+  },
+  "instanceAssignmentConfigMap": {
+    "OFFLINE": {
+      "tagPoolConfig": {
+        "tag": "DefaultTenant_OFFLINE",
+        "poolBased": false,
+        "numPools": 0
+      },
+      "replicaGroupPartitionConfig": {
+        "replicaGroupBased": true,
+        "numInstances": 0,
+        "numReplicaGroups": 1,
+        "numInstancesPerReplicaGroup": 2,
+        "numPartitions": 0,
+        "numInstancesPerPartition": 0,
+        "minimizeDataMovement": false
+      },
+      "partitionSelector": "INSTANCE_REPLICA_GROUP_PARTITION_SELECTOR"
+    }
+  },
+  "tenants": {
+  },
+  "tableIndexConfig": {
+    "loadMode": "HEAP",
+    "invertedIndexColumns": [
+      "userUUID",
+      "audienceUUID"
+    ],
+    "segmentPartitionConfig": {
+      "columnPartitionMap": {
+        "userUUID": {
+          "functionName": "Murmur",
+          "numPartitions": 4
+        }
+      }
+    }
+  },
+  "metadata": {
+    "customConfigs": {
+    }
+  }
+}
