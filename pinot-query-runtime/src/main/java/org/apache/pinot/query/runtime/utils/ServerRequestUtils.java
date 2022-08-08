@@ -19,9 +19,11 @@
 package org.apache.pinot.query.runtime.utils;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.collections.MapUtils;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
@@ -33,6 +35,7 @@ import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.common.utils.request.RequestUtils;
 import org.apache.pinot.core.query.request.ServerQueryRequest;
 import org.apache.pinot.query.parser.CalciteRexExpressionParser;
+import org.apache.pinot.query.planner.StageMetadata;
 import org.apache.pinot.query.planner.stage.AggregateNode;
 import org.apache.pinot.query.planner.stage.FilterNode;
 import org.apache.pinot.query.planner.stage.JoinNode;
@@ -64,9 +67,14 @@ public class ServerRequestUtils {
     instanceRequest.setRequestId(Long.parseLong(requestMetadataMap.get("REQUEST_ID")));
     instanceRequest.setBrokerId("unknown");
     instanceRequest.setEnableTrace(false);
-    instanceRequest.setSearchSegments(
-        distributedStagePlan.getMetadataMap().get(distributedStagePlan.getStageId()).getServerInstanceToSegmentsMap()
-            .get(distributedStagePlan.getServerInstance()));
+    StageMetadata stageMetadata = distributedStagePlan.getMetadataMap().get(distributedStagePlan.getStageId());
+    instanceRequest.setSearchSegments(stageMetadata.getServerInstanceToSegmentsMap()
+        .get(distributedStagePlan.getServerInstance()));
+
+    if (MapUtils.isNotEmpty(stageMetadata.getRightServerInstanceToSegmentsMap())) {
+      instanceRequest.setRightSearchSegments(new ArrayList<>(stageMetadata.getRightServerInstanceToSegmentsMap()
+          .get(distributedStagePlan.getServerInstance())));
+    }
     instanceRequest.setQuery(constructBrokerRequest(distributedStagePlan));
     return new ServerQueryRequest(instanceRequest, new ServerMetrics(PinotMetricUtils.getPinotMetricsRegistry()),
         System.currentTimeMillis());

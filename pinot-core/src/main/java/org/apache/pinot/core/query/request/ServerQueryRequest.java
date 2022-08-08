@@ -45,6 +45,7 @@ public class ServerQueryRequest {
   private final boolean _enableTrace;
   private final boolean _enableStreaming;
   private final List<String> _segmentsToQuery;
+  private final List<String> _rightSegmentsToQuery;
   private final QueryContext _queryContext;
 
   // Timing information for different phases of query execution
@@ -56,6 +57,7 @@ public class ServerQueryRequest {
     _enableTrace = instanceRequest.isEnableTrace();
     _enableStreaming = false;
     _segmentsToQuery = instanceRequest.getSearchSegments();
+    _rightSegmentsToQuery = instanceRequest.getRightSearchSegments();
     _queryContext = QueryContextConverterUtils.getQueryContext(instanceRequest.getQuery().getPinotQuery());
     _timerContext = new TimerContext(_queryContext.getTableName(), serverMetrics, queryArrivalTimeMs);
   }
@@ -71,6 +73,7 @@ public class ServerQueryRequest {
     _enableStreaming = Boolean.parseBoolean(metadata.get(Request.MetadataKeys.ENABLE_STREAMING));
 
     _segmentsToQuery = serverRequest.getSegmentsList();
+    _rightSegmentsToQuery = serverRequest.getRightSegmentsList();
 
     BrokerRequest brokerRequest;
     String payloadType = metadata.getOrDefault(Request.MetadataKeys.PAYLOAD_TYPE, Request.PayloadType.SQL);
@@ -109,6 +112,10 @@ public class ServerQueryRequest {
 
   public List<String> getSegmentsToQuery() {
     return _segmentsToQuery;
+  }
+
+  public List<String> getRightSegmentsToQuery() {
+    return _rightSegmentsToQuery;
   }
 
   public QueryContext getQueryContext() {

@@ -47,10 +47,13 @@ public class StageMetadata implements Serializable {
   // used for table scan stage.
   private Map<ServerInstance, List<String>> _serverInstanceToSegmentsMap;
 
+  private Map<ServerInstance, List<String>> _rightServerInstanceToSegmentsMap;
+
   public StageMetadata() {
     _scannedTables = new ArrayList<>();
     _serverInstances = new ArrayList<>();
     _serverInstanceToSegmentsMap = new HashMap<>();
+    _rightServerInstanceToSegmentsMap = new HashMap<>();
   }
 
   public void attach(StageNode stageNode) {
@@ -71,8 +74,16 @@ public class StageMetadata implements Serializable {
     return _serverInstanceToSegmentsMap;
   }
 
+  public Map<ServerInstance, List<String>> getRightServerInstanceToSegmentsMap() {
+    return _rightServerInstanceToSegmentsMap;
+  }
+
   public void setServerInstanceToSegmentsMap(Map<ServerInstance, List<String>> serverInstanceToSegmentsMap) {
     _serverInstanceToSegmentsMap = serverInstanceToSegmentsMap;
+  }
+
+  public void setRightServerInstanceToSegmentsMap(Map<ServerInstance, List<String>> serverInstanceToSegmentsMap) {
+    _rightServerInstanceToSegmentsMap = serverInstanceToSegmentsMap;
   }
 
   public List<ServerInstance> getServerInstances() {

@@ -87,6 +87,10 @@ public class QueryPlanSerDeUtils {
     for (Map.Entry<String, Worker.SegmentList> e : workerStageMetadata.getInstanceToSegmentListMap().entrySet()) {
       stageMetadata.getServerInstanceToSegmentsMap().put(stringToInstance(e.getKey()), e.getValue().getSegmentsList());
     }
+    for (Map.Entry<String, Worker.SegmentList> e : workerStageMetadata.getRightInstanceToSegmentListMap().entrySet()) {
+      stageMetadata.getRightServerInstanceToSegmentsMap().put(
+          stringToInstance(e.getKey()), e.getValue().getSegmentsList());
+    }
     return stageMetadata;
   }
 
@@ -106,6 +110,10 @@ public class QueryPlanSerDeUtils {
     }
     for (Map.Entry<ServerInstance, List<String>> e : stageMetadata.getServerInstanceToSegmentsMap().entrySet()) {
       builder.putInstanceToSegmentList(instanceToString(e.getKey()),
+          Worker.SegmentList.newBuilder().addAllSegments(e.getValue()).build());
+    }
+    for (Map.Entry<ServerInstance, List<String>> e : stageMetadata.getRightServerInstanceToSegmentsMap().entrySet()) {
+      builder.putRightInstanceToSegmentList(instanceToString(e.getKey()),
           Worker.SegmentList.newBuilder().addAllSegments(e.getValue()).build());
     }
     return builder.build();

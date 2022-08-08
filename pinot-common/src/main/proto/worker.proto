@@ -69,6 +69,7 @@ message StageMetadata {
   repeated string instances = 1;
   repeated string dataSources = 2;
   map<string, SegmentList> instanceToSegmentList = 3;
+  map<string, SegmentList> rightInstanceToSegmentList = 4;
 }
 
 message SegmentList {

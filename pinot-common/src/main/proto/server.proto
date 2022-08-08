@@ -48,6 +48,7 @@ message ServerRequest {
   string sql = 2;
   repeated string segments = 3;
   bytes payload = 4;
+  repeated string rightSegments = 5;
 }
 
 message ServerResponse {

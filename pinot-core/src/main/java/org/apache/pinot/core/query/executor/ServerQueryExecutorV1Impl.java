@@ -367,11 +367,12 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       LOGGER.error("{} while processing requestId: {}", errorMessage, requestId);
       return dataTable;
     }
-    List<String> segmentsToQuery = queryRequest.getSegmentsToQuery();
+    List<String> leftSegmentsToQuery = queryRequest.getSegmentsToQuery();
+    List<String> rightSegmentsToQuery = queryRequest.getRightSegmentsToQuery();
     List<String> missingSegments = new ArrayList<>();
-    List<SegmentDataManager> leftSegmentDataManagers = leftTableDataManager.acquireSegments(segmentsToQuery,
+    List<SegmentDataManager> leftSegmentDataManagers = leftTableDataManager.acquireSegments(leftSegmentsToQuery,
         missingSegments);
-    List<SegmentDataManager> rightSegmentDataManagers = rightTableDataManager.acquireSegments(segmentsToQuery,
+    List<SegmentDataManager> rightSegmentDataManagers = rightTableDataManager.acquireSegments(rightSegmentsToQuery,
         missingSegments);
     int leftNumSegmentsAcquired = leftSegmentDataManagers.size();
     int rightNumSegmentsAcquired = rightSegmentDataManagers.size();
