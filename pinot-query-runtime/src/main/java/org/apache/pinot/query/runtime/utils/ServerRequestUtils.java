@@ -166,31 +166,23 @@ public class ServerRequestUtils {
       pinotQuery.setSelectList(CalciteRexExpressionParser.overwriteSelectList(
           ((ProjectNode) node).getProjects(), pinotQuery));
     } else if (node instanceof AggregateNode) {
+      Preconditions.checkState(node.getInputs().size() > 0);
+      if (node.getInputs().get(0) instanceof JoinNode) {
+        // Reset select list so it only contains grouping set
+        pinotQuery.setSelectList(
+            CalciteRexExpressionParser.overwriteSelectList(((AggregateNode) node).getGroupSet(), pinotQuery));
+      }
       // set agg list
       pinotQuery.setSelectList(CalciteRexExpressionParser.addSelectList(pinotQuery.getSelectList(),
           ((AggregateNode) node).getAggCalls(), pinotQuery));
       // set group-by list
       pinotQuery.setGroupByList(CalciteRexExpressionParser.convertGroupByList(
           ((AggregateNode) node).getGroupSet(), pinotQuery));
-    } else if (node instanceof JoinNode) {
-      JoinNode joinNode = (JoinNode) node;
-      JoinKey leftJoinKey =
-          new JoinKey();
-      leftJoinKey.setColumnIndices(
-          joinNode.getCriteria().get(0).getLeftJoinKeySelector().getColumnIndices()
-              .stream().map(x -> (short) x.intValue()).collect(Collectors.toList()));
-      JoinKey rightJoinKey =
-          new JoinKey();
-      rightJoinKey.setColumnIndices(
-          joinNode.getCriteria().get(0).getRightJoinKeySelector().getColumnIndices()
-              .stream().map(x -> (short) x.intValue()).collect(Collectors.toList()));
-      JoinInfo joinInfo = new JoinInfo();
-      joinInfo.setLeftJoinKey(leftJoinKey);
-      joinInfo.setRightJoinKey(rightJoinKey);
-      pinotQuery.setJoinInfo(joinInfo);
     } else if (node instanceof MailboxSendNode) {
       // TODO: MailboxSendNode should be the root of the leaf stage. but ignore for now since it is handle seperately
       // in QueryRunner as a single step sender.
+    } else if (node instanceof JoinNode) {
+      throw new UnsupportedOperationException("Nested join detected");
     } else {
       throw new UnsupportedOperationException("Unsupported logical plan node: " + node);
     }

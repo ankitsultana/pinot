@@ -61,7 +61,8 @@ public class LocalJoinPlanNode extends CombinePlanNode {
     for (int i = 0; i < _rightPlanNodes.size(); i++) {
       rightOperators.add(_rightPlanNodes.get(i).run());
     }
-    return new LocalJoinOperator(leftOperators, rightOperators, _leftPlanNodes.get(0).getExpressions(),
-        _rightPlanNodes.get(0).getExpressions(), _queryContext, _executorService);
+    return new LocalJoinOperator(leftOperators, rightOperators,
+        _leftPlanNodes.get(0).getExpressions(), _rightPlanNodes.get(0).getExpressions(), _queryContext,
+        _executorService, true);
   }
 }

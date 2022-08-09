@@ -88,7 +88,7 @@ public class AggregateOperator extends BaseOperator<TransferableBlock> {
   private int toAggregationFunctionRefIndex(RexExpression rexExpression) {
     List<RexExpression> functionOperands = ((RexExpression.FunctionCall) rexExpression).getFunctionOperands();
     Preconditions.checkState(functionOperands.size() < 2);
-    return functionOperands.size() == 0 ? 0 : ((RexExpression.InputRef) functionOperands.get(0)).getIndex();
+    return functionOperands.size() == 0 ? 1 : ((RexExpression.InputRef) functionOperands.get(0)).getIndex();
   }
 
   @Override

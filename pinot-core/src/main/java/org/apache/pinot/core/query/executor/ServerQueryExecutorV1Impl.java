@@ -354,6 +354,7 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
 
 
     QueryContext queryContext = queryRequest.getQueryContext();
+    queryContext.setEndTimeMs(System.currentTimeMillis() + 1000 * 30);
     LOGGER.debug("Incoming request Id: {}, query: {}", requestId, queryContext);
 
     queryContext.setEnablePrefetch(_enablePrefetch);

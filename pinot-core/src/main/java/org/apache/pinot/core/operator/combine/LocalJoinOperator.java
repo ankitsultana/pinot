@@ -20,23 +20,26 @@ package org.apache.pinot.core.operator.combine;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.common.RowBasedBlockValueFetcher;
+import org.apache.pinot.core.operator.ExecutionStatistics;
 import org.apache.pinot.core.operator.blocks.IntermediateResultsBlock;
 import org.apache.pinot.core.operator.blocks.TransformBlock;
 import org.apache.pinot.core.operator.transform.TransformOperator;
+import org.apache.pinot.core.query.aggregation.function.AggregationFunction;
 import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.core.query.selection.SelectionOperatorUtils;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -57,17 +60,14 @@ public class LocalJoinOperator extends BaseCombineOperator {
   private final RoaringBitmap[] _rightNullBitmaps;
   private final int _leftJoinIndex;
   private final int _rightJoinIndex;
-  private final int _finalNumColumns;
-  private final DataSchema _dataSchema;
-
-  private final int[] _lMap;
-  private final int[] _rMap;
-
-  private int _numDocsScanned = 0;
+  private int _finalNumColumns;
+  private DataSchema _dataSchema;
+  private final boolean _reorder;
 
   public LocalJoinOperator(List<TransformOperator> leftOperators,
       List<TransformOperator> rightOperators, Collection<ExpressionContext> leftExpressions,
-      Collection<ExpressionContext> rightExpressions, QueryContext queryContext, ExecutorService executorService) {
+      Collection<ExpressionContext> rightExpressions, QueryContext queryContext, ExecutorService executorService,
+      boolean reorder) {
     super(Collections.emptyList(), queryContext, executorService);
     _leftOperators = leftOperators;
     _rightOperators = rightOperators;
@@ -85,62 +85,8 @@ public class LocalJoinOperator extends BaseCombineOperator {
     _leftJoinIndex = queryContext.getLeftJoinColumnIndices().get(0);
     Preconditions.checkNotNull(queryContext.getRightJoinColumnIndices());
     _rightJoinIndex = queryContext.getRightJoinColumnIndices().get(0);
-
-    _finalNumColumns = queryContext.getColumns().size();
-    String[] columnNames = new String[_finalNumColumns];
-    DataSchema.ColumnDataType[] columnDataTypes = new DataSchema.ColumnDataType[_finalNumColumns];
-    int iter = 0;
-    for (ExpressionContext expressionContext : queryContext.getSelectExpressions()) {
-      columnNames[iter++] = expressionContext.getIdentifier();
-    }
-
-    _lMap = new int[_leftExpressions.size()];
-    _rMap = new int[_rightExpressions.size()];
-    for (int i = 0; i < _lMap.length; i++) {
-      _lMap[i] = -1;
-    }
-    for (int i = 0; i < _rMap.length; i++) {
-      _rMap[i] = -1;
-    }
-
-    for (int leftIndex = 0; leftIndex < _leftExpressions.size(); leftIndex++) {
-      for (int i = 0; i < _finalNumColumns; i++) {
-        if (_leftExpressions.get(leftIndex).getIdentifier().equals(columnNames[i])) {
-          _lMap[leftIndex] = i;
-          break;
-        }
-      }
-    }
-
-    Set<String> leftLookUpSet = _leftExpressions.stream().map(ExpressionContext::getIdentifier)
-        .collect(Collectors.toSet());
-    for (int rightIndex = 0; rightIndex < _rightExpressions.size(); rightIndex++) {
-      String rightIdentifier = _rightExpressions.get(rightIndex).getIdentifier();
-      if (leftLookUpSet.contains(rightIdentifier)) {
-        rightIdentifier = rightIdentifier + "0";
-      }
-      for (int i = 0; i < _finalNumColumns; i++) {
-        if (rightIdentifier.equals(columnNames[i])) {
-          _rMap[rightIndex] = i;
-          break;
-        }
-      }
-    }
-
-    for (int i = 0; i < _leftExpressions.size(); i++) {
-      FieldSpec.DataType dataType = _leftOperators.get(0).getResultMetadata(_leftExpressions.get(i)).getDataType();
-      if (_lMap[i] != -1) {
-        columnDataTypes[_lMap[i]] = DataSchema.ColumnDataType.fromDataType(dataType, true);
-      }
-    }
-    for (int i = 0; i < _rightExpressions.size(); i++) {
-      FieldSpec.DataType dataType = _rightOperators.get(0).getResultMetadata(_rightExpressions.get(i)).getDataType();
-      if (_rMap[i] != -1) {
-        columnDataTypes[_rMap[i]] = DataSchema.ColumnDataType.fromDataType(dataType, true);
-      }
-    }
-
-    _dataSchema = new DataSchema(columnNames, columnDataTypes);
+    _reorder = reorder;
+    computeDataSchema();
   }
 
   @Override
@@ -166,7 +112,6 @@ public class LocalJoinOperator extends BaseCombineOperator {
         RowBasedBlockValueFetcher blockValueFetcher = new RowBasedBlockValueFetcher(_rightBlockValSets);
 
         int numDocsToAdd = transformBlock.getNumDocs();
-        _numDocsScanned += numDocsToAdd;
         if (_nullHandlingEnabled) {
           for (int i = 0; i < numExpressions; i++) {
             _rightNullBitmaps[i] = _rightBlockValSets[i].getNullBitmap();
@@ -208,7 +153,6 @@ public class LocalJoinOperator extends BaseCombineOperator {
         RowBasedBlockValueFetcher blockValueFetcher = new RowBasedBlockValueFetcher(_leftBlockValSets);
 
         int numDocsToExplore = transformBlock.getNumDocs();
-        _numDocsScanned += numDocsToExplore;
         if (_nullHandlingEnabled) {
           for (int i = 0; i < numExpressions; i++) {
             _leftNullBitmaps[i] = _leftBlockValSets[i].getNullBitmap();
@@ -232,7 +176,100 @@ public class LocalJoinOperator extends BaseCombineOperator {
         }
       }
     }
-    return new IntermediateResultsBlock(_dataSchema, joinedRows, _nullHandlingEnabled);
+    if (_queryContext.getGroupByExpressions() == null || _queryContext.getGroupByExpressions().size() == 0) {
+      // No group by present
+      List<String> selectionColumns = _queryContext.getSelectExpressions().stream()
+          .map(ExpressionContext::getIdentifier).collect(Collectors.toList());
+      DataSchema finalDataSchema = SelectionOperatorUtils.getResultTableDataSchema(_dataSchema, selectionColumns);
+      int[] reorderIndex = new int[_dataSchema.size()];
+      for (int i = 0; i < _dataSchema.size(); i++) {
+        String columnName = _dataSchema.getColumnName(i);
+        int idx = ArrayUtils.indexOf(finalDataSchema.getColumnNames(), columnName);
+        if (idx != -1) {
+          reorderIndex[i] = idx;
+        }
+      }
+      for (int idx = 0; idx < joinedRows.size(); idx++) {
+        Object[] row = joinedRows.get(idx);
+        Object[] newRow = new Object[finalDataSchema.size()];
+        for (int columnNum = 0; columnNum < _dataSchema.size(); columnNum++) {
+          if (reorderIndex[columnNum] != -1) {
+            newRow[reorderIndex[columnNum]] = row[columnNum];
+          }
+        }
+        joinedRows.set(idx, newRow);
+      }
+      return new IntermediateResultsBlock(finalDataSchema, joinedRows, _nullHandlingEnabled);
+    }
+    List<ExpressionContext> groupByExpressions = _queryContext.getGroupByExpressions();
+    Preconditions.checkState(groupByExpressions.size() == 1);
+    int keyIndex = -1;
+    for (int i = 0; i < _dataSchema.size(); i++) {
+      if (_dataSchema.getColumnName(i).equals(groupByExpressions.get(0).getIdentifier())) {
+        keyIndex = i;
+        break;
+      }
+    }
+    AggregationFunction aggregationFunction = _queryContext.getAggregationFunctions()[0];
+    Map<Object, Long> groupByResult = new HashMap<>();
+    for (Object[] row : joinedRows) {
+      groupByResult.computeIfAbsent(row[keyIndex], x -> 0L);
+      groupByResult.put(row[keyIndex], (Long) aggregationFunction.merge(1L, groupByResult.get(row[keyIndex])));
+    }
+    int numGroupByExpressions = _queryContext.getGroupByExpressions().size();
+    int numAggFunctions = _queryContext.getAggregationFunctions().length;
+    int numColumns = numGroupByExpressions + numAggFunctions;
+    String[] columnNames = new String[numColumns];
+    DataSchema.ColumnDataType[] columnDataTypes = new DataSchema.ColumnDataType[numColumns];
+
+    // Extract column names and data types for group-by columns
+    for (int i = 0; i < numGroupByExpressions; i++) {
+      ExpressionContext groupByExpression = _queryContext.getGroupByExpressions().get(i);
+      columnNames[i] = groupByExpression.toString();
+      for (int j = 0; j < _dataSchema.size(); j++) {
+        if (_dataSchema.getColumnName(j).equals(columnNames[i])) {
+          columnDataTypes[i] = _dataSchema.getColumnDataType(j);
+          break;
+        }
+      }
+    }
+    for (int i = 0; i < numAggFunctions; i++) {
+      AggregationFunction aggregationFunction1 = _queryContext.getAggregationFunctions()[i];
+      int index = numGroupByExpressions + i;
+      columnNames[index] = aggregationFunction1.getResultColumnName();
+      columnDataTypes[index] = aggregationFunction1.getIntermediateResultColumnType();
+    }
+    DataSchema finalDataSchema = new DataSchema(columnNames, columnDataTypes);
+    List<Object[]> newJoinedRows = new ArrayList<>(groupByResult.size());
+    for (Map.Entry<Object, Long> entry : groupByResult.entrySet()) {
+      Object[] newRow = new Object[numColumns];
+      newRow[0] = entry.getKey();
+      newRow[1] = entry.getValue();
+      newJoinedRows.add(newRow);
+    }
+    return new IntermediateResultsBlock(finalDataSchema, newJoinedRows, _nullHandlingEnabled);
+  }
+
+  private void computeDataSchema() {
+    _finalNumColumns = _leftExpressions.size() + _rightExpressions.size();
+    String[] columnNames = new String[_finalNumColumns];
+    DataSchema.ColumnDataType[] columnDataTypes = new DataSchema.ColumnDataType[_finalNumColumns];
+    int iter = 0;
+    for (ExpressionContext expressionContext : _leftExpressions) {
+      columnNames[iter] = expressionContext.getIdentifier();
+      FieldSpec.DataType dataType = _leftOperators.get(0).getResultMetadata(expressionContext).getDataType();
+      columnDataTypes[iter++] = DataSchema.ColumnDataType.fromDataType(dataType, true);
+    }
+    for (ExpressionContext expressionContext : _rightExpressions) {
+      if (Arrays.stream(columnNames).anyMatch(x -> x != null && x.equals(expressionContext.getIdentifier()))) {
+        columnNames[iter] = expressionContext.getIdentifier() + "0";
+      } else {
+        columnNames[iter] = expressionContext.getIdentifier();
+      }
+      FieldSpec.DataType dataType = _rightOperators.get(0).getResultMetadata(expressionContext).getDataType();
+      columnDataTypes[iter++] = DataSchema.ColumnDataType.fromDataType(dataType, true);
+    }
+    _dataSchema = new DataSchema(columnNames, columnDataTypes);
   }
 
   private void evaluateJoin(Object[] leftRow, Map<Object, List<Object[]>> hashTable,
@@ -246,21 +283,18 @@ public class LocalJoinOperator extends BaseCombineOperator {
 
   private Object[] mergeRows(Object[] leftRow, Object[] rightRow) {
     Object[] result = new Object[leftRow.length + rightRow.length];
-    for (int i = 0; i < leftRow.length; i++) {
-      if (_lMap[i] != -1) {
-        result[_lMap[i]] = leftRow[i];
-      }
-    }
-    for (int i = 0; i < rightRow.length; i++) {
-      if (_rMap[i] != -1) {
-        result[_rMap[i]] = rightRow[i];
-      }
-    }
+    System.arraycopy(leftRow, 0, result, 0, leftRow.length);
+    System.arraycopy(rightRow, 0, result, leftRow.length, rightRow.length);
     return result;
   }
 
   @Override
   protected void mergeResultsBlocks(IntermediateResultsBlock mergedBlock, IntermediateResultsBlock blockToMerge) {
     throw new UnsupportedOperationException("mergeResultsBlock is not implemented for LocalJoin");
+  }
+
+  @Override
+  public ExecutionStatistics getExecutionStatistics() {
+    return new ExecutionStatistics(0, 0, 0, 0);
   }
 }
