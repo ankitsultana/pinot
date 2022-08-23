@@ -25,7 +25,6 @@ import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
@@ -79,6 +78,11 @@ public class ProtoBufMessageDecoder implements StreamMessageDecoder<byte[]> {
 
   @Override
   public GenericRow decode(byte[] payload, GenericRow destination) {
+    return decode(payload, 0, payload.length, destination);
+  }
+
+  @Override
+  public GenericRow decode(byte[] payload, int offset, int length, GenericRow destination) {
     Message message;
     try {
       _builder.mergeFrom(payload);
@@ -91,10 +95,5 @@ public class ProtoBufMessageDecoder implements StreamMessageDecoder<byte[]> {
     }
     _recordExtractor.extract(message, destination);
     return destination;
-  }
-
-  @Override
-  public GenericRow decode(byte[] payload, int offset, int length, GenericRow destination) {
-    return decode(Arrays.copyOfRange(payload, offset, offset + length), destination);
   }
 }
