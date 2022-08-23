@@ -203,7 +203,7 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
     }
   }
 
-  private Mailbox.MailboxContent toMailboxContent(String mailboxId, BaseDataBlock dataBlock)
+  public Mailbox.MailboxContent toMailboxContent(String mailboxId, BaseDataBlock dataBlock)
       throws IOException {
     Mailbox.MailboxContent.Builder builder = Mailbox.MailboxContent.newBuilder().setMailboxId(mailboxId)
         .setPayload(ByteString.copyFrom(new TransferableBlock(dataBlock).toBytes()));

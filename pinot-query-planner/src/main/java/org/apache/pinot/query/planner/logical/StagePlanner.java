@@ -23,10 +23,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.logical.LogicalExchange;
+import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.StageMetadata;
@@ -75,15 +78,15 @@ public class StagePlanner {
     _stageIdCounter = 1;
 
     // walk the plan and create stages.
-    StageNode globalStageRoot = walkRelPlan(relRoot, getNewStageId());
+    StageNode globalStageRoot = walkRelPlan(relRoot, null, getNewStageId());
 
     // global root needs to send results back to the ROOT, a.k.a. the client response node. the last stage only has one
     // receiver so doesn't matter what the exchange type is. setting it to SINGLETON by default.
     StageNode globalReceiverNode =
         new MailboxReceiveNode(0, globalStageRoot.getDataSchema(), globalStageRoot.getStageId(),
-            RelDistribution.Type.RANDOM_DISTRIBUTED, null);
+            RelDistribution.Type.RANDOM_DISTRIBUTED, null, false);
     StageNode globalSenderNode = new MailboxSendNode(globalStageRoot.getStageId(), globalStageRoot.getDataSchema(),
-        globalReceiverNode.getStageId(), RelDistribution.Type.RANDOM_DISTRIBUTED, null);
+        globalReceiverNode.getStageId(), RelDistribution.Type.RANDOM_DISTRIBUTED, null, false);
     globalSenderNode.addInput(globalStageRoot);
     _queryStageMap.put(globalSenderNode.getStageId(), globalSenderNode);
     StageMetadata stageMetadata = _stageMetadataMap.get(globalSenderNode.getStageId());
@@ -94,7 +97,7 @@ public class StagePlanner {
     globalReceivingStageMetadata.attach(globalReceiverNode);
     _stageMetadataMap.put(globalReceiverNode.getStageId(), globalReceivingStageMetadata);
 
-    // assign workers to each stage.
+    // assign workers to each stage. Detect whether colocated join.
     for (Map.Entry<Integer, StageMetadata> e : _stageMetadataMap.entrySet()) {
       _workerManager.assignWorkerToStage(e.getKey(), e.getValue());
     }
@@ -104,35 +107,48 @@ public class StagePlanner {
 
   // non-threadsafe
   // TODO: add dataSchema (extracted from RelNode schema) to the StageNode.
-  private StageNode walkRelPlan(RelNode node, int currentStageId) {
+  private StageNode walkRelPlan(RelNode node, @Nullable RelNode parent, int currentStageId) {
     if (isExchangeNode(node)) {
       // 1. exchangeNode always have only one input, get its input converted as a new stage root.
-      StageNode nextStageRoot = walkRelPlan(node.getInput(0), getNewStageId());
-      RelDistribution distribution = ((LogicalExchange) node).getDistribution();
+      LogicalExchange exchangeNode = (LogicalExchange) node;
+      StageNode nextStageRoot = walkRelPlan(node.getInput(0), node, getNewStageId());
+      RelDistribution distribution = exchangeNode.getDistribution();
       List<Integer> distributionKeys = distribution.getKeys();
       RelDistribution.Type exchangeType = distribution.getType();
 
       // 2. make an exchange sender and receiver node pair
       // only HASH_DISTRIBUTED requires a partition key selector; so all other types (SINGLETON and BROADCAST)
       // of exchange will not carry a partition key selector.
-      KeySelector<Object[], Object[]> keySelector = exchangeType == RelDistribution.Type.HASH_DISTRIBUTED
-          ? new FieldSelectionKeySelector(distributionKeys) : null;
+      KeySelector<Object[], Object[]> keySelector =
+          exchangeType == RelDistribution.Type.HASH_DISTRIBUTED ? new FieldSelectionKeySelector(distributionKeys)
+              : null;
 
       StageNode mailboxReceiver;
       StageNode mailboxSender;
-      if (canSkipShuffle(nextStageRoot, keySelector)) {
+      boolean isColocatedJoin = false;
+      if (parent instanceof LogicalJoin) {
+        LogicalJoin join = (LogicalJoin) parent;
+        List<String> hints = join.getHints().stream().map(x -> x.hintName).collect(Collectors.toList());
+        isColocatedJoin = true;
+      }
+      if (isColocatedJoin) {
+        mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),
+            nextStageRoot.getStageId(), RelDistribution.Type.SINGLETON, keySelector, true);
+        mailboxSender = new MailboxSendNode(nextStageRoot.getStageId(), nextStageRoot.getDataSchema(),
+            mailboxReceiver.getStageId(), RelDistribution.Type.SINGLETON, keySelector, true);
+      } else if (canSkipShuffle(nextStageRoot, keySelector)) {
         // Use SINGLETON exchange type indicates a LOCAL-to-LOCAL data transfer between execution threads.
         // TODO: actually implement the SINGLETON exchange without going through the over-the-wire GRPC mailbox
         // sender and receiver.
         mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),
-            nextStageRoot.getStageId(), RelDistribution.Type.SINGLETON, keySelector);
+            nextStageRoot.getStageId(), RelDistribution.Type.SINGLETON, keySelector, false);
         mailboxSender = new MailboxSendNode(nextStageRoot.getStageId(), nextStageRoot.getDataSchema(),
-            mailboxReceiver.getStageId(), RelDistribution.Type.SINGLETON, keySelector);
+            mailboxReceiver.getStageId(), RelDistribution.Type.SINGLETON, keySelector, false);
       } else {
         mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),
-            nextStageRoot.getStageId(), exchangeType, keySelector);
+            nextStageRoot.getStageId(), exchangeType, keySelector, false);
         mailboxSender = new MailboxSendNode(nextStageRoot.getStageId(), nextStageRoot.getDataSchema(),
-            mailboxReceiver.getStageId(), exchangeType, keySelector);
+            mailboxReceiver.getStageId(), exchangeType, keySelector, false);
       }
       mailboxSender.addInput(nextStageRoot);
 
@@ -149,7 +165,7 @@ public class StagePlanner {
       StageNode stageNode = RelToStageConverter.toStageNode(node, currentStageId);
       List<RelNode> inputs = node.getInputs();
       for (RelNode input : inputs) {
-        stageNode.addInput(walkRelPlan(input, currentStageId));
+        stageNode.addInput(walkRelPlan(input, node, currentStageId));
       }
       updateStageMetadata(currentStageId, stageNode, _stageMetadataMap);
       return stageNode;

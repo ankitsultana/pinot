@@ -16,22 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.query.planner.hints;
+package org.apache.pinot.query.mailbox.channel;
 
-import org.apache.calcite.rel.hint.RelHint;
+import java.util.concurrent.ArrayBlockingQueue;
 
 
-/**
- * Provide certain relational hint to query planner for better optimization.
- */
-public class PinotRelationalHints {
-  public static final RelHint USE_HASH_DISTRIBUTE = RelHint.builder("USE_HASH_DISTRIBUTE").build();
-  public static final RelHint USE_BROADCAST_DISTRIBUTE = RelHint.builder("USE_BROADCAST_DISTRIBUTE").build();
-  public static final RelHint AGG_INTERMEDIATE_STAGE = RelHint.builder("AGG_INTERMEDIATE_STAGE").build();
-  public static final RelHint AGG_LEAF_STAGE = RelHint.builder("AGG_LEAF_STAGE").build();
-  public static final RelHint USE_COLOCATED_JOIN = RelHint.builder("USE_COLOCATED_JOIN").build();
+public class PassThroughChannel<T> {
+  private final ArrayBlockingQueue<T> _channel;
+  private final String _hostname;
+  private final int _port;
+  private boolean _completed = false;
 
-  private PinotRelationalHints() {
-    // do not instantiate.
+  public PassThroughChannel(ArrayBlockingQueue<T> channel, String hostname, int port) {
+    _channel = channel;
+    _hostname = hostname;
+    _port = port;
+  }
+
+  public ArrayBlockingQueue<T> getChannel() {
+    return _channel;
+  }
+
+  public void complete() {
+    _completed = true;
+  }
+
+  public boolean isCompleted() {
+    return _completed;
   }
 }

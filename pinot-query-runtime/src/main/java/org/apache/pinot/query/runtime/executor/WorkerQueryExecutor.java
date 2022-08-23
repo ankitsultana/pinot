@@ -60,14 +60,17 @@ public class WorkerQueryExecutor {
   private PinotConfiguration _config;
   private ServerMetrics _serverMetrics;
   private MailboxService<Mailbox.MailboxContent> _mailboxService;
+  private MailboxService<Mailbox.MailboxContent> _passThrough;
   private String _hostName;
   private int _port;
 
   public void init(PinotConfiguration config, ServerMetrics serverMetrics,
-      MailboxService<Mailbox.MailboxContent> mailboxService, String hostName, int port) {
+      MailboxService<Mailbox.MailboxContent> mailboxService, MailboxService<Mailbox.MailboxContent> passThrough,
+      String hostName, int port) {
     _config = config;
     _serverMetrics = serverMetrics;
     _mailboxService = mailboxService;
+    _passThrough = passThrough;
     _hostName = hostName;
     _port = port;
   }
@@ -105,14 +108,22 @@ public class WorkerQueryExecutor {
     if (stageNode instanceof MailboxReceiveNode) {
       MailboxReceiveNode receiveNode = (MailboxReceiveNode) stageNode;
       List<ServerInstance> sendingInstances = metadataMap.get(receiveNode.getSenderStageId()).getServerInstances();
-      return new MailboxReceiveOperator(_mailboxService, receiveNode.getDataSchema(), sendingInstances,
+      MailboxService<Mailbox.MailboxContent> mb = _mailboxService;
+      if (receiveNode.isLocal()) {
+        mb = _passThrough;
+      }
+      return new MailboxReceiveOperator(mb, receiveNode.getDataSchema(), sendingInstances,
           receiveNode.getExchangeType(), receiveNode.getPartitionKeySelector(), _hostName, _port, requestId,
           receiveNode.getSenderStageId());
     } else if (stageNode instanceof MailboxSendNode) {
       MailboxSendNode sendNode = (MailboxSendNode) stageNode;
       BaseOperator<TransferableBlock> nextOperator = getOperator(requestId, sendNode.getInputs().get(0), metadataMap);
       StageMetadata receivingStageMetadata = metadataMap.get(sendNode.getReceiverStageId());
-      return new MailboxSendOperator(_mailboxService, sendNode.getDataSchema(), nextOperator,
+      MailboxService<Mailbox.MailboxContent> mb = _mailboxService;
+      if (sendNode.isLocal()) {
+        mb = _passThrough;
+      }
+      return new MailboxSendOperator(mb, sendNode.getDataSchema(), nextOperator,
           receivingStageMetadata.getServerInstances(), sendNode.getExchangeType(), sendNode.getPartitionKeySelector(),
           _hostName, _port, requestId, sendNode.getStageId());
     } else if (stageNode instanceof JoinNode) {

@@ -32,17 +32,20 @@ public class MailboxSendNode extends AbstractStageNode {
   private RelDistribution.Type _exchangeType;
   @ProtoProperties
   private KeySelector<Object[], Object[]> _partitionKeySelector;
+  @ProtoProperties
+  private boolean _local;
 
   public MailboxSendNode(int stageId) {
     super(stageId);
   }
 
-  public MailboxSendNode(int stageId, DataSchema dataSchema, int receiverStageId,
-      RelDistribution.Type exchangeType, @Nullable KeySelector<Object[], Object[]> partitionKeySelector) {
+  public MailboxSendNode(int stageId, DataSchema dataSchema, int receiverStageId, RelDistribution.Type exchangeType,
+      @Nullable KeySelector<Object[], Object[]> partitionKeySelector, boolean local) {
     super(stageId, dataSchema);
     _receiverStageId = receiverStageId;
     _exchangeType = exchangeType;
     _partitionKeySelector = partitionKeySelector;
+    _local = local;
   }
 
   public int getReceiverStageId() {
@@ -55,5 +58,9 @@ public class MailboxSendNode extends AbstractStageNode {
 
   public KeySelector<Object[], Object[]> getPartitionKeySelector() {
     return _partitionKeySelector;
+  }
+
+  public boolean isLocal() {
+    return _local;
   }
 }

@@ -79,6 +79,9 @@ public class MailboxReceiveOperator extends BaseOperator<TransferableBlock> {
           singletonInstance = serverInstance;
         }
       }
+      Preconditions.checkNotNull(singletonInstance, String.format("Singleton receive operator on %s didn't have any "
+          + "senders on the same instance. sendingStageInstances=%s", _mailboxService.getMailboxPort(),
+          sendingStageInstances));
       _sendingStageInstances = Collections.singletonList(singletonInstance);
     } else {
       _sendingStageInstances = sendingStageInstances;

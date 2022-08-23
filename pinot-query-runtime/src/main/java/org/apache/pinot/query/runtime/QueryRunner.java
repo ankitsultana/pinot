@@ -38,6 +38,7 @@ import org.apache.pinot.core.query.request.ServerQueryRequest;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.mailbox.GrpcMailboxService;
 import org.apache.pinot.query.mailbox.MailboxService;
+import org.apache.pinot.query.mailbox.PassThroughMailboxService;
 import org.apache.pinot.query.planner.StageMetadata;
 import org.apache.pinot.query.planner.stage.MailboxSendNode;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
@@ -58,6 +59,7 @@ public class QueryRunner {
   private ServerQueryExecutorV1Impl _serverExecutor;
   private WorkerQueryExecutor _workerExecutor;
   private MailboxService<Mailbox.MailboxContent> _mailboxService;
+  private MailboxService<Mailbox.MailboxContent> _passThrough;
   private String _hostname;
   private int _port;
 
@@ -72,10 +74,11 @@ public class QueryRunner {
     _port = config.getProperty(QueryConfig.KEY_OF_QUERY_RUNNER_PORT, QueryConfig.DEFAULT_QUERY_RUNNER_PORT);
     try {
       _mailboxService = new GrpcMailboxService(_hostname, _port, config);
+      _passThrough = new PassThroughMailboxService(_hostname, _port);
       _serverExecutor = new ServerQueryExecutorV1Impl();
       _serverExecutor.init(config, instanceDataManager, serverMetrics);
       _workerExecutor = new WorkerQueryExecutor();
-      _workerExecutor.init(config, serverMetrics, _mailboxService, _hostname, _port);
+      _workerExecutor.init(config, serverMetrics, _mailboxService, _passThrough, _hostname, _port);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -120,8 +123,12 @@ public class QueryRunner {
 
       MailboxSendNode sendNode = (MailboxSendNode) distributedStagePlan.getStageRoot();
       StageMetadata receivingStageMetadata = distributedStagePlan.getMetadataMap().get(sendNode.getReceiverStageId());
+      MailboxService<Mailbox.MailboxContent> mb = _mailboxService;
+      if (sendNode.isLocal()) {
+        mb = _passThrough;
+      }
       MailboxSendOperator mailboxSendOperator =
-          new MailboxSendOperator(_mailboxService, sendNode.getDataSchema(),
+          new MailboxSendOperator(mb, sendNode.getDataSchema(),
               new LeafStageTransferableBlockOperator(dataBlock, sendNode.getDataSchema()),
               receivingStageMetadata.getServerInstances(), sendNode.getExchangeType(),
               sendNode.getPartitionKeySelector(), _hostname, _port, serverQueryRequest.getRequestId(),

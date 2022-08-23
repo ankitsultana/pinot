@@ -86,7 +86,7 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
     }
 
     RelNode newJoinNode =
-        new LogicalJoin(join.getCluster(), join.getTraitSet(), leftExchange, rightExchange, join.getCondition(),
+        new LogicalJoin(join.getCluster(), join.getTraitSet(), hints, leftExchange, rightExchange, join.getCondition(),
             join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
 
