@@ -56,7 +56,7 @@ public class WorkerManager {
     _routingManager = routingManager;
   }
 
-  public void assignWorkerToStage(int stageId, StageMetadata stageMetadata) {
+  public void assignWorkerToStage(int stageId, StageMetadata stageMetadata, boolean isColocatedJoin) {
     List<String> scannedTables = stageMetadata.getScannedTables();
     if (scannedTables.size() == 1) { // table scan stage, need to attach server as well as segment info.
       RoutingTable routingTable = getRoutingTable(scannedTables.get(0));

@@ -198,6 +198,7 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
     SendingMailbox<Mailbox.MailboxContent> sendingMailbox = _mailboxService.getSendingMailbox(mailboxId);
     Mailbox.MailboxContent mailboxContent = toMailboxContent(mailboxId, dataBlock);
     sendingMailbox.send(mailboxContent);
+    LOGGER.info("Sending={} rows from stage={} via mailbox={}", dataBlock.getNumberOfRows(), _stageId, mailboxId);
     if (mailboxContent.getMetadataMap().containsKey(ChannelUtils.MAILBOX_METADATA_END_OF_STREAM_KEY)) {
       sendingMailbox.complete();
     }

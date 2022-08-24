@@ -18,19 +18,21 @@
  */
 package org.apache.pinot.query.planner.logical;
 
+import com.google.common.base.Preconditions;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.logical.LogicalExchange;
-import org.apache.calcite.rel.logical.LogicalJoin;
+import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.context.PlannerContext;
+import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.StageMetadata;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
@@ -54,6 +56,7 @@ import org.apache.pinot.query.routing.WorkerManager;
 public class StagePlanner {
   private final PlannerContext _plannerContext;
   private final WorkerManager _workerManager;
+  private boolean _isColocatedJoin;
 
   private Map<Integer, StageNode> _queryStageMap;
   private Map<Integer, StageMetadata> _stageMetadataMap;
@@ -62,6 +65,10 @@ public class StagePlanner {
   public StagePlanner(PlannerContext plannerContext, WorkerManager workerManager) {
     _plannerContext = plannerContext;
     _workerManager = workerManager;
+    _isColocatedJoin = false;
+    if (_plannerContext.getOptions() != null && _plannerContext.getOptions().containsKey("useColocatedJoin")) {
+      _isColocatedJoin = _plannerContext.getOptions().get("useColocatedJoin").equals("true");
+    }
   }
 
   /**
@@ -98,11 +105,66 @@ public class StagePlanner {
     _stageMetadataMap.put(globalReceiverNode.getStageId(), globalReceivingStageMetadata);
 
     // assign workers to each stage. Detect whether colocated join.
-    for (Map.Entry<Integer, StageMetadata> e : _stageMetadataMap.entrySet()) {
-      _workerManager.assignWorkerToStage(e.getKey(), e.getValue());
+    if (_isColocatedJoin) {
+      assignWorkersDepthFirst(0);
+    } else {
+      for (Map.Entry<Integer, StageMetadata> e : _stageMetadataMap.entrySet()) {
+        _workerManager.assignWorkerToStage(e.getKey(), e.getValue(), _isColocatedJoin);
+      }
     }
 
     return new QueryPlan(_queryStageMap, _stageMetadataMap);
+  }
+
+  private void assignWorkersDepthFirst(int stageId) {
+    if (_queryStageMap.get(stageId) instanceof MailboxReceiveNode) {
+      Preconditions.checkState(PlannerUtils.isRootStage(stageId), "Found non-root stage with a MailboxReceiveNode");
+      MailboxReceiveNode receiveNode = (MailboxReceiveNode) _queryStageMap.get(stageId);
+      assignWorkersDepthFirst(receiveNode.getSenderStageId());
+      _workerManager.assignWorkerToStage(stageId, _stageMetadataMap.get(stageId), _isColocatedJoin);
+    } else if (_queryStageMap.get(stageId) instanceof MailboxSendNode) {
+      Set<Integer> childStages = new HashSet<>();
+      discoverMailboxReceiveNodes(_queryStageMap.get(stageId), childStages);
+      for (Integer childStage : childStages) {
+        assignWorkersDepthFirst(childStage);
+      }
+      boolean isJoinStage = hasJoinNode(_queryStageMap.get(stageId));
+      if (_isColocatedJoin && isJoinStage) {
+        final Set<ServerInstance> childStageInstances = new HashSet<>();
+        for (Integer childStage : childStages) {
+          childStageInstances.addAll(_stageMetadataMap.get(childStage).getServerInstances());
+        }
+        _stageMetadataMap.get(stageId).setServerInstances(new ArrayList<>(childStageInstances));
+        return;
+      }
+      _workerManager.assignWorkerToStage(stageId, _stageMetadataMap.get(stageId), _isColocatedJoin);
+    } else {
+      throw new IllegalStateException("Root of stage neither MailboxSend nor MailboxReceive");
+    }
+  }
+
+  private void discoverMailboxReceiveNodes(StageNode node, Set<Integer> stages) {
+    if (node instanceof MailboxReceiveNode) {
+      MailboxReceiveNode receiveNode = (MailboxReceiveNode) node;
+      stages.add(receiveNode.getSenderStageId());
+      Preconditions.checkState(node.getInputs().size() == 0, "MailboxReceiveNode has inputs");
+      return;
+    }
+    for (StageNode input : node.getInputs()) {
+      discoverMailboxReceiveNodes(input, stages);
+    }
+  }
+
+  private boolean hasJoinNode(StageNode stageNode) {
+    if (stageNode instanceof JoinNode) {
+      return true;
+    }
+    for (StageNode input : stageNode.getInputs()) {
+      if (hasJoinNode(input)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // non-threadsafe
@@ -125,25 +187,14 @@ public class StagePlanner {
 
       StageNode mailboxReceiver;
       StageNode mailboxSender;
-      boolean isColocatedJoin = false;
-      if (parent instanceof LogicalJoin) {
-        LogicalJoin join = (LogicalJoin) parent;
-        List<String> hints = join.getHints().stream().map(x -> x.hintName).collect(Collectors.toList());
-        isColocatedJoin = true;
-      }
-      if (isColocatedJoin) {
-        mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),
-            nextStageRoot.getStageId(), RelDistribution.Type.SINGLETON, keySelector, true);
-        mailboxSender = new MailboxSendNode(nextStageRoot.getStageId(), nextStageRoot.getDataSchema(),
-            mailboxReceiver.getStageId(), RelDistribution.Type.SINGLETON, keySelector, true);
-      } else if (canSkipShuffle(nextStageRoot, keySelector)) {
+      if (canSkipShuffle(nextStageRoot, keySelector) || _isColocatedJoin) {
         // Use SINGLETON exchange type indicates a LOCAL-to-LOCAL data transfer between execution threads.
         // TODO: actually implement the SINGLETON exchange without going through the over-the-wire GRPC mailbox
         // sender and receiver.
         mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),
-            nextStageRoot.getStageId(), RelDistribution.Type.SINGLETON, keySelector, false);
+            nextStageRoot.getStageId(), RelDistribution.Type.SINGLETON, keySelector, _isColocatedJoin);
         mailboxSender = new MailboxSendNode(nextStageRoot.getStageId(), nextStageRoot.getDataSchema(),
-            mailboxReceiver.getStageId(), RelDistribution.Type.SINGLETON, keySelector, false);
+            mailboxReceiver.getStageId(), RelDistribution.Type.SINGLETON, keySelector, _isColocatedJoin);
       } else {
         mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),
             nextStageRoot.getStageId(), exchangeType, keySelector, false);

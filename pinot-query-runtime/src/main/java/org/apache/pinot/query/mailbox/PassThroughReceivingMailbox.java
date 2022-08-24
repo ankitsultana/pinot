@@ -55,6 +55,6 @@ public class PassThroughReceivingMailbox implements ReceivingMailbox<Mailbox.Mai
 
   @Override
   public boolean isClosed() {
-    return _channel.isCompleted();
+    return _channel.isCompleted() && _channel.getChannel().size() == 0;
   }
 }

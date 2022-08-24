@@ -32,6 +32,8 @@ import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.planner.stage.JoinNode;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
 import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -43,6 +45,7 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
  * <p>For each of the data block received from the left table, it will generate a joint data block.
  */
 public class HashJoinOperator extends BaseOperator<TransferableBlock> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(HashJoinOperator.class);
   private static final String EXPLAIN_NAME = "BROADCAST_JOIN";
 
   private final HashMap<Integer, List<Object[]>> _broadcastHashTable;
@@ -92,6 +95,7 @@ public class HashJoinOperator extends BaseOperator<TransferableBlock> {
     if (_upstreamErrorBlock != null) {
       return _upstreamErrorBlock;
     }
+    LOGGER.info("Built hash-table of size {}", _broadcastHashTable.size());
     // JOIN each left block with the right block.
     try {
       return buildJoinedDataBlock(_leftTableOperator.nextBlock());
@@ -122,6 +126,7 @@ public class HashJoinOperator extends BaseOperator<TransferableBlock> {
 
   private TransferableBlock buildJoinedDataBlock(TransferableBlock leftBlock)
       throws Exception {
+    LOGGER.info("Received {} rows from left block", leftBlock.getDataBlock().getNumberOfRows());
     if (!TransferableBlockUtils.isEndOfStream(leftBlock)) {
       List<Object[]> rows = new ArrayList<>();
       List<Object[]> container = leftBlock.getContainer();

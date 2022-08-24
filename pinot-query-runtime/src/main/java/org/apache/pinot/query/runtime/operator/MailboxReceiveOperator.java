@@ -119,8 +119,9 @@ public class MailboxReceiveOperator extends BaseOperator<TransferableBlock> {
       hasOpenedMailbox = false;
       for (ServerInstance sendingInstance : _sendingStageInstances) {
         try {
+          String mailboxId = toMailboxId(sendingInstance);
           ReceivingMailbox<Mailbox.MailboxContent> receivingMailbox =
-              _mailboxService.getReceivingMailbox(toMailboxId(sendingInstance));
+              _mailboxService.getReceivingMailbox(mailboxId);
           // TODO this is not threadsafe.
           // make sure only one thread is checking receiving mailbox and calling receive() then close()
           if (!receivingMailbox.isClosed()) {
@@ -130,6 +131,8 @@ public class MailboxReceiveOperator extends BaseOperator<TransferableBlock> {
               ByteBuffer byteBuffer = mailboxContent.getPayload().asReadOnlyByteBuffer();
               if (byteBuffer.hasRemaining()) {
                 BaseDataBlock dataBlock = DataBlockUtils.getDataBlock(byteBuffer);
+                LOGGER.info("Receiving={} rows from stage={} via mailbox={}", dataBlock.getNumberOfRows(), _stageId,
+                    mailboxId);
                 if (dataBlock instanceof MetadataBlock && !dataBlock.getExceptions().isEmpty()) {
                   _upstreamErrorBlock = TransferableBlockUtils.getErrorTransferableBlock(dataBlock.getExceptions());
                   return _upstreamErrorBlock;

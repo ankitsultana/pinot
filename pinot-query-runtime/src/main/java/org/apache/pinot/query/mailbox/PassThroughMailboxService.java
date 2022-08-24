@@ -21,20 +21,18 @@ package org.apache.pinot.query.mailbox;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.pinot.common.proto.Mailbox;
-import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.query.mailbox.channel.PassThroughChannel;
 
 
 public class PassThroughMailboxService implements MailboxService<Mailbox.MailboxContent> {
   public static final int MAILBOX_TIMEOUT_SECONDS = 120;
-  public static final MetadataBlock END_OF_STREAM_BLOCK = new MetadataBlock();
   private final ConcurrentHashMap<String, PassThroughReceivingMailbox> _receivingMailboxMap =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, PassThroughSendingMailbox> _sendingMailboxMap =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, PassThroughChannel<Mailbox.MailboxContent>> _channelMap =
       new ConcurrentHashMap<>();
-  private static final int CAPACITY = 10;
+  private static final int CAPACITY = 50;
   private String _hostname;
   private int _port;
 
