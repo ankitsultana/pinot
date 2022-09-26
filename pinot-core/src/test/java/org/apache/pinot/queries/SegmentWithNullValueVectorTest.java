@@ -286,7 +286,7 @@ public class SegmentWithNullValueVectorTest {
   }
 
   private ServerQueryRequest getQueryRequest(InstanceRequest instanceRequest) {
-    return new ServerQueryRequest(instanceRequest, _serverMetrics, System.currentTimeMillis());
+    return new ServerQueryRequest(instanceRequest, _serverMetrics, System.currentTimeMillis(), false);
   }
 
   /**

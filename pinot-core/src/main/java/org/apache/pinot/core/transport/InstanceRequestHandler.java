@@ -139,7 +139,7 @@ public class InstanceRequestHandler extends SimpleChannelInboundHandler<ByteBuf>
       // Parse instance request into ServerQueryRequest.
       msg.readBytes(requestBytes);
       _deserializer.get().deserialize(instanceRequest, requestBytes);
-      queryRequest = new ServerQueryRequest(instanceRequest, _serverMetrics, queryArrivalTimeMs);
+      queryRequest = new ServerQueryRequest(instanceRequest, _serverMetrics, queryArrivalTimeMs, false);
       queryRequest.getTimerContext().startNewPhaseTimer(ServerQueryPhase.REQUEST_DESERIALIZATION, queryArrivalTimeMs)
           .stopAndRecord();
       tableNameWithType = queryRequest.getTableNameWithType();

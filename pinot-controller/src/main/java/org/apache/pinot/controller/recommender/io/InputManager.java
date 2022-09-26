@@ -171,7 +171,7 @@ public class InputManager {
       try {
         PinotQuery pinotQuery = CalciteSqlParser.compileToPinotQuery(queryString);
         _queryOptimizer.optimize(pinotQuery, _schema);
-        QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery);
+        QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery, false);
 
         // Flag the queries having in filter columns not appear in schema
         // to exclude user input like select i from tableName where a = xyz and t > 500

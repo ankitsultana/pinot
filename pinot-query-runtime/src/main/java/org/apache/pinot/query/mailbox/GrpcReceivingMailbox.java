@@ -18,17 +18,21 @@
  */
 package org.apache.pinot.query.mailbox;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.pinot.common.proto.Mailbox.MailboxContent;
+import org.apache.pinot.core.common.datablock.BaseDataBlock;
+import org.apache.pinot.core.common.datablock.DataBlockUtils;
 import org.apache.pinot.query.mailbox.channel.MailboxContentStreamObserver;
 
 
 /**
  * GRPC implementation of the {@link ReceivingMailbox}.
  */
-public class GrpcReceivingMailbox implements ReceivingMailbox<MailboxContent> {
+public class GrpcReceivingMailbox implements ReceivingMailbox<BaseDataBlock> {
   private static final long DEFAULT_MAILBOX_INIT_TIMEOUT = 100L;
   private final GrpcMailboxService _mailboxService;
   private final String _mailboxId;
@@ -51,14 +55,14 @@ public class GrpcReceivingMailbox implements ReceivingMailbox<MailboxContent> {
   }
 
   @Override
-  public MailboxContent receive()
+  public BaseDataBlock receive()
       throws Exception {
     MailboxContent mailboxContent = null;
     if (waitForInitialize()) {
       mailboxContent = _contentStreamObserver.poll();
       _totalMsgReceived.incrementAndGet();
     }
-    return mailboxContent;
+    return fromMailboxContent(mailboxContent);
   }
 
   @Override
@@ -84,5 +88,17 @@ public class GrpcReceivingMailbox implements ReceivingMailbox<MailboxContent> {
   @Override
   public String getMailboxId() {
     return _mailboxId;
+  }
+
+  private BaseDataBlock fromMailboxContent(MailboxContent mailboxContent)
+      throws IOException {
+    if (mailboxContent == null) {
+      return null;
+    }
+    ByteBuffer byteBuffer = mailboxContent.getPayload().asReadOnlyByteBuffer();
+    if (byteBuffer.hasRemaining()) {
+      return DataBlockUtils.getDataBlock(byteBuffer);
+    }
+    return null;
   }
 }

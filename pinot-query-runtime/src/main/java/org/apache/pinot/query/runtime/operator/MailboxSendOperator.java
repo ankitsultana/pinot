@@ -38,6 +38,7 @@ import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.query.selection.SelectionOperatorUtils;
 import org.apache.pinot.core.transport.ServerInstance;
+import org.apache.pinot.query.mailbox.MailboxIdentifier;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.mailbox.StringMailboxIdentifier;
@@ -67,11 +68,11 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
   private final int _serverPort;
   private final long _jobId;
   private final int _stageId;
-  private final MailboxService<Mailbox.MailboxContent> _mailboxService;
+  private final MailboxService<BaseDataBlock> _mailboxService;
   private final DataSchema _dataSchema;
   private BaseOperator<TransferableBlock> _dataTableBlockBaseOperator;
 
-  public MailboxSendOperator(MailboxService<Mailbox.MailboxContent> mailboxService, DataSchema dataSchema,
+  public MailboxSendOperator(MailboxService<BaseDataBlock> mailboxService, DataSchema dataSchema,
       BaseOperator<TransferableBlock> dataTableBlockBaseOperator, List<ServerInstance> receivingStageInstances,
       RelDistribution.Type exchangeType, KeySelector<Object[], Object[]> keySelector, String hostName, int port,
       long jobId, int stageId) {
@@ -194,11 +195,12 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
 
   private void sendDataTableBlock(ServerInstance serverInstance, BaseDataBlock dataBlock)
       throws IOException {
-    String mailboxId = toMailboxId(serverInstance);
-    SendingMailbox<Mailbox.MailboxContent> sendingMailbox = _mailboxService.getSendingMailbox(mailboxId);
-    Mailbox.MailboxContent mailboxContent = toMailboxContent(mailboxId, dataBlock);
-    sendingMailbox.send(mailboxContent);
-    if (mailboxContent.getMetadataMap().containsKey(ChannelUtils.MAILBOX_METADATA_END_OF_STREAM_KEY)) {
+    MailboxIdentifier mailboxId = toMailboxId(serverInstance);
+    SendingMailbox<BaseDataBlock> sendingMailbox = _mailboxService.getSendingMailbox(mailboxId);
+    // Mailbox.MailboxContent mailboxContent = toMailboxContent(mailboxId, dataBlock);
+    sendingMailbox.send(dataBlock);
+    // if (mailboxContent.getMetadataMap().containsKey(ChannelUtils.MAILBOX_METADATA_END_OF_STREAM_KEY)) {
+    if (dataBlock instanceof MetadataBlock) {
       sendingMailbox.complete();
     }
   }
@@ -213,8 +215,8 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
     return builder.build();
   }
 
-  private String toMailboxId(ServerInstance serverInstance) {
+  private MailboxIdentifier toMailboxId(ServerInstance serverInstance) {
     return new StringMailboxIdentifier(String.format("%s_%s", _jobId, _stageId), _serverHostName, _serverPort,
-        serverInstance.getHostname(), serverInstance.getQueryMailboxPort()).toString();
+        serverInstance.getHostname(), serverInstance.getQueryMailboxPort());
   }
 }
