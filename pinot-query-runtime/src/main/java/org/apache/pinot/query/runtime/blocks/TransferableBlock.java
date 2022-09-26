@@ -32,6 +32,7 @@ import org.apache.pinot.core.common.datablock.ColumnarDataBlock;
 import org.apache.pinot.core.common.datablock.DataBlockBuilder;
 import org.apache.pinot.core.common.datablock.DataBlockUtils;
 import org.apache.pinot.core.common.datablock.RowDataBlock;
+import org.apache.pinot.core.common.datablock.UnEncodedDataBlock;
 
 
 /**
@@ -61,11 +62,17 @@ public class TransferableBlock implements Block {
   }
 
   public TransferableBlock(BaseDataBlock dataBlock) {
-    _dataBlock = dataBlock;
     _dataSchema = dataBlock.getDataSchema();
-    _type = dataBlock instanceof ColumnarDataBlock ? BaseDataBlock.Type.COLUMNAR
-        : dataBlock instanceof RowDataBlock ? BaseDataBlock.Type.ROW : BaseDataBlock.Type.METADATA;
-    _isErrorBlock = !_dataBlock.getExceptions().isEmpty();
+    _isErrorBlock = !dataBlock.getExceptions().isEmpty();
+    _dataBlock = dataBlock;
+    if (dataBlock instanceof UnEncodedDataBlock) {
+      UnEncodedDataBlock unEncodedDataBlock = (UnEncodedDataBlock) dataBlock;
+      _container = (List<Object[]>) unEncodedDataBlock.getRows();
+      _type = BaseDataBlock.Type.ROW;
+    } else {
+      _type = dataBlock instanceof ColumnarDataBlock ? BaseDataBlock.Type.COLUMNAR
+          : dataBlock instanceof RowDataBlock ? BaseDataBlock.Type.ROW : BaseDataBlock.Type.METADATA;
+    }
   }
 
   public DataSchema getDataSchema() {

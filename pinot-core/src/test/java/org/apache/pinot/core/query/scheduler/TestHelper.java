@@ -39,7 +39,7 @@ public class TestHelper {
     request.setSearchSegments(Arrays.asList("segment1", "segment2"));
     BrokerRequest brokerRequest = CalciteSqlCompiler.compileToBrokerRequest("SELECT * FROM \"" + table + "\"");
     request.setQuery(brokerRequest);
-    return new ServerQueryRequest(request, metrics, queryArrivalTimeMs);
+    return new ServerQueryRequest(request, metrics, queryArrivalTimeMs, false);
   }
 
   public static ServerQueryRequest createServerQueryRequest(String table, ServerMetrics metrics) {

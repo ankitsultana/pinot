@@ -33,6 +33,8 @@ import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.planner.stage.JoinNode;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
 import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -44,6 +46,7 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
  * <p>For each of the data block received from the left table, it will generate a joint data block.
  */
 public class HashJoinOperator extends BaseOperator<TransferableBlock> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(HashJoinOperator.class);
   private static final String EXPLAIN_NAME = "BROADCAST_JOIN";
 
   private final HashMap<Integer, List<Object[]>> _broadcastHashTable;
@@ -105,42 +108,55 @@ public class HashJoinOperator extends BaseOperator<TransferableBlock> {
 
   private void buildBroadcastHashTable() {
     if (!_isHashTableBuilt) {
-      TransferableBlock rightBlock = _rightTableOperator.nextBlock();
-      while (!TransferableBlockUtils.isEndOfStream(rightBlock)) {
-        List<Object[]> container = rightBlock.getContainer();
-        // put all the rows into corresponding hash collections keyed by the key selector function.
-        for (Object[] row : container) {
-          List<Object[]> hashCollection =
-              _broadcastHashTable.computeIfAbsent(_rightKeySelector.computeHash(row), k -> new ArrayList<>());
-          hashCollection.add(row);
+      long startTime = System.currentTimeMillis();
+      try {
+        TransferableBlock rightBlock = _rightTableOperator.nextBlock();
+        while (!TransferableBlockUtils.isEndOfStream(rightBlock)) {
+          List<Object[]> container = rightBlock.getContainer();
+          // put all the rows into corresponding hash collections keyed by the key selector function.
+          for (Object[] row : container) {
+            List<Object[]> hashCollection =
+                _broadcastHashTable.computeIfAbsent(_rightKeySelector.computeHash(row), k -> new ArrayList<>());
+            hashCollection.add(row);
+          }
+          rightBlock = _rightTableOperator.nextBlock();
         }
-        rightBlock = _rightTableOperator.nextBlock();
+        if (rightBlock.isErrorBlock()) {
+          _upstreamErrorBlock = rightBlock;
+        }
+        _isHashTableBuilt = true;
+      } finally {
+        LOGGER.info("Time taken in building hash-table(size={}) {} ms", _broadcastHashTable.size(),
+            System.currentTimeMillis() - startTime);
       }
-      if (rightBlock.isErrorBlock()) {
-        _upstreamErrorBlock = rightBlock;
-      }
-      _isHashTableBuilt = true;
     }
   }
 
   private TransferableBlock buildJoinedDataBlock(TransferableBlock leftBlock)
       throws Exception {
-    if (!TransferableBlockUtils.isEndOfStream(leftBlock)) {
-      List<Object[]> rows = new ArrayList<>();
-      List<Object[]> container = leftBlock.getContainer();
-      for (Object[] leftRow : container) {
-        List<Object[]> hashCollection = _broadcastHashTable.getOrDefault(
-            _leftKeySelector.computeHash(leftRow), Collections.emptyList());
-        for (Object[] rightRow : hashCollection) {
-          rows.add(joinRow(leftRow, rightRow));
+    long startTime = System.currentTimeMillis();
+    try {
+      if (!TransferableBlockUtils.isEndOfStream(leftBlock)) {
+        List<Object[]> rows = new ArrayList<>();
+        List<Object[]> container = leftBlock.getContainer();
+        for (Object[] leftRow : container) {
+          List<Object[]> hashCollection = _broadcastHashTable.getOrDefault(
+              _leftKeySelector.computeHash(leftRow), Collections.emptyList());
+          for (Object[] rightRow : hashCollection) {
+            rows.add(joinRow(leftRow, rightRow));
+          }
         }
+        LOGGER.info("Time taken in join-loop: {} ms (leftContainer={}, output-rows={})",
+            System.currentTimeMillis() - startTime, container.size(), rows.size());
+        return new TransferableBlock(rows, _resultSchema, BaseDataBlock.Type.ROW);
+      } else if (leftBlock.isErrorBlock()) {
+        _upstreamErrorBlock = leftBlock;
+        return _upstreamErrorBlock;
+      } else {
+        return new TransferableBlock(DataBlockUtils.getEndOfStreamDataBlock(_resultSchema));
       }
-      return new TransferableBlock(rows, _resultSchema, BaseDataBlock.Type.ROW);
-    } else if (leftBlock.isErrorBlock()) {
-      _upstreamErrorBlock = leftBlock;
-      return _upstreamErrorBlock;
-    } else {
-      return new TransferableBlock(DataBlockUtils.getEndOfStreamDataBlock(_resultSchema));
+    } finally {
+      LOGGER.info("Time taken in join {} ms", System.currentTimeMillis() - startTime);
     }
   }
 

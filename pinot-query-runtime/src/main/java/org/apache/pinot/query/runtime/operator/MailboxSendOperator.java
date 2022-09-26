@@ -38,6 +38,7 @@ import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.query.selection.SelectionOperatorUtils;
 import org.apache.pinot.core.transport.ServerInstance;
+import org.apache.pinot.query.mailbox.MailboxIdentifier;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.mailbox.StringMailboxIdentifier;
@@ -67,11 +68,11 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
   private final int _serverPort;
   private final long _jobId;
   private final int _stageId;
-  private final MailboxService<Mailbox.MailboxContent> _mailboxService;
+  private final MailboxService<BaseDataBlock> _mailboxService;
   private final DataSchema _dataSchema;
   private BaseOperator<TransferableBlock> _dataTableBlockBaseOperator;
 
-  public MailboxSendOperator(MailboxService<Mailbox.MailboxContent> mailboxService, DataSchema dataSchema,
+  public MailboxSendOperator(MailboxService<BaseDataBlock> mailboxService, DataSchema dataSchema,
       BaseOperator<TransferableBlock> dataTableBlockBaseOperator, List<ServerInstance> receivingStageInstances,
       RelDistribution.Type exchangeType, KeySelector<Object[], Object[]> keySelector, String hostName, int port,
       long jobId, int stageId) {
@@ -118,7 +119,10 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
     BaseDataBlock dataBlock;
     TransferableBlock transferableBlock = null;
     boolean isEndOfStream;
+    long startTime = System.currentTimeMillis();
     transferableBlock = _dataTableBlockBaseOperator.nextBlock();
+    LOGGER.info("[stageId={}] Time taken for base-operators is {} ms", _stageId,
+        System.currentTimeMillis() - startTime);
     dataBlock = transferableBlock.getDataBlock();
     isEndOfStream = TransferableBlockUtils.isEndOfStream(transferableBlock);
 
@@ -164,42 +168,55 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
     return transferableBlock;
   }
 
-  private static List<BaseDataBlock> constructPartitionedDataBlock(BaseDataBlock dataBlock,
+  private List<BaseDataBlock> constructPartitionedDataBlock(BaseDataBlock dataBlock,
       KeySelector<Object[], Object[]> keySelector, int partitionSize, boolean isEndOfStream)
       throws Exception {
-    if (isEndOfStream) {
-      List<BaseDataBlock> dataTableList = new ArrayList<>(partitionSize);
-      for (int i = 0; i < partitionSize; i++) {
-        dataTableList.add(dataBlock);
+    long startTime = System.currentTimeMillis();
+    try {
+      if (isEndOfStream) {
+        List<BaseDataBlock> dataTableList = new ArrayList<>(partitionSize);
+        for (int i = 0; i < partitionSize; i++) {
+          dataTableList.add(dataBlock);
+        }
+        return dataTableList;
+      } else {
+        List<List<Object[]>> temporaryRows = new ArrayList<>(partitionSize);
+        for (int i = 0; i < partitionSize; i++) {
+          temporaryRows.add(new ArrayList<>());
+        }
+        for (int rowId = 0; rowId < dataBlock.getNumberOfRows(); rowId++) {
+          Object[] row = SelectionOperatorUtils.extractRowFromDataTable(dataBlock, rowId);
+          int partitionId = keySelector.computeHash(row) % partitionSize;
+          temporaryRows.get(partitionId).add(row);
+        }
+        List<BaseDataBlock> dataTableList = new ArrayList<>(partitionSize);
+        for (int i = 0; i < partitionSize; i++) {
+          List<Object[]> objects = temporaryRows.get(i);
+          dataTableList.add(DataBlockBuilder.buildFromRows(objects, null, dataBlock.getDataSchema()));
+        }
+        return dataTableList;
       }
-      return dataTableList;
-    } else {
-      List<List<Object[]>> temporaryRows = new ArrayList<>(partitionSize);
-      for (int i = 0; i < partitionSize; i++) {
-        temporaryRows.add(new ArrayList<>());
-      }
-      for (int rowId = 0; rowId < dataBlock.getNumberOfRows(); rowId++) {
-        Object[] row = SelectionOperatorUtils.extractRowFromDataTable(dataBlock, rowId);
-        int partitionId = keySelector.computeHash(row) % partitionSize;
-        temporaryRows.get(partitionId).add(row);
-      }
-      List<BaseDataBlock> dataTableList = new ArrayList<>(partitionSize);
-      for (int i = 0; i < partitionSize; i++) {
-        List<Object[]> objects = temporaryRows.get(i);
-        dataTableList.add(DataBlockBuilder.buildFromRows(objects, null, dataBlock.getDataSchema()));
-      }
-      return dataTableList;
+    } finally {
+      LOGGER.info("[stageId={}] Time taken in partitioned data block creation {} ms",
+          _stageId, System.currentTimeMillis() - startTime);
     }
   }
 
   private void sendDataTableBlock(ServerInstance serverInstance, BaseDataBlock dataBlock)
       throws IOException {
-    String mailboxId = toMailboxId(serverInstance);
-    SendingMailbox<Mailbox.MailboxContent> sendingMailbox = _mailboxService.getSendingMailbox(mailboxId);
-    Mailbox.MailboxContent mailboxContent = toMailboxContent(mailboxId, dataBlock);
-    sendingMailbox.send(mailboxContent);
-    if (mailboxContent.getMetadataMap().containsKey(ChannelUtils.MAILBOX_METADATA_END_OF_STREAM_KEY)) {
-      sendingMailbox.complete();
+    long startTime = System.currentTimeMillis();
+    MailboxIdentifier mailboxId = toMailboxId(serverInstance);
+    try {
+      SendingMailbox<BaseDataBlock> sendingMailbox = _mailboxService.getSendingMailbox(mailboxId);
+      // Mailbox.MailboxContent mailboxContent = toMailboxContent(mailboxId, dataBlock);
+      sendingMailbox.send(dataBlock);
+      // if (mailboxContent.getMetadataMap().containsKey(ChannelUtils.MAILBOX_METADATA_END_OF_STREAM_KEY)) {
+      if (dataBlock instanceof MetadataBlock) {
+        sendingMailbox.complete();
+      }
+    } finally {
+      LOGGER.info("[stageId={}] Time taken in sending data (using {} mailbox) is {} ms", _stageId,
+          mailboxId.isLocal() ? "local" : "wire", System.currentTimeMillis() - startTime);
     }
   }
 
@@ -213,8 +230,8 @@ public class MailboxSendOperator extends BaseOperator<TransferableBlock> {
     return builder.build();
   }
 
-  private String toMailboxId(ServerInstance serverInstance) {
+  private MailboxIdentifier toMailboxId(ServerInstance serverInstance) {
     return new StringMailboxIdentifier(String.format("%s_%s", _jobId, _stageId), _serverHostName, _serverPort,
-        serverInstance.getHostname(), serverInstance.getQueryMailboxPort()).toString();
+        serverInstance.getHostname(), serverInstance.getQueryMailboxPort());
   }
 }

@@ -71,7 +71,7 @@ public class StreamingReduceService extends BaseReduceService {
     boolean enableTrace =
         queryOptions != null && Boolean.parseBoolean(queryOptions.get(CommonConstants.Broker.Request.TRACE));
 
-    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery);
+    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery, false);
     String tableName = queryContext.getTableName();
     String rawTableName = TableNameBuilder.extractRawTableName(tableName);
 

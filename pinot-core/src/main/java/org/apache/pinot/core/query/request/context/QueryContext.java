@@ -122,6 +122,9 @@ public class QueryContext {
   private boolean _nullHandlingEnabled;
   // Whether server returns the final result
   private boolean _serverReturnFinalResult;
+  // Data is serialized into DataTable when sent from leaf stages in servers, but it can be skipped if the receiver
+  // is on the same server.
+  private boolean _skipDataTableSerDe = false;
 
   private QueryContext(@Nullable String tableName, @Nullable QueryContext subquery,
       List<ExpressionContext> selectExpressions, List<String> aliasList, @Nullable FilterContext filter,
@@ -393,6 +396,14 @@ public class QueryContext {
     _serverReturnFinalResult = serverReturnFinalResult;
   }
 
+  public boolean isSkipDataTableSerDe() {
+    return _skipDataTableSerDe;
+  }
+
+  public void setSkipDataTableSerDe(boolean skipDataTableSerDe) {
+    _skipDataTableSerDe = skipDataTableSerDe;
+  }
+
   /**
    * Gets or computes a value of type {@code V} associated with a key of type {@code K} so that it can be shared
    * within the scope of a query.
@@ -434,6 +445,7 @@ public class QueryContext {
     private Map<String, String> _debugOptions;
     private Map<ExpressionContext, ExpressionContext> _expressionOverrideHints;
     private boolean _explain;
+    private boolean _skipDataTableSerde;
 
     public Builder setTableName(String tableName) {
       _tableName = tableName;
@@ -500,6 +512,11 @@ public class QueryContext {
       return this;
     }
 
+    public Builder setSkipDataTableSerde(boolean skipDataTableSerde) {
+      _skipDataTableSerde = skipDataTableSerde;
+      return this;
+    }
+
     public QueryContext build() {
       // TODO: Add validation logic here
 
@@ -511,6 +528,7 @@ public class QueryContext {
               _havingFilter, _orderByExpressions, _limit, _offset, _queryOptions, _expressionOverrideHints, _explain);
       queryContext.setNullHandlingEnabled(QueryOptionsUtils.isNullHandlingEnabled(_queryOptions));
       queryContext.setServerReturnFinalResult(QueryOptionsUtils.isServerReturnFinalResult(_queryOptions));
+      queryContext.setSkipDataTableSerDe(_skipDataTableSerde);
 
       // Pre-calculate the aggregation functions and columns for the query
       generateAggregationFunctions(queryContext);

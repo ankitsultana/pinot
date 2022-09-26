@@ -347,7 +347,7 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   }
 
   private ServerQueryRequest getQueryRequest(InstanceRequest instanceRequest) {
-    return new ServerQueryRequest(instanceRequest, _serverMetrics, System.currentTimeMillis());
+    return new ServerQueryRequest(instanceRequest, _serverMetrics, System.currentTimeMillis(), false);
   }
 
   @Test

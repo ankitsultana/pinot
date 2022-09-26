@@ -45,6 +45,8 @@ import org.apache.pinot.spi.utils.ArrayCopyUtils;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.apache.pinot.spi.utils.NullValueUtils;
 import org.roaringbitmap.RoaringBitmap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -67,6 +69,7 @@ import org.roaringbitmap.RoaringBitmap;
  * </ul>
  */
 public class SelectionOperatorUtils {
+  private static final Logger LOGGER = LoggerFactory.getLogger(SelectionOperatorUtils.class);
   private SelectionOperatorUtils() {
   }
 
@@ -237,125 +240,131 @@ public class SelectionOperatorUtils {
   public static DataTable getDataTableFromRows(Collection<Object[]> rows, DataSchema dataSchema,
       boolean nullHandlingEnabled)
       throws Exception {
-    ColumnDataType[] storedColumnDataTypes = dataSchema.getStoredColumnDataTypes();
-    int numColumns = storedColumnDataTypes.length;
+    long startTime = System.currentTimeMillis();
+    try {
+      ColumnDataType[] storedColumnDataTypes = dataSchema.getStoredColumnDataTypes();
+      int numColumns = storedColumnDataTypes.length;
 
-    DataTableBuilder dataTableBuilder = DataTableFactory.getDataTableBuilder(dataSchema);
-    RoaringBitmap[] nullBitmaps = null;
-    if (nullHandlingEnabled) {
-      nullBitmaps = new RoaringBitmap[numColumns];
-      Object[] colDefaultNullValues = new Object[numColumns];
-      for (int colId = 0; colId < numColumns; colId++) {
-        if (storedColumnDataTypes[colId] != ColumnDataType.OBJECT && !storedColumnDataTypes[colId].isArray()) {
-          colDefaultNullValues[colId] =
-              NullValueUtils.getDefaultNullValue(storedColumnDataTypes[colId].toDataType());
+      DataTableBuilder dataTableBuilder = DataTableFactory.getDataTableBuilder(dataSchema);
+      RoaringBitmap[] nullBitmaps = null;
+      if (nullHandlingEnabled) {
+        nullBitmaps = new RoaringBitmap[numColumns];
+        Object[] colDefaultNullValues = new Object[numColumns];
+        for (int colId = 0; colId < numColumns; colId++) {
+          if (storedColumnDataTypes[colId] != ColumnDataType.OBJECT && !storedColumnDataTypes[colId].isArray()) {
+            colDefaultNullValues[colId] =
+                NullValueUtils.getDefaultNullValue(storedColumnDataTypes[colId].toDataType());
+          }
+          nullBitmaps[colId] = new RoaringBitmap();
         }
-        nullBitmaps[colId] = new RoaringBitmap();
+
+        int rowId = 0;
+        for (Object[] row : rows) {
+          for (int i = 0; i < numColumns; i++) {
+            Object columnValue = row[i];
+            if (columnValue == null) {
+              row[i] = colDefaultNullValues[i];
+              nullBitmaps[i].add(rowId);
+            }
+          }
+          rowId++;
+        }
       }
 
-      int rowId = 0;
       for (Object[] row : rows) {
+        dataTableBuilder.startRow();
         for (int i = 0; i < numColumns; i++) {
           Object columnValue = row[i];
-          if (columnValue == null) {
-            row[i] = colDefaultNullValues[i];
-            nullBitmaps[i].add(rowId);
+          switch (storedColumnDataTypes[i]) {
+            // Single-value column
+            case INT:
+              dataTableBuilder.setColumn(i, ((Number) columnValue).intValue());
+              break;
+            case LONG:
+              dataTableBuilder.setColumn(i, ((Number) columnValue).longValue());
+              break;
+            case FLOAT:
+              dataTableBuilder.setColumn(i, ((Number) columnValue).floatValue());
+              break;
+            case DOUBLE:
+              dataTableBuilder.setColumn(i, ((Number) columnValue).doubleValue());
+              break;
+            case BIG_DECIMAL:
+              dataTableBuilder.setColumn(i, (BigDecimal) columnValue);
+              break;
+            case STRING:
+              dataTableBuilder.setColumn(i, ((String) columnValue));
+              break;
+            case BYTES:
+              dataTableBuilder.setColumn(i, (ByteArray) columnValue);
+              break;
+
+            // Multi-value column
+            case INT_ARRAY:
+              dataTableBuilder.setColumn(i, (int[]) columnValue);
+              break;
+            case LONG_ARRAY:
+              // LONG_ARRAY type covers INT_ARRAY and LONG_ARRAY
+              if (columnValue instanceof int[]) {
+                int[] ints = (int[]) columnValue;
+                int length = ints.length;
+                long[] longs = new long[length];
+                ArrayCopyUtils.copy(ints, longs, length);
+                dataTableBuilder.setColumn(i, longs);
+              } else {
+                dataTableBuilder.setColumn(i, (long[]) columnValue);
+              }
+              break;
+            case FLOAT_ARRAY:
+              dataTableBuilder.setColumn(i, (float[]) columnValue);
+              break;
+            case DOUBLE_ARRAY:
+              // DOUBLE_ARRAY type covers INT_ARRAY, LONG_ARRAY, FLOAT_ARRAY and DOUBLE_ARRAY
+              if (columnValue instanceof int[]) {
+                int[] ints = (int[]) columnValue;
+                int length = ints.length;
+                double[] doubles = new double[length];
+                ArrayCopyUtils.copy(ints, doubles, length);
+                dataTableBuilder.setColumn(i, doubles);
+              } else if (columnValue instanceof long[]) {
+                long[] longs = (long[]) columnValue;
+                int length = longs.length;
+                double[] doubles = new double[length];
+                ArrayCopyUtils.copy(longs, doubles, length);
+                dataTableBuilder.setColumn(i, doubles);
+              } else if (columnValue instanceof float[]) {
+                float[] floats = (float[]) columnValue;
+                int length = floats.length;
+                double[] doubles = new double[length];
+                ArrayCopyUtils.copy(floats, doubles, length);
+                dataTableBuilder.setColumn(i, doubles);
+              } else {
+                dataTableBuilder.setColumn(i, (double[]) columnValue);
+              }
+              break;
+            case STRING_ARRAY:
+              dataTableBuilder.setColumn(i, (String[]) columnValue);
+              break;
+
+            default:
+              throw new IllegalStateException(
+                  String.format("Unsupported data type: %s for column: %s", storedColumnDataTypes[i],
+                      dataSchema.getColumnName(i)));
           }
         }
-        rowId++;
+        dataTableBuilder.finishRow();
       }
-    }
 
-    for (Object[] row : rows) {
-      dataTableBuilder.startRow();
-      for (int i = 0; i < numColumns; i++) {
-        Object columnValue = row[i];
-        switch (storedColumnDataTypes[i]) {
-          // Single-value column
-          case INT:
-            dataTableBuilder.setColumn(i, ((Number) columnValue).intValue());
-            break;
-          case LONG:
-            dataTableBuilder.setColumn(i, ((Number) columnValue).longValue());
-            break;
-          case FLOAT:
-            dataTableBuilder.setColumn(i, ((Number) columnValue).floatValue());
-            break;
-          case DOUBLE:
-            dataTableBuilder.setColumn(i, ((Number) columnValue).doubleValue());
-            break;
-          case BIG_DECIMAL:
-            dataTableBuilder.setColumn(i, (BigDecimal) columnValue);
-            break;
-          case STRING:
-            dataTableBuilder.setColumn(i, ((String) columnValue));
-            break;
-          case BYTES:
-            dataTableBuilder.setColumn(i, (ByteArray) columnValue);
-            break;
-
-          // Multi-value column
-          case INT_ARRAY:
-            dataTableBuilder.setColumn(i, (int[]) columnValue);
-            break;
-          case LONG_ARRAY:
-            // LONG_ARRAY type covers INT_ARRAY and LONG_ARRAY
-            if (columnValue instanceof int[]) {
-              int[] ints = (int[]) columnValue;
-              int length = ints.length;
-              long[] longs = new long[length];
-              ArrayCopyUtils.copy(ints, longs, length);
-              dataTableBuilder.setColumn(i, longs);
-            } else {
-              dataTableBuilder.setColumn(i, (long[]) columnValue);
-            }
-            break;
-          case FLOAT_ARRAY:
-            dataTableBuilder.setColumn(i, (float[]) columnValue);
-            break;
-          case DOUBLE_ARRAY:
-            // DOUBLE_ARRAY type covers INT_ARRAY, LONG_ARRAY, FLOAT_ARRAY and DOUBLE_ARRAY
-            if (columnValue instanceof int[]) {
-              int[] ints = (int[]) columnValue;
-              int length = ints.length;
-              double[] doubles = new double[length];
-              ArrayCopyUtils.copy(ints, doubles, length);
-              dataTableBuilder.setColumn(i, doubles);
-            } else if (columnValue instanceof long[]) {
-              long[] longs = (long[]) columnValue;
-              int length = longs.length;
-              double[] doubles = new double[length];
-              ArrayCopyUtils.copy(longs, doubles, length);
-              dataTableBuilder.setColumn(i, doubles);
-            } else if (columnValue instanceof float[]) {
-              float[] floats = (float[]) columnValue;
-              int length = floats.length;
-              double[] doubles = new double[length];
-              ArrayCopyUtils.copy(floats, doubles, length);
-              dataTableBuilder.setColumn(i, doubles);
-            } else {
-              dataTableBuilder.setColumn(i, (double[]) columnValue);
-            }
-            break;
-          case STRING_ARRAY:
-            dataTableBuilder.setColumn(i, (String[]) columnValue);
-            break;
-
-          default:
-            throw new IllegalStateException(
-                String.format("Unsupported data type: %s for column: %s", storedColumnDataTypes[i],
-                    dataSchema.getColumnName(i)));
+      if (nullHandlingEnabled) {
+        for (int colId = 0; colId < numColumns; colId++) {
+          dataTableBuilder.setNullRowIds(nullBitmaps[colId]);
         }
       }
-      dataTableBuilder.finishRow();
+      return dataTableBuilder.build();
+    } finally {
+      LOGGER.info("Time taken in getDataTableFromRows (rows={}) {} ms", rows.size(),
+          System.currentTimeMillis() - startTime);
     }
-
-    if (nullHandlingEnabled) {
-      for (int colId = 0; colId < numColumns; colId++) {
-        dataTableBuilder.setNullRowIds(nullBitmaps[colId]);
-      }
-    }
-    return dataTableBuilder.build();
   }
 
   /**

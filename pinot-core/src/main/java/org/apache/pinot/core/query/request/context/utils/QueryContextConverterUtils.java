@@ -46,20 +46,20 @@ public class QueryContextConverterUtils {
    * Converts the given query into a {@link QueryContext}.
    */
   public static QueryContext getQueryContext(String query) {
-    return getQueryContext(CalciteSqlParser.compileToPinotQuery(query));
+    return getQueryContext(CalciteSqlParser.compileToPinotQuery(query), false);
   }
 
   /**
    * Converts the given {@link PinotQuery} into a {@link QueryContext}.
    */
-  public static QueryContext getQueryContext(PinotQuery pinotQuery) {
+  public static QueryContext getQueryContext(PinotQuery pinotQuery, boolean skipDataTableSerde) {
     // FROM
     String tableName;
     DataSource dataSource = pinotQuery.getDataSource();
     tableName = dataSource.getTableName();
     QueryContext subquery = null;
     if (dataSource.getSubquery() != null) {
-      subquery = getQueryContext(dataSource.getSubquery());
+      subquery = getQueryContext(dataSource.getSubquery(), false);
     }
 
     // SELECT
@@ -160,6 +160,6 @@ public class QueryContextConverterUtils {
         .setGroupByExpressions(groupByExpressions).setOrderByExpressions(orderByExpressions)
         .setHavingFilter(havingFilter).setLimit(pinotQuery.getLimit()).setOffset(pinotQuery.getOffset())
         .setQueryOptions(pinotQuery.getQueryOptions()).setExpressionOverrideHints(expressionContextOverrideHints)
-        .setExplain(pinotQuery.isExplain()).build();
+        .setExplain(pinotQuery.isExplain()).setSkipDataTableSerde(skipDataTableSerde).build();
   }
 }

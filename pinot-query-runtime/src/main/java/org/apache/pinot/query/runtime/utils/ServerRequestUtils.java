@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
@@ -93,8 +94,15 @@ public class ServerRequestUtils {
     instanceRequest.setEnableTrace(false);
     instanceRequest.setSearchSegments(segmentList);
     instanceRequest.setQuery(constructBrokerRequest(distributedStagePlan, tableType, timeBoundaryInfo));
+    boolean skipDataTableSerde = false;
+    if (distributedStagePlan.getStageRoot() instanceof MailboxSendNode) {
+      if (((MailboxSendNode) distributedStagePlan.getStageRoot()).getExchangeType().equals(
+          RelDistribution.Type.SINGLETON)) {
+        skipDataTableSerde = true;
+      }
+    }
     return new ServerQueryRequest(instanceRequest, new ServerMetrics(PinotMetricUtils.getPinotMetricsRegistry()),
-        System.currentTimeMillis());
+        System.currentTimeMillis(), skipDataTableSerde);
   }
 
   // TODO: this is a hack, create a broker request object should not be needed because we rewrite the entire

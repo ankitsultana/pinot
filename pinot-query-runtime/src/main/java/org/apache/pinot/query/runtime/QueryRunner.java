@@ -25,13 +25,13 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
 import org.apache.pinot.common.metrics.ServerMetrics;
-import org.apache.pinot.common.proto.Mailbox;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.common.datablock.BaseDataBlock;
 import org.apache.pinot.core.common.datablock.DataBlockUtils;
 import org.apache.pinot.core.common.datablock.MetadataBlock;
+import org.apache.pinot.core.common.datablock.UnEncodedDataBlock;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.query.executor.ServerQueryExecutorV1Impl;
@@ -62,7 +62,7 @@ public class QueryRunner {
   // This is a temporary before merging the 2 type of executor.
   private ServerQueryExecutorV1Impl _serverExecutor;
   private WorkerQueryExecutor _workerExecutor;
-  private MailboxService<Mailbox.MailboxContent> _mailboxService;
+  private MailboxService<BaseDataBlock> _mailboxService;
   private String _hostname;
   private int _port;
 
@@ -138,6 +138,8 @@ public class QueryRunner {
       if (!dataTable.getExceptions().isEmpty()) {
         // if contains exception, directly return a metadata block with the exceptions.
         dataBlock = DataBlockUtils.getErrorDataBlock(dataTable.getExceptions());
+      } else if (dataTable instanceof UnEncodedDataBlock) {
+        dataBlock = (UnEncodedDataBlock) dataTable;
       } else {
         // this works because default DataTableImplV3 will have a version number at beginning:
         // the new DataBlock encodes lower 16 bits as version and upper 16 bits as type (ROW, COLUMNAR, METADATA)

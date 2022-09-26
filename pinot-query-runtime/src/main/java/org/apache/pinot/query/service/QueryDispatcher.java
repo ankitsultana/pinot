@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.pinot.common.exception.QueryException;
-import org.apache.pinot.common.proto.Mailbox;
 import org.apache.pinot.common.proto.PinotQueryWorkerGrpc;
 import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.common.utils.DataSchema;
@@ -60,7 +59,7 @@ public class QueryDispatcher {
   }
 
   public List<DataTable> submitAndReduce(long requestId, QueryPlan queryPlan,
-      MailboxService<Mailbox.MailboxContent> mailboxService, long timeoutNano)
+      MailboxService<BaseDataBlock> mailboxService, long timeoutNano)
       throws Exception {
     // submit all the distributed stages.
     int reduceStageId = submit(requestId, queryPlan);
@@ -147,7 +146,7 @@ public class QueryDispatcher {
     return resultDataBlocks;
   }
 
-  public static MailboxReceiveOperator createReduceStageOperator(MailboxService<Mailbox.MailboxContent> mailboxService,
+  public static MailboxReceiveOperator createReduceStageOperator(MailboxService<BaseDataBlock> mailboxService,
       List<ServerInstance> sendingInstances, long jobId, int stageId, DataSchema dataSchema, String hostname,
       int port) {
     MailboxReceiveOperator mailboxReceiveOperator =

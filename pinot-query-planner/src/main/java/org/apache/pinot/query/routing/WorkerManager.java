@@ -25,12 +25,16 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.StageMetadata;
+import org.apache.pinot.query.planner.stage.MailboxReceiveNode;
+import org.apache.pinot.query.planner.stage.MailboxSendNode;
+import org.apache.pinot.query.planner.stage.StageNode;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.utils.CommonConstants;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
@@ -58,7 +62,9 @@ public class WorkerManager {
     _routingManager = routingManager;
   }
 
-  public void assignWorkerToStage(int stageId, StageMetadata stageMetadata) {
+  public void assignWorkerToStage(int stageId, Map<Integer, StageMetadata> stageMetadataMap,
+      Map<Integer, StageNode> stageNodeMap) {
+    StageMetadata stageMetadata = stageMetadataMap.get(stageId);
     List<String> scannedTables = stageMetadata.getScannedTables();
     if (scannedTables.size() == 1) {
       // table scan stage, need to attach server as well as segment info for each physical table type.
@@ -100,8 +106,42 @@ public class WorkerManager {
       // here we simply assign the worker instance with identical server/mailbox port number.
       stageMetadata.setServerInstances(Lists.newArrayList(new WorkerInstance(_hostName, _port, _port, _port, _port)));
     } else {
-      stageMetadata.setServerInstances(filterServers(_routingManager.getEnabledServerInstanceMap().values()));
+      stageMetadata.setServerInstances(assignServers(stageNodeMap.get(stageId), stageMetadataMap.get(stageId),
+          stageMetadataMap));
     }
+  }
+
+  private List<ServerInstance> assignServers(StageNode stageNode, StageMetadata stageMetadata,
+      Map<Integer, StageMetadata> stageMetadataMap) {
+    Preconditions.checkState(stageNode instanceof MailboxSendNode, "Root of stage is not mailbox send");
+    List<MailboxReceiveNode> receiveNodes = discoverMailboxReceiveNodes(stageNode);
+    if (receiveNodes.isEmpty()) {
+      return filterServers(_routingManager.getEnabledServerInstanceMap().values());
+    }
+    // If this stage is receiving data from singleton distributions, and the servers for those stages are the same,
+    // then
+    if (receiveNodes.stream().allMatch(x -> x.getExchangeType().equals(RelDistribution.Type.SINGLETON))) {
+      List<ServerInstance> servers = stageMetadataMap.get(receiveNodes.get(0).getSenderStageId()).getServerInstances();
+      for (MailboxReceiveNode receiveNode : receiveNodes) {
+        if (!stageMetadataMap.get(receiveNode.getSenderStageId()).getServerInstances().equals(servers)) {
+          return filterServers(_routingManager.getEnabledServerInstanceMap().values());
+        }
+      }
+      return servers;
+    }
+    return filterServers(_routingManager.getEnabledServerInstanceMap().values());
+  }
+
+  private static List<MailboxReceiveNode> discoverMailboxReceiveNodes(StageNode stageNode) {
+    List<MailboxReceiveNode> result = new ArrayList<>();
+    if (stageNode instanceof MailboxReceiveNode) {
+      result.add((MailboxReceiveNode) stageNode);
+      return result;
+    }
+    for (StageNode input : stageNode.getInputs()) {
+      result.addAll(discoverMailboxReceiveNodes(input));
+    }
+    return result;
   }
 
   private static List<ServerInstance> filterServers(Collection<ServerInstance> servers) {

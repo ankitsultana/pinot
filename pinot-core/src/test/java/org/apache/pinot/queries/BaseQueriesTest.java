@@ -80,7 +80,7 @@ public abstract class BaseQueriesTest {
   protected <T extends Operator> T getOperator(String query) {
     PinotQuery pinotQuery = CalciteSqlParser.compileToPinotQuery(query);
     PinotQuery serverPinotQuery = GapfillUtils.stripGapfill(pinotQuery);
-    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(serverPinotQuery);
+    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(serverPinotQuery, false);
     return (T) PLAN_MAKER.makeSegmentPlanNode(getIndexSegment(), queryContext).run();
   }
 
@@ -185,9 +185,10 @@ public abstract class BaseQueriesTest {
    */
   private BrokerResponseNative getBrokerResponse(PinotQuery pinotQuery, PlanMaker planMaker) {
     PinotQuery serverPinotQuery = GapfillUtils.stripGapfill(pinotQuery);
-    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery);
+    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery, false);
     QueryContext serverQueryContext =
-        serverPinotQuery == pinotQuery ? queryContext : QueryContextConverterUtils.getQueryContext(serverPinotQuery);
+        serverPinotQuery == pinotQuery ? queryContext : QueryContextConverterUtils.getQueryContext(serverPinotQuery,
+            false);
 
     List<List<IndexSegment>> instances = getDistinctInstances();
     if (instances.size() == 2) {
@@ -260,9 +261,10 @@ public abstract class BaseQueriesTest {
    */
   private BrokerResponseNative getBrokerResponseDistinctInstances(PinotQuery pinotQuery, PlanMaker planMaker) {
     PinotQuery serverPinotQuery = GapfillUtils.stripGapfill(pinotQuery);
-    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery);
+    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery, false);
     QueryContext serverQueryContext =
-        serverPinotQuery == pinotQuery ? queryContext : QueryContextConverterUtils.getQueryContext(serverPinotQuery);
+        serverPinotQuery == pinotQuery ? queryContext : QueryContextConverterUtils.getQueryContext(serverPinotQuery,
+            false);
 
     List<List<IndexSegment>> instances = getDistinctInstances();
     // Server side

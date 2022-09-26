@@ -50,13 +50,15 @@ public class ServerQueryRequest {
   // Timing information for different phases of query execution
   private final TimerContext _timerContext;
 
-  public ServerQueryRequest(InstanceRequest instanceRequest, ServerMetrics serverMetrics, long queryArrivalTimeMs) {
+  public ServerQueryRequest(InstanceRequest instanceRequest, ServerMetrics serverMetrics, long queryArrivalTimeMs,
+      boolean skipDataTableSerde) {
     _requestId = instanceRequest.getRequestId();
     _brokerId = instanceRequest.getBrokerId() != null ? instanceRequest.getBrokerId() : "unknown";
     _enableTrace = instanceRequest.isEnableTrace();
     _enableStreaming = false;
     _segmentsToQuery = instanceRequest.getSearchSegments();
-    _queryContext = QueryContextConverterUtils.getQueryContext(instanceRequest.getQuery().getPinotQuery());
+    _queryContext = QueryContextConverterUtils.getQueryContext(instanceRequest.getQuery().getPinotQuery(),
+        skipDataTableSerde);
     _timerContext = new TimerContext(_queryContext.getTableName(), serverMetrics, queryArrivalTimeMs);
   }
 
@@ -83,7 +85,7 @@ public class ServerQueryRequest {
     } else {
       throw new UnsupportedOperationException("Unsupported payloadType: " + payloadType);
     }
-    _queryContext = QueryContextConverterUtils.getQueryContext(brokerRequest.getPinotQuery());
+    _queryContext = QueryContextConverterUtils.getQueryContext(brokerRequest.getPinotQuery(), false);
     _timerContext = new TimerContext(_queryContext.getTableName(), serverMetrics, queryArrivalTimeMs);
   }
 

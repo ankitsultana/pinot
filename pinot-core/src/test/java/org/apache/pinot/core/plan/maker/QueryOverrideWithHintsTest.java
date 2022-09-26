@@ -210,7 +210,7 @@ public class QueryOverrideWithHintsTest {
         ImmutableList.of(RequestUtils.getLiteralExpression("MONTH"), RequestUtils.getIdentifierExpression("ts"))));
     Expression timestampIndexColumn = RequestUtils.getIdentifierExpression("$ts$MONTH");
     pinotQuery.setExpressionOverrideHints(ImmutableMap.of(dateTruncFunctionExpr, timestampIndexColumn));
-    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery);
+    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery, false);
     InstancePlanMakerImplV2.rewriteQueryContextWithHints(queryContext, _indexSegment);
     assertEquals(queryContext.getSelectExpressions().get(0).getIdentifier(), "$ts$MONTH");
     assertEquals(queryContext.getGroupByExpressions().get(0).getIdentifier(), "$ts$MONTH");
@@ -225,7 +225,7 @@ public class QueryOverrideWithHintsTest {
         ImmutableList.of(RequestUtils.getLiteralExpression("DAY"), RequestUtils.getIdentifierExpression("ts"))));
     Expression timestampIndexColumn = RequestUtils.getIdentifierExpression("$ts$DAY");
     pinotQuery.setExpressionOverrideHints(ImmutableMap.of(dateTruncFunctionExpr, timestampIndexColumn));
-    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery);
+    QueryContext queryContext = QueryContextConverterUtils.getQueryContext(pinotQuery, false);
     InstancePlanMakerImplV2.rewriteQueryContextWithHints(queryContext, _indexSegment);
     assertEquals(queryContext.getSelectExpressions().get(0).getFunction(),
         queryContext.getExpressionOverrideHints().keySet().iterator().next().getFunction());

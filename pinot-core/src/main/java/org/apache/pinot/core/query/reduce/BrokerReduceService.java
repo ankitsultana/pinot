@@ -101,7 +101,8 @@ public class BrokerReduceService extends BaseReduceService {
       return brokerResponseNative;
     }
 
-    QueryContext serverQueryContext = QueryContextConverterUtils.getQueryContext(serverBrokerRequest.getPinotQuery());
+    QueryContext serverQueryContext = QueryContextConverterUtils.getQueryContext(serverBrokerRequest.getPinotQuery(),
+        false);
     DataTableReducer dataTableReducer = ResultReducerFactory.getResultReducer(serverQueryContext);
     dataTableReducer.reduceAndSetResults(rawTableName, cachedDataSchema, dataTableMap, brokerResponseNative,
         new DataTableReducerContext(_reduceExecutorService, _maxReduceThreadsPerQuery, reduceTimeOutMs,
@@ -110,7 +111,7 @@ public class BrokerReduceService extends BaseReduceService {
     if (brokerRequest == serverBrokerRequest) {
       queryContext = serverQueryContext;
     } else {
-      queryContext = QueryContextConverterUtils.getQueryContext(brokerRequest.getPinotQuery());
+      queryContext = QueryContextConverterUtils.getQueryContext(brokerRequest.getPinotQuery(), false);
       GapfillUtils.GapfillType gapfillType = GapfillUtils.getGapfillType(queryContext);
       BaseGapfillProcessor gapfillProcessor =
           GapfillProcessorFactory.getGapfillProcessor(queryContext, gapfillType);

@@ -18,18 +18,28 @@
  */
 package org.apache.pinot.query.mailbox;
 
+import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.pinot.common.proto.Mailbox;
 import org.apache.pinot.common.proto.Mailbox.MailboxContent;
 import org.apache.pinot.common.proto.PinotMailboxGrpc;
+import org.apache.pinot.core.common.datablock.BaseDataBlock;
+import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.query.mailbox.channel.ChannelUtils;
 import org.apache.pinot.query.mailbox.channel.MailboxStatusStreamObserver;
+import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 /**
  * GRPC implementation of the {@link SendingMailbox}.
  */
-public class GrpcSendingMailbox implements SendingMailbox<MailboxContent> {
+public class GrpcSendingMailbox implements SendingMailbox<BaseDataBlock> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(GrpcSendingMailbox.class);
   private final GrpcMailboxService _mailboxService;
   private final String _mailboxId;
   private final AtomicBoolean _initialized = new AtomicBoolean(false);
@@ -58,13 +68,14 @@ public class GrpcSendingMailbox implements SendingMailbox<MailboxContent> {
   }
 
   @Override
-  public void send(MailboxContent data)
+  public void send(BaseDataBlock dataBlock)
       throws UnsupportedOperationException {
     if (!_initialized.get()) {
       // initialization is special
       init();
     }
-    _statusStreamObserver.send(data);
+    MailboxContent mailboxContent = toMailboxContent(dataBlock);
+    _statusStreamObserver.send(mailboxContent);
     _totalMsgSent.incrementAndGet();
   }
 
@@ -76,5 +87,21 @@ public class GrpcSendingMailbox implements SendingMailbox<MailboxContent> {
   @Override
   public String getMailboxId() {
     return _mailboxId;
+  }
+
+  private MailboxContent toMailboxContent(BaseDataBlock dataBlock) {
+    long startTime = System.currentTimeMillis();
+    try {
+      Mailbox.MailboxContent.Builder builder = Mailbox.MailboxContent.newBuilder().setMailboxId(_mailboxId)
+          .setPayload(ByteString.copyFrom(new TransferableBlock(dataBlock).toBytes()));
+      if (dataBlock instanceof MetadataBlock) {
+        builder.putMetadata(ChannelUtils.MAILBOX_METADATA_END_OF_STREAM_KEY, "true");
+      }
+      return builder.build();
+    } catch (IOException e) {
+      throw new RuntimeException("Error converting to mailbox content", e);
+    } finally {
+      LOGGER.info("[mId={}] Time taken in toMailboxContent: {} ms", _mailboxId, System.currentTimeMillis() - startTime);
+    }
   }
 }
