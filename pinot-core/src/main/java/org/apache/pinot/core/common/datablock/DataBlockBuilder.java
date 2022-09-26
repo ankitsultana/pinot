@@ -33,12 +33,9 @@ import org.apache.pinot.spi.utils.ArrayCopyUtils;
 import org.apache.pinot.spi.utils.BigDecimalUtils;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.roaringbitmap.RoaringBitmap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class DataBlockBuilder {
-  private static final Logger LOGGER = LoggerFactory.getLogger(DataBlockBuilder.class);
   private final DataSchema _dataSchema;
   private final BaseDataBlock.Type _blockType;
   private final DataSchema.ColumnDataType[] _columnDataType;
@@ -93,239 +90,227 @@ public class DataBlockBuilder {
   public static RowDataBlock buildFromRows(List<Object[]> rows, @Nullable RoaringBitmap[] colNullBitmaps,
       DataSchema dataSchema)
       throws IOException {
-    long startTime = System.currentTimeMillis();
-    try {
-      DataBlockBuilder rowBuilder = new DataBlockBuilder(dataSchema, BaseDataBlock.Type.ROW);
-      rowBuilder._numRows = rows.size();
-      for (Object[] row : rows) {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(rowBuilder._rowSizeInBytes);
-        for (int i = 0; i < rowBuilder._numColumns; i++) {
-          Object value = row[i];
-          switch (rowBuilder._columnDataType[i]) {
-            // Single-value column
-            case INT:
-              byteBuffer.putInt(((Number) value).intValue());
-              break;
-            case LONG:
-              byteBuffer.putLong(((Number) value).longValue());
-              break;
-            case FLOAT:
-              byteBuffer.putFloat(((Number) value).floatValue());
-              break;
-            case DOUBLE:
-              byteBuffer.putDouble(((Number) value).doubleValue());
-              break;
-            case BIG_DECIMAL:
-              setColumn(rowBuilder, byteBuffer, (BigDecimal) value);
-              break;
-            case STRING:
-              setColumn(rowBuilder, byteBuffer, (String) value);
-              break;
-            case BYTES:
-              setColumn(rowBuilder, byteBuffer, (ByteArray) value);
-              break;
-            case OBJECT:
-              setColumn(rowBuilder, byteBuffer, value);
-              break;
-            // Multi-value column
-            case BOOLEAN_ARRAY:
-            case INT_ARRAY:
-              setColumn(rowBuilder, byteBuffer, (int[]) value);
-              break;
-            case TIMESTAMP_ARRAY:
-            case LONG_ARRAY:
-              // LONG_ARRAY type covers INT_ARRAY and LONG_ARRAY
-              if (value instanceof int[]) {
-                int[] ints = (int[]) value;
-                int length = ints.length;
-                long[] longs = new long[length];
-                ArrayCopyUtils.copy(ints, longs, length);
-                setColumn(rowBuilder, byteBuffer, longs);
-              } else {
-                setColumn(rowBuilder, byteBuffer, (long[]) value);
-              }
-              break;
-            case FLOAT_ARRAY:
-              setColumn(rowBuilder, byteBuffer, (float[]) value);
-              break;
-            case DOUBLE_ARRAY:
-              // DOUBLE_ARRAY type covers INT_ARRAY, LONG_ARRAY, FLOAT_ARRAY and DOUBLE_ARRAY
-              if (value instanceof int[]) {
-                int[] ints = (int[]) value;
-                int length = ints.length;
-                double[] doubles = new double[length];
-                ArrayCopyUtils.copy(ints, doubles, length);
-                setColumn(rowBuilder, byteBuffer, doubles);
-              } else if (value instanceof long[]) {
-                long[] longs = (long[]) value;
-                int length = longs.length;
-                double[] doubles = new double[length];
-                ArrayCopyUtils.copy(longs, doubles, length);
-                setColumn(rowBuilder, byteBuffer, doubles);
-              } else if (value instanceof float[]) {
-                float[] floats = (float[]) value;
-                int length = floats.length;
-                double[] doubles = new double[length];
-                ArrayCopyUtils.copy(floats, doubles, length);
-                setColumn(rowBuilder, byteBuffer, doubles);
-              } else {
-                setColumn(rowBuilder, byteBuffer, (double[]) value);
-              }
-              break;
-            case BYTES_ARRAY:
-            case STRING_ARRAY:
-              setColumn(rowBuilder, byteBuffer, (String[]) value);
-              break;
-            default:
-              throw new IllegalStateException(
-                  String.format("Unsupported data type: %s for column: %s", rowBuilder._columnDataType[i],
-                      rowBuilder._dataSchema.getColumnName(i)));
-          }
-        }
-        rowBuilder._fixedSizeDataByteArrayOutputStream.write(byteBuffer.array(), 0, byteBuffer.position());
-      }
-      // Write null bitmaps after writing data.
-      if (colNullBitmaps != null) {
-        for (RoaringBitmap nullBitmap : colNullBitmaps) {
-          rowBuilder.setNullRowIds(nullBitmap);
+    DataBlockBuilder rowBuilder = new DataBlockBuilder(dataSchema, BaseDataBlock.Type.ROW);
+    rowBuilder._numRows = rows.size();
+    for (Object[] row : rows) {
+      ByteBuffer byteBuffer = ByteBuffer.allocate(rowBuilder._rowSizeInBytes);
+      for (int i = 0; i < rowBuilder._numColumns; i++) {
+        Object value = row[i];
+        switch (rowBuilder._columnDataType[i]) {
+          // Single-value column
+          case INT:
+            byteBuffer.putInt(((Number) value).intValue());
+            break;
+          case LONG:
+            byteBuffer.putLong(((Number) value).longValue());
+            break;
+          case FLOAT:
+            byteBuffer.putFloat(((Number) value).floatValue());
+            break;
+          case DOUBLE:
+            byteBuffer.putDouble(((Number) value).doubleValue());
+            break;
+          case BIG_DECIMAL:
+            setColumn(rowBuilder, byteBuffer, (BigDecimal) value);
+            break;
+          case STRING:
+            setColumn(rowBuilder, byteBuffer, (String) value);
+            break;
+          case BYTES:
+            setColumn(rowBuilder, byteBuffer, (ByteArray) value);
+            break;
+          case OBJECT:
+            setColumn(rowBuilder, byteBuffer, value);
+            break;
+          // Multi-value column
+          case BOOLEAN_ARRAY:
+          case INT_ARRAY:
+            setColumn(rowBuilder, byteBuffer, (int[]) value);
+            break;
+          case TIMESTAMP_ARRAY:
+          case LONG_ARRAY:
+            // LONG_ARRAY type covers INT_ARRAY and LONG_ARRAY
+            if (value instanceof int[]) {
+              int[] ints = (int[]) value;
+              int length = ints.length;
+              long[] longs = new long[length];
+              ArrayCopyUtils.copy(ints, longs, length);
+              setColumn(rowBuilder, byteBuffer, longs);
+            } else {
+              setColumn(rowBuilder, byteBuffer, (long[]) value);
+            }
+            break;
+          case FLOAT_ARRAY:
+            setColumn(rowBuilder, byteBuffer, (float[]) value);
+            break;
+          case DOUBLE_ARRAY:
+            // DOUBLE_ARRAY type covers INT_ARRAY, LONG_ARRAY, FLOAT_ARRAY and DOUBLE_ARRAY
+            if (value instanceof int[]) {
+              int[] ints = (int[]) value;
+              int length = ints.length;
+              double[] doubles = new double[length];
+              ArrayCopyUtils.copy(ints, doubles, length);
+              setColumn(rowBuilder, byteBuffer, doubles);
+            } else if (value instanceof long[]) {
+              long[] longs = (long[]) value;
+              int length = longs.length;
+              double[] doubles = new double[length];
+              ArrayCopyUtils.copy(longs, doubles, length);
+              setColumn(rowBuilder, byteBuffer, doubles);
+            } else if (value instanceof float[]) {
+              float[] floats = (float[]) value;
+              int length = floats.length;
+              double[] doubles = new double[length];
+              ArrayCopyUtils.copy(floats, doubles, length);
+              setColumn(rowBuilder, byteBuffer, doubles);
+            } else {
+              setColumn(rowBuilder, byteBuffer, (double[]) value);
+            }
+            break;
+          case BYTES_ARRAY:
+          case STRING_ARRAY:
+            setColumn(rowBuilder, byteBuffer, (String[]) value);
+            break;
+          default:
+            throw new IllegalStateException(
+                String.format("Unsupported data type: %s for column: %s", rowBuilder._columnDataType[i],
+                    rowBuilder._dataSchema.getColumnName(i)));
         }
       }
-      return buildRowBlock(rowBuilder);
-    } finally {
-      LOGGER.info("Time taken in buildFromRows for {} rows is {} ms", rows.size(),
-          System.currentTimeMillis() - startTime);
+      rowBuilder._fixedSizeDataByteArrayOutputStream.write(byteBuffer.array(), 0, byteBuffer.position());
     }
+    // Write null bitmaps after writing data.
+    if (colNullBitmaps != null) {
+      for (RoaringBitmap nullBitmap : colNullBitmaps) {
+        rowBuilder.setNullRowIds(nullBitmap);
+      }
+    }
+    return buildRowBlock(rowBuilder);
   }
 
   public static ColumnarDataBlock buildFromColumns(List<Object[]> columns, @Nullable RoaringBitmap[] colNullBitmaps,
       DataSchema dataSchema)
       throws IOException {
-    long startTime = System.currentTimeMillis();
-    try {
-      DataBlockBuilder columnarBuilder = new DataBlockBuilder(dataSchema, BaseDataBlock.Type.COLUMNAR);
-      for (int i = 0; i < columns.size(); i++) {
-        Object[] column = columns.get(i);
-        columnarBuilder._numRows = column.length;
-        ByteBuffer byteBuffer = ByteBuffer.allocate(columnarBuilder._numRows * columnarBuilder._columnSizeInBytes[i]);
-        switch (columnarBuilder._columnDataType[i]) {
-          // Single-value column
-          case INT:
-            for (Object value : column) {
-              byteBuffer.putInt(((Number) value).intValue());
+    DataBlockBuilder columnarBuilder = new DataBlockBuilder(dataSchema, BaseDataBlock.Type.COLUMNAR);
+    for (int i = 0; i < columns.size(); i++) {
+      Object[] column = columns.get(i);
+      columnarBuilder._numRows = column.length;
+      ByteBuffer byteBuffer = ByteBuffer.allocate(columnarBuilder._numRows * columnarBuilder._columnSizeInBytes[i]);
+      switch (columnarBuilder._columnDataType[i]) {
+        // Single-value column
+        case INT:
+          for (Object value : column) {
+            byteBuffer.putInt(((Number) value).intValue());
+          }
+          break;
+        case LONG:
+          for (Object value : column) {
+            byteBuffer.putLong(((Number) value).longValue());
+          }
+          break;
+        case FLOAT:
+          for (Object value : column) {
+            byteBuffer.putFloat(((Number) value).floatValue());
+          }
+          break;
+        case DOUBLE:
+          for (Object value : column) {
+            byteBuffer.putDouble(((Number) value).doubleValue());
+          }
+          break;
+        case BIG_DECIMAL:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, (BigDecimal) value);
+          }
+          break;
+        case STRING:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, (String) value);
+          }
+          break;
+        case BYTES:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, (ByteArray) value);
+          }
+          break;
+        case OBJECT:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, value);
+          }
+          break;
+        // Multi-value column
+        case BOOLEAN_ARRAY:
+        case INT_ARRAY:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, (int[]) value);
+          }
+          break;
+        case TIMESTAMP_ARRAY:
+        case LONG_ARRAY:
+          for (Object value : column) {
+            if (value instanceof int[]) {
+              // LONG_ARRAY type covers INT_ARRAY and LONG_ARRAY
+              int[] ints = (int[]) value;
+              int length = ints.length;
+              long[] longs = new long[length];
+              ArrayCopyUtils.copy(ints, longs, length);
+              setColumn(columnarBuilder, byteBuffer, longs);
+            } else {
+              setColumn(columnarBuilder, byteBuffer, (long[]) value);
             }
-            break;
-          case LONG:
-            for (Object value : column) {
-              byteBuffer.putLong(((Number) value).longValue());
+          }
+          break;
+        case FLOAT_ARRAY:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, (float[]) value);
+          }
+          break;
+        case DOUBLE_ARRAY:
+          for (Object value : column) {
+            // DOUBLE_ARRAY type covers INT_ARRAY, LONG_ARRAY, FLOAT_ARRAY and DOUBLE_ARRAY
+            if (value instanceof int[]) {
+              int[] ints = (int[]) value;
+              int length = ints.length;
+              double[] doubles = new double[length];
+              ArrayCopyUtils.copy(ints, doubles, length);
+              setColumn(columnarBuilder, byteBuffer, doubles);
+            } else if (value instanceof long[]) {
+              long[] longs = (long[]) value;
+              int length = longs.length;
+              double[] doubles = new double[length];
+              ArrayCopyUtils.copy(longs, doubles, length);
+              setColumn(columnarBuilder, byteBuffer, doubles);
+            } else if (value instanceof float[]) {
+              float[] floats = (float[]) value;
+              int length = floats.length;
+              double[] doubles = new double[length];
+              ArrayCopyUtils.copy(floats, doubles, length);
+              setColumn(columnarBuilder, byteBuffer, doubles);
+            } else {
+              setColumn(columnarBuilder, byteBuffer, (double[]) value);
             }
-            break;
-          case FLOAT:
-            for (Object value : column) {
-              byteBuffer.putFloat(((Number) value).floatValue());
-            }
-            break;
-          case DOUBLE:
-            for (Object value : column) {
-              byteBuffer.putDouble(((Number) value).doubleValue());
-            }
-            break;
-          case BIG_DECIMAL:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, (BigDecimal) value);
-            }
-            break;
-          case STRING:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, (String) value);
-            }
-            break;
-          case BYTES:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, (ByteArray) value);
-            }
-            break;
-          case OBJECT:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, value);
-            }
-            break;
-          // Multi-value column
-          case BOOLEAN_ARRAY:
-          case INT_ARRAY:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, (int[]) value);
-            }
-            break;
-          case TIMESTAMP_ARRAY:
-          case LONG_ARRAY:
-            for (Object value : column) {
-              if (value instanceof int[]) {
-                // LONG_ARRAY type covers INT_ARRAY and LONG_ARRAY
-                int[] ints = (int[]) value;
-                int length = ints.length;
-                long[] longs = new long[length];
-                ArrayCopyUtils.copy(ints, longs, length);
-                setColumn(columnarBuilder, byteBuffer, longs);
-              } else {
-                setColumn(columnarBuilder, byteBuffer, (long[]) value);
-              }
-            }
-            break;
-          case FLOAT_ARRAY:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, (float[]) value);
-            }
-            break;
-          case DOUBLE_ARRAY:
-            for (Object value : column) {
-              // DOUBLE_ARRAY type covers INT_ARRAY, LONG_ARRAY, FLOAT_ARRAY and DOUBLE_ARRAY
-              if (value instanceof int[]) {
-                int[] ints = (int[]) value;
-                int length = ints.length;
-                double[] doubles = new double[length];
-                ArrayCopyUtils.copy(ints, doubles, length);
-                setColumn(columnarBuilder, byteBuffer, doubles);
-              } else if (value instanceof long[]) {
-                long[] longs = (long[]) value;
-                int length = longs.length;
-                double[] doubles = new double[length];
-                ArrayCopyUtils.copy(longs, doubles, length);
-                setColumn(columnarBuilder, byteBuffer, doubles);
-              } else if (value instanceof float[]) {
-                float[] floats = (float[]) value;
-                int length = floats.length;
-                double[] doubles = new double[length];
-                ArrayCopyUtils.copy(floats, doubles, length);
-                setColumn(columnarBuilder, byteBuffer, doubles);
-              } else {
-                setColumn(columnarBuilder, byteBuffer, (double[]) value);
-              }
-            }
-            break;
-          case BYTES_ARRAY:
-          case STRING_ARRAY:
-            for (Object value : column) {
-              setColumn(columnarBuilder, byteBuffer, (String[]) value);
-            }
-            break;
-          default:
-            throw new IllegalStateException(
-                String.format("Unsupported data type: %s for column: %s", columnarBuilder._columnDataType[i],
-                    columnarBuilder._dataSchema.getColumnName(i)));
-        }
-        columnarBuilder._fixedSizeDataByteArrayOutputStream.write(byteBuffer.array(), 0, byteBuffer.position());
+          }
+          break;
+        case BYTES_ARRAY:
+        case STRING_ARRAY:
+          for (Object value : column) {
+            setColumn(columnarBuilder, byteBuffer, (String[]) value);
+          }
+          break;
+        default:
+          throw new IllegalStateException(
+              String.format("Unsupported data type: %s for column: %s", columnarBuilder._columnDataType[i],
+                  columnarBuilder._dataSchema.getColumnName(i)));
       }
-      // Write null bitmaps after writing data.
-      if (colNullBitmaps != null) {
-        for (RoaringBitmap nullBitmap : colNullBitmaps) {
-          columnarBuilder.setNullRowIds(nullBitmap);
-        }
-      }
-      return buildColumnarBlock(columnarBuilder);
-    } finally {
-      int nr = columns.size() == 0 ? 0 : columns.get(0).length;
-      LOGGER.info("Time taken in buildFromColumns for {} rows is {} ms", nr, System.currentTimeMillis() - startTime);
+      columnarBuilder._fixedSizeDataByteArrayOutputStream.write(byteBuffer.array(), 0, byteBuffer.position());
     }
+    // Write null bitmaps after writing data.
+    if (colNullBitmaps != null) {
+      for (RoaringBitmap nullBitmap : colNullBitmaps) {
+        columnarBuilder.setNullRowIds(nullBitmap);
+      }
+    }
+    return buildColumnarBlock(columnarBuilder);
   }
 
   private static RowDataBlock buildRowBlock(DataBlockBuilder builder) {

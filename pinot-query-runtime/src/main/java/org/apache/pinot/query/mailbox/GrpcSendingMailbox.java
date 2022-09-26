@@ -31,15 +31,12 @@ import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.query.mailbox.channel.ChannelUtils;
 import org.apache.pinot.query.mailbox.channel.MailboxStatusStreamObserver;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
  * GRPC implementation of the {@link SendingMailbox}.
  */
 public class GrpcSendingMailbox implements SendingMailbox<BaseDataBlock> {
-  private static final Logger LOGGER = LoggerFactory.getLogger(GrpcSendingMailbox.class);
   private final GrpcMailboxService _mailboxService;
   private final String _mailboxId;
   private final AtomicBoolean _initialized = new AtomicBoolean(false);
@@ -90,7 +87,6 @@ public class GrpcSendingMailbox implements SendingMailbox<BaseDataBlock> {
   }
 
   private MailboxContent toMailboxContent(BaseDataBlock dataBlock) {
-    long startTime = System.currentTimeMillis();
     try {
       Mailbox.MailboxContent.Builder builder = Mailbox.MailboxContent.newBuilder().setMailboxId(_mailboxId)
           .setPayload(ByteString.copyFrom(new TransferableBlock(dataBlock).toBytes()));
@@ -100,8 +96,6 @@ public class GrpcSendingMailbox implements SendingMailbox<BaseDataBlock> {
       return builder.build();
     } catch (IOException e) {
       throw new RuntimeException("Error converting to mailbox content", e);
-    } finally {
-      LOGGER.info("[mId={}] Time taken in toMailboxContent: {} ms", _mailboxId, System.currentTimeMillis() - startTime);
     }
   }
 }

@@ -27,15 +27,12 @@ import org.apache.pinot.common.proto.Mailbox.MailboxContent;
 import org.apache.pinot.core.common.datablock.BaseDataBlock;
 import org.apache.pinot.core.common.datablock.DataBlockUtils;
 import org.apache.pinot.query.mailbox.channel.MailboxContentStreamObserver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
  * GRPC implementation of the {@link ReceivingMailbox}.
  */
 public class GrpcReceivingMailbox implements ReceivingMailbox<BaseDataBlock> {
-  private static final Logger LOGGER = LoggerFactory.getLogger(GrpcReceivingMailbox.class);
   private static final long DEFAULT_MAILBOX_INIT_TIMEOUT = 100L;
   private final GrpcMailboxService _mailboxService;
   private final String _mailboxId;
@@ -95,19 +92,13 @@ public class GrpcReceivingMailbox implements ReceivingMailbox<BaseDataBlock> {
 
   private BaseDataBlock fromMailboxContent(MailboxContent mailboxContent)
       throws IOException {
-    long startTime = System.currentTimeMillis();
-    try {
-      if (mailboxContent == null) {
-        return null;
-      }
-      ByteBuffer byteBuffer = mailboxContent.getPayload().asReadOnlyByteBuffer();
-      if (byteBuffer.hasRemaining()) {
-        return DataBlockUtils.getDataBlock(byteBuffer);
-      }
+    if (mailboxContent == null) {
       return null;
-    } finally {
-      LOGGER.info("[mId={}] Time taken in fromMailboxContent: {} ms", _mailboxId,
-          System.currentTimeMillis() - startTime);
     }
+    ByteBuffer byteBuffer = mailboxContent.getPayload().asReadOnlyByteBuffer();
+    if (byteBuffer.hasRemaining()) {
+      return DataBlockUtils.getDataBlock(byteBuffer);
+    }
+    return null;
   }
 }

@@ -25,8 +25,6 @@ import org.apache.pinot.core.common.datablock.BaseDataBlock;
 import org.apache.pinot.query.mailbox.channel.ChannelManager;
 import org.apache.pinot.query.mailbox.channel.PassThroughChannel;
 import org.apache.pinot.spi.env.PinotConfiguration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
@@ -47,7 +45,6 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 public class GrpcMailboxService implements MailboxService<BaseDataBlock> {
-  private static final Logger LOGGER = LoggerFactory.getLogger(GrpcMailboxService.class);
   // channel manager
   private static final int CAPACITY = 100;
   private final ChannelManager _channelManager;
@@ -55,8 +52,8 @@ public class GrpcMailboxService implements MailboxService<BaseDataBlock> {
   private final int _mailboxPort;
 
   // maintaining a list of registered mailboxes.
-  private final ArrayBlockingQueue<CleanableEntity> _mailboxQueue = new ArrayBlockingQueue<>(100000);
-  private final ArrayBlockingQueue<CleanableEntity> _channelQueue = new ArrayBlockingQueue<>(100000);
+  private final ArrayBlockingQueue<CleanableEntity> _mailboxQueue = new ArrayBlockingQueue<>(10000);
+  private final ArrayBlockingQueue<CleanableEntity> _channelQueue = new ArrayBlockingQueue<>(10000);
   private final ConcurrentHashMap<String, ReceivingMailbox<BaseDataBlock>> _receivingMailboxMap =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, SendingMailbox<BaseDataBlock>> _sendingMailboxMap =
@@ -72,7 +69,6 @@ public class GrpcMailboxService implements MailboxService<BaseDataBlock> {
       while (true) {
         try {
           Thread.sleep(5000);
-          LOGGER.info("Size of channelQueue={} and mailboxQueue={}", _channelQueue.size(), _mailboxQueue.size());
           CleanableEntity entity = _mailboxQueue.peek();
           if (entity != null && entity._ts + 1000 * 600 < System.currentTimeMillis()) {
             _mailboxQueue.poll();

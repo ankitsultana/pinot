@@ -108,45 +108,39 @@ public class MailboxReceiveOperator extends BaseOperator<TransferableBlock> {
     }
     // TODO: do a round robin check against all MailboxContentStreamObservers and find which one that has data.
     boolean hasOpenedMailbox = true;
-    long startTime = System.currentTimeMillis();
     long timeoutWatermark = System.nanoTime() + _timeout;
-    try {
-      while (hasOpenedMailbox && System.nanoTime() < timeoutWatermark) {
-        hasOpenedMailbox = false;
-        for (ServerInstance sendingInstance : _sendingStageInstances) {
-          try {
-            ReceivingMailbox<BaseDataBlock> receivingMailbox =
-                _mailboxService.getReceivingMailbox(toMailboxId(sendingInstance));
-            // TODO this is not threadsafe.
-            // make sure only one thread is checking receiving mailbox and calling receive() then close()
-            if (!receivingMailbox.isClosed()) {
-              hasOpenedMailbox = true;
-              BaseDataBlock dataBlock = receivingMailbox.receive();
-              if (dataBlock != null) {
-                if (dataBlock instanceof MetadataBlock && !dataBlock.getExceptions().isEmpty()) {
-                  _upstreamErrorBlock = TransferableBlockUtils.getErrorTransferableBlock(dataBlock.getExceptions());
-                  return _upstreamErrorBlock;
-                }
-                if (dataBlock.getNumberOfRows() > 0) {
-                  // here we only return data table block when it is not empty.
-                  return new TransferableBlock(dataBlock);
-                }
+    while (hasOpenedMailbox && System.nanoTime() < timeoutWatermark) {
+      hasOpenedMailbox = false;
+      for (ServerInstance sendingInstance : _sendingStageInstances) {
+        try {
+          ReceivingMailbox<BaseDataBlock> receivingMailbox =
+              _mailboxService.getReceivingMailbox(toMailboxId(sendingInstance));
+          // TODO this is not threadsafe.
+          // make sure only one thread is checking receiving mailbox and calling receive() then close()
+          if (!receivingMailbox.isClosed()) {
+            hasOpenedMailbox = true;
+            BaseDataBlock dataBlock = receivingMailbox.receive();
+            if (dataBlock != null) {
+              if (dataBlock instanceof MetadataBlock && !dataBlock.getExceptions().isEmpty()) {
+                _upstreamErrorBlock = TransferableBlockUtils.getErrorTransferableBlock(dataBlock.getExceptions());
+                return _upstreamErrorBlock;
+              }
+              if (dataBlock.getNumberOfRows() > 0) {
+                // here we only return data table block when it is not empty.
+                return new TransferableBlock(dataBlock);
               }
             }
-          } catch (Exception e) {
-            LOGGER.error(String.format("Error receiving data from mailbox %s", sendingInstance), e);
           }
+        } catch (Exception e) {
+          LOGGER.error(String.format("Error receiving data from mailbox %s", sendingInstance), e);
         }
       }
-      if (System.nanoTime() >= timeoutWatermark) {
-        LOGGER.error("Timed out after polling mailboxes: {}", _sendingStageInstances);
-        return TransferableBlockUtils.getErrorTransferableBlock(QueryException.EXECUTION_TIMEOUT_ERROR);
-      } else {
-        return TransferableBlockUtils.getEndOfStreamTransferableBlock(_dataSchema);
-      }
-    } finally {
-      LOGGER.info("[stageId={}] Time taken by receive operator is {} ms", _stageId,
-          System.currentTimeMillis() - startTime);
+    }
+    if (System.nanoTime() >= timeoutWatermark) {
+      LOGGER.error("Timed out after polling mailboxes: {}", _sendingStageInstances);
+      return TransferableBlockUtils.getErrorTransferableBlock(QueryException.EXECUTION_TIMEOUT_ERROR);
+    } else {
+      return TransferableBlockUtils.getEndOfStreamTransferableBlock(_dataSchema);
     }
   }
 
