@@ -19,9 +19,8 @@
 package org.apache.pinot.core.plan;
 
 import java.util.concurrent.TimeoutException;
-import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.operator.InstanceResponseOperator;
-import org.apache.pinot.core.operator.blocks.InstanceResponseBlock;
+import org.apache.pinot.core.operator.blocks.results.BaseResultsBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +45,7 @@ public class GlobalPlanImplV0 implements Plan {
   }
 
   @Override
-  public DataTable execute()
+  public BaseResultsBlock execute()
       throws TimeoutException {
     long startTime = System.currentTimeMillis();
     InstanceResponseOperator instanceResponseOperator = _instanceResponsePlanNode.run();
@@ -55,9 +54,9 @@ public class GlobalPlanImplV0 implements Plan {
     if (endTime1 > _instanceResponsePlanNode._queryContext.getEndTimeMs()) {
       throw new TimeoutException("Query timed out while generating physical execution plan");
     }
-    InstanceResponseBlock instanceResponseBlock = instanceResponseOperator.nextBlock();
+    BaseResultsBlock baseResultsBlock = instanceResponseOperator.nextBlock();
     long endTime2 = System.currentTimeMillis();
     LOGGER.debug("InstanceResponseOperator.nextBlock() took: {}ms", endTime2 - endTime1);
-    return instanceResponseBlock.getInstanceResponseDataTable();
+    return baseResultsBlock;
   }
 }

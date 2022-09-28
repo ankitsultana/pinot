@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
-import org.apache.pinot.common.response.ProcessingException;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -33,15 +32,11 @@ import org.roaringbitmap.RoaringBitmap;
 /**
  * Data table is used to transfer data from server to broker.
  */
-public interface DataTable {
+public interface DataTable extends DataTableBridge {
   // TODO: remove this when we stop supporting DataTable V2.
   String EXCEPTION_METADATA_KEY = "Exception";
 
-  void addException(ProcessingException processingException);
-
   void addException(int exceptionCode, String exceptionMsg);
-
-  Map<Integer, String> getExceptions();
 
   int getVersion();
 

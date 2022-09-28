@@ -27,6 +27,7 @@ import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
+import org.apache.pinot.core.operator.blocks.results.BaseResultsBlock;
 import org.apache.pinot.core.query.request.ServerQueryRequest;
 import org.apache.pinot.spi.env.PinotConfiguration;
 
@@ -73,5 +74,8 @@ public interface QueryExecutor {
    * </ul>
    */
   DataTable processQuery(ServerQueryRequest queryRequest, ExecutorService executorService,
+      @Nullable StreamObserver<Server.ServerResponse> responseObserver);
+
+  BaseResultsBlock processQueryV2(ServerQueryRequest queryRequest, ExecutorService executorService,
       @Nullable StreamObserver<Server.ServerResponse> responseObserver);
 }

@@ -18,12 +18,16 @@
  */
 package org.apache.pinot.core.operator.blocks;
 
+import javax.annotation.Nullable;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
 import org.apache.pinot.core.common.BlockDocIdValueSet;
 import org.apache.pinot.core.common.BlockMetadata;
 import org.apache.pinot.core.common.BlockValSet;
+import org.apache.pinot.core.operator.blocks.results.BaseResultsBlock;
+import org.apache.pinot.core.operator.blocks.results.SelectionResultsBlock;
+import org.apache.pinot.core.query.request.context.QueryContext;
 
 
 /**
@@ -31,13 +35,35 @@ import org.apache.pinot.core.common.BlockValSet;
  */
 public class InstanceResponseBlock implements Block {
   private final DataTable _instanceResponseDataTable;
+  private final BaseResultsBlock _baseResultsBlock;
 
   public InstanceResponseBlock(DataTable dataTable) {
     _instanceResponseDataTable = dataTable;
+    _baseResultsBlock = null;
   }
 
+  public InstanceResponseBlock(BaseResultsBlock resultsBlock, QueryContext queryContext) {
+    if (resultsBlock instanceof SelectionResultsBlock) {
+      _instanceResponseDataTable = null;
+      _baseResultsBlock = resultsBlock;
+    } else {
+      try {
+        _instanceResponseDataTable = resultsBlock.getDataTable(queryContext);
+      } catch (Exception e) {
+        throw new RuntimeException("Error creating DataTable from results block", e);
+      }
+      _baseResultsBlock = null;
+    }
+  }
+
+  @Nullable
   public DataTable getInstanceResponseDataTable() {
     return _instanceResponseDataTable;
+  }
+
+  @Nullable
+  public BaseResultsBlock getBaseResultsBlock() {
+    return _baseResultsBlock;
   }
 
   @Override

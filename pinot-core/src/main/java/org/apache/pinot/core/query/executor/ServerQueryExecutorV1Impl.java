@@ -46,6 +46,7 @@ import org.apache.pinot.common.request.context.FunctionContext;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.common.utils.DataTable.MetadataKey;
+import org.apache.pinot.common.utils.DataTableBridge;
 import org.apache.pinot.core.common.ExplainPlanRowData;
 import org.apache.pinot.core.common.ExplainPlanRows;
 import org.apache.pinot.core.common.ObjectSerDeUtils;
@@ -55,6 +56,7 @@ import org.apache.pinot.core.common.datatable.DataTableFactory;
 import org.apache.pinot.core.common.datatable.DataTableUtils;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.data.manager.realtime.RealtimeTableDataManager;
+import org.apache.pinot.core.operator.blocks.results.BaseResultsBlock;
 import org.apache.pinot.core.operator.filter.EmptyFilterOperator;
 import org.apache.pinot.core.operator.filter.MatchAllFilterOperator;
 import org.apache.pinot.core.plan.Plan;
@@ -134,18 +136,32 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
   public DataTable processQuery(ServerQueryRequest queryRequest, ExecutorService executorService,
       @Nullable StreamObserver<Server.ServerResponse> responseObserver) {
     if (!queryRequest.isEnableTrace()) {
-      return processQueryInternal(queryRequest, executorService, responseObserver);
+      return (DataTable) processQueryInternal(queryRequest, executorService, false, responseObserver);
     }
     try {
       Tracing.getTracer().register(queryRequest.getRequestId());
-      return processQueryInternal(queryRequest, executorService, responseObserver);
+      return (DataTable) processQueryInternal(queryRequest, executorService, false, responseObserver);
     } finally {
       Tracing.getTracer().unregister();
     }
   }
 
-  private DataTable processQueryInternal(ServerQueryRequest queryRequest, ExecutorService executorService,
+  @Override
+  public BaseResultsBlock processQueryV2(ServerQueryRequest queryRequest, ExecutorService executorService,
       @Nullable StreamObserver<Server.ServerResponse> responseObserver) {
+    if (!queryRequest.isEnableTrace()) {
+      return (BaseResultsBlock) processQueryInternal(queryRequest, executorService, true, responseObserver);
+    }
+    try {
+      Tracing.getTracer().register(queryRequest.getRequestId());
+      return (BaseResultsBlock) processQueryInternal(queryRequest, executorService, true, responseObserver);
+    } finally {
+      Tracing.getTracer().unregister();
+    }
+  }
+
+  private DataTableBridge processQueryInternal(ServerQueryRequest queryRequest, ExecutorService executorService,
+      boolean useV2, @Nullable StreamObserver<Server.ServerResponse> responseObserver) {
     TimerContext timerContext = queryRequest.getTimerContext();
     TimerContext.Timer schedulerWaitTimer = timerContext.getPhaseTimer(ServerQueryPhase.SCHEDULER_WAIT);
     if (schedulerWaitTimer != null) {
@@ -244,10 +260,10 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       }
     }
 
-    DataTable dataTable = null;
+    DataTableBridge dataTable = null;
     try {
       dataTable = processQuery(indexSegments, queryContext, timerContext, executorService, responseObserver,
-          queryRequest.isEnableStreaming());
+          queryRequest.isEnableStreaming(), useV2);
     } catch (Exception e) {
       _serverMetrics.addMeteredTableValue(tableNameWithType, ServerMeter.QUERY_EXECUTION_EXCEPTIONS, 1);
       dataTable = DataTableFactory.getEmptyDataTable();
@@ -276,14 +292,14 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       }
       if (queryRequest.isEnableTrace()) {
         if (TraceContext.traceEnabled() && dataTable != null) {
-          dataTable.getMetadata().put(MetadataKey.TRACE_INFO.getName(), TraceContext.getTraceInfo());
+          dataTable.getMetadataMap().put(MetadataKey.TRACE_INFO.getName(), TraceContext.getTraceInfo());
         }
       }
     }
 
     queryProcessingTimer.stopAndRecord();
     long queryProcessingTime = queryProcessingTimer.getDurationMs();
-    Map<String, String> metadata = dataTable.getMetadata();
+    Map<String, String> metadata = dataTable.getMetadataMap();
     metadata.put(MetadataKey.NUM_SEGMENTS_QUERIED.getName(), Integer.toString(numSegmentsAcquired));
     metadata.put(MetadataKey.TIME_USED_MS.getName(), Long.toString(queryProcessingTime));
 
@@ -331,9 +347,9 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
   }
 
   // NOTE: This method might change indexSegments. Do not use it after calling this method.
-  private DataTable processQuery(List<IndexSegment> indexSegments, QueryContext queryContext, TimerContext timerContext,
-      ExecutorService executorService, @Nullable StreamObserver<Server.ServerResponse> responseObserver,
-      boolean enableStreaming)
+  private DataTableBridge processQuery(List<IndexSegment> indexSegments, QueryContext queryContext,
+      TimerContext timerContext, ExecutorService executorService,
+      @Nullable StreamObserver<Server.ServerResponse> responseObserver, boolean enableStreaming, boolean useV2)
       throws Exception {
     handleSubquery(queryContext, indexSegments, timerContext, executorService);
 
@@ -380,10 +396,11 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       planBuildTimer.stopAndRecord();
 
       TimerContext.Timer planExecTimer = timerContext.startNewPhaseTimer(ServerQueryPhase.QUERY_PLAN_EXECUTION);
-      DataTable dataTable = queryContext.isExplain() ? processExplainPlanQueries(queryPlan) : queryPlan.execute();
+      DataTableBridge dataTable = queryContext.isExplain() ? processExplainPlanQueries(queryPlan)
+          : (useV2 ? queryPlan.execute().getDataTable(queryContext) : queryPlan.execute());
       planExecTimer.stopAndRecord();
 
-      Map<String, String> metadata = dataTable.getMetadata();
+      Map<String, String> metadata = dataTable.getMetadataMap();
       // Update the total docs in the metadata based on the un-pruned segments
       metadata.put(MetadataKey.TOTAL_DOCS.getName(), Long.toString(numTotalDocs));
 
@@ -626,7 +643,8 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       subquery.setEndTimeMs(endTimeMs);
       // Make a clone of indexSegments because the method might modify the list
       DataTable dataTable =
-          processQuery(new ArrayList<>(indexSegments), subquery, timerContext, executorService, null, false);
+          (DataTable) processQuery(new ArrayList<>(indexSegments), subquery, timerContext, executorService, null, false,
+              false);
       DataTable.CustomObject idSet = dataTable.getCustomObject(0, 0);
       Preconditions.checkState(idSet != null && idSet.getType() == ObjectSerDeUtils.ObjectType.IdSet.getValue(),
           "Result is not an IdSet");
