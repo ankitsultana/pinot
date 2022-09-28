@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.core.operator.blocks;
 
+import javax.annotation.Nullable;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
@@ -36,6 +37,7 @@ public class InstanceResponseBlock implements Block {
     _instanceResponseDataTable = dataTable;
   }
 
+  @Nullable
   public DataTable getInstanceResponseDataTable() {
     return _instanceResponseDataTable;
   }

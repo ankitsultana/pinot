@@ -20,6 +20,7 @@ package org.apache.pinot.core.operator.blocks.results;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -27,6 +28,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.pinot.common.response.ProcessingException;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.common.utils.DataTable.MetadataKey;
+import org.apache.pinot.common.utils.DataTableBridge;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
 import org.apache.pinot.core.common.BlockDocIdValueSet;
@@ -38,8 +40,9 @@ import org.apache.pinot.core.query.request.context.QueryContext;
 /**
  * The {@code BaseResultsBlock} class is the holder of the server side results.
  */
-public abstract class BaseResultsBlock implements Block {
+public abstract class BaseResultsBlock implements Block, DataTableBridge {
   private List<ProcessingException> _processingExceptions;
+  private Map<String, String> _metadataMap = new HashMap<>();
   private long _numTotalDocs;
   private long _numDocsScanned;
   private long _numEntriesScannedInFilter;
@@ -56,6 +59,20 @@ public abstract class BaseResultsBlock implements Block {
     return _processingExceptions;
   }
 
+  @Override
+  public Map<Integer, String> getExceptions() {
+    Map<Integer, String> result = new HashMap<>();
+    if (_processingExceptions != null) {
+      _processingExceptions.forEach(x -> result.put(x.getErrorCode(), x.getMessage()));
+    }
+    return result;
+  }
+
+  @Override
+  public Map<String, String> getMetadataMap() {
+    return _metadataMap;
+  }
+
   public void setProcessingExceptions(List<ProcessingException> processingExceptions) {
     _processingExceptions = processingExceptions;
   }
@@ -65,6 +82,11 @@ public abstract class BaseResultsBlock implements Block {
       _processingExceptions = new ArrayList<>();
     }
     _processingExceptions.add(processingException);
+  }
+
+  @Override
+  public void addException(ProcessingException processingException) {
+    addToProcessingExceptions(processingException);
   }
 
   @VisibleForTesting

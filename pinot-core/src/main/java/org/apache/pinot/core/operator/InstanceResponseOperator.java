@@ -20,11 +20,7 @@ package org.apache.pinot.core.operator;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import org.apache.pinot.common.utils.DataTable;
-import org.apache.pinot.common.utils.DataTable.MetadataKey;
 import org.apache.pinot.core.common.Operator;
-import org.apache.pinot.core.operator.blocks.InstanceResponseBlock;
 import org.apache.pinot.core.operator.blocks.results.BaseResultsBlock;
 import org.apache.pinot.core.operator.combine.BaseCombineOperator;
 import org.apache.pinot.core.query.request.context.QueryContext;
@@ -33,7 +29,7 @@ import org.apache.pinot.segment.spi.FetchContext;
 import org.apache.pinot.segment.spi.IndexSegment;
 
 
-public class InstanceResponseOperator extends BaseOperator<InstanceResponseBlock> {
+public class InstanceResponseOperator extends BaseOperator<BaseResultsBlock> {
   private static final String EXPLAIN_NAME = "INSTANCE_RESPONSE";
 
   private final BaseCombineOperator<?> _combineOperator;
@@ -77,13 +73,12 @@ public class InstanceResponseOperator extends BaseOperator<InstanceResponseBlock
   }
 
   @Override
-  protected InstanceResponseBlock getNextBlock() {
+  protected BaseResultsBlock getNextBlock() {
     if (ThreadTimer.isThreadCpuTimeMeasurementEnabled()) {
       long startWallClockTimeNs = System.nanoTime();
 
       ThreadTimer mainThreadTimer = new ThreadTimer();
       BaseResultsBlock resultsBlock = getCombinedResults();
-      InstanceResponseBlock instanceResponseBlock = new InstanceResponseBlock(getDataTable(resultsBlock));
       long mainThreadCpuTimeNs = mainThreadTimer.getThreadTimeNs();
 
       long totalWallClockTimeNs = System.nanoTime() - startWallClockTimeNs;
@@ -99,14 +94,15 @@ public class InstanceResponseOperator extends BaseOperator<InstanceResponseBlock
               numServerThreads);
 
       long threadCpuTimeNs = mainThreadCpuTimeNs + multipleThreadCpuTimeNs;
-      Map<String, String> responseMetaData = instanceResponseBlock.getInstanceResponseDataTable().getMetadata();
+      // TODO: Fix metadata thing below
+      /*
+      Map<String, String> responseMetaData = resultsBlock.getMetadata()
       responseMetaData.put(MetadataKey.THREAD_CPU_TIME_NS.getName(), String.valueOf(threadCpuTimeNs));
       responseMetaData.put(MetadataKey.SYSTEM_ACTIVITIES_CPU_TIME_NS.getName(),
-          String.valueOf(systemActivitiesCpuTimeNs));
-
-      return instanceResponseBlock;
+          String.valueOf(systemActivitiesCpuTimeNs)); */
+      return resultsBlock;
     } else {
-      return new InstanceResponseBlock(getDataTable(getCombinedResults()));
+      return getCombinedResults();
     }
   }
 
@@ -116,14 +112,6 @@ public class InstanceResponseOperator extends BaseOperator<InstanceResponseBlock
       return _combineOperator.nextBlock();
     } finally {
       releaseAll();
-    }
-  }
-
-  private DataTable getDataTable(BaseResultsBlock resultsBlock) {
-    try {
-      return resultsBlock.getDataTable(_queryContext);
-    } catch (Exception e) {
-      throw new RuntimeException("Caught exception while building data table", e);
     }
   }
 

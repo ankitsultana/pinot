@@ -44,6 +44,7 @@ public class StreamingInstanceResponseOperator extends InstanceResponseOperator 
     _streamObserver = streamObserver;
   }
 
+  // TODO: This is broken.
   @Override
   protected InstanceResponseBlock getNextBlock() {
     InstanceResponseBlock nextBlock = super.getNextBlock();

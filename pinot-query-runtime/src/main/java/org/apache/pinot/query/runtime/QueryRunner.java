@@ -20,10 +20,12 @@ package org.apache.pinot.query.runtime;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.helix.HelixManager;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
 import org.apache.helix.zookeeper.datamodel.ZNRecord;
@@ -37,6 +39,8 @@ import org.apache.pinot.core.common.datablock.DataBlockUtils;
 import org.apache.pinot.core.common.datablock.MetadataBlock;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.operator.BaseOperator;
+import org.apache.pinot.core.operator.blocks.results.BaseResultsBlock;
+import org.apache.pinot.core.operator.blocks.results.SelectionResultsBlock;
 import org.apache.pinot.core.query.executor.ServerQueryExecutorV1Impl;
 import org.apache.pinot.core.query.request.ServerQueryRequest;
 import org.apache.pinot.core.transport.ServerInstance;
@@ -117,7 +121,7 @@ public class QueryRunner {
               _helixPropertyStore);
 
       // send the data table via mailbox in one-off fashion (e.g. no block-level split, one data table/partition key)
-      List<BaseDataBlock> serverQueryResults = new ArrayList<>(serverQueryRequests.size());
+      List<TransferableBlock> serverQueryResults = new ArrayList<>(serverQueryRequests.size());
       for (ServerQueryRequest request : serverQueryRequests) {
         serverQueryResults.add(processServerQuery(request, executorService));
       }
@@ -139,23 +143,26 @@ public class QueryRunner {
     }
   }
 
-  private BaseDataBlock processServerQuery(ServerQueryRequest serverQueryRequest,
+  private TransferableBlock processServerQuery(ServerQueryRequest serverQueryRequest,
       ExecutorService executorService) {
-    BaseDataBlock dataBlock;
-    try {
-      DataTable dataTable = _serverExecutor.processQuery(serverQueryRequest, executorService, null);
-      if (!dataTable.getExceptions().isEmpty()) {
-        // if contains exception, directly return a metadata block with the exceptions.
-        dataBlock = DataBlockUtils.getErrorDataBlock(dataTable.getExceptions());
-      } else {
-        // this works because default DataTableImplV3 will have a version number at beginning:
-        // the new DataBlock encodes lower 16 bits as version and upper 16 bits as type (ROW, COLUMNAR, METADATA)
-        dataBlock = DataBlockUtils.getDataBlock(ByteBuffer.wrap(dataTable.toBytes()));
-      }
-    } catch (Exception e) {
-      dataBlock = DataBlockUtils.getErrorDataBlock(e);
+    BaseResultsBlock resultsBlock = _serverExecutor.processQueryV2(serverQueryRequest, executorService, null);
+    if (CollectionUtils.isNotEmpty(resultsBlock.getProcessingExceptions())) {
+      final Map<Integer, String> exceptions = new HashMap<>();
+      resultsBlock.getProcessingExceptions().forEach(x -> exceptions.put(x.getErrorCode(), x.getMessage()));
+      return new TransferableBlock(DataBlockUtils.getErrorDataBlock(exceptions));
     }
-    return dataBlock;
+    if (resultsBlock instanceof SelectionResultsBlock) {
+      SelectionResultsBlock selectionResultsBlock = (SelectionResultsBlock) resultsBlock;
+      return new TransferableBlock((List<Object[]>) selectionResultsBlock.getRows(),
+          selectionResultsBlock.getDataSchema(), BaseDataBlock.Type.ROW);
+    } else {
+      try {
+        DataTable dataTable = resultsBlock.getDataTable(serverQueryRequest.getQueryContext());
+        return new TransferableBlock(DataBlockUtils.getDataBlock(ByteBuffer.wrap(dataTable.toBytes())));
+      } catch (Exception e) {
+        throw new RuntimeException("Error converting resultsBlock to DataTable", e);
+      }
+    }
   }
 
   /**
@@ -172,16 +179,16 @@ public class QueryRunner {
   private static class LeafStageTransferableBlockOperator extends BaseOperator<TransferableBlock> {
     private static final String EXPLAIN_NAME = "LEAF_STAGE_TRANSFER_OPERATOR";
 
-    private final BaseDataBlock _errorBlock;
-    private final List<BaseDataBlock> _baseDataBlocks;
+    private final List<TransferableBlock> _baseDataBlocks;
+    private final TransferableBlock _errorBlock;
     private final DataSchema _dataSchema;
     private boolean _hasTransferred;
     private int _currentIndex;
 
-    private LeafStageTransferableBlockOperator(List<BaseDataBlock> baseDataBlocks, DataSchema dataSchema) {
+    private LeafStageTransferableBlockOperator(List<TransferableBlock> baseDataBlocks, DataSchema dataSchema) {
       _baseDataBlocks = baseDataBlocks;
       _dataSchema = dataSchema;
-      _errorBlock = baseDataBlocks.stream().filter(e -> !e.getExceptions().isEmpty()).findFirst().orElse(null);
+      _errorBlock = baseDataBlocks.stream().filter(TransferableBlock::isErrorBlock).findFirst().orElse(null);
       _currentIndex = 0;
     }
 
@@ -203,10 +210,10 @@ public class QueryRunner {
       }
       if (_errorBlock != null) {
         _currentIndex = -1;
-        return new TransferableBlock(_errorBlock);
+        return _errorBlock;
       } else {
         if (_currentIndex < _baseDataBlocks.size()) {
-          return new TransferableBlock(_baseDataBlocks.get(_currentIndex++));
+          return _baseDataBlocks.get(_currentIndex++);
         } else {
           _currentIndex = -1;
           return new TransferableBlock(DataBlockUtils.getEndOfStreamDataBlock(_dataSchema));
