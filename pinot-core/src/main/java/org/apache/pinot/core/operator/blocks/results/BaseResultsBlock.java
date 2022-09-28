@@ -32,7 +32,6 @@ import org.apache.pinot.common.utils.DataTableBridge;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
 import org.apache.pinot.core.common.BlockDocIdValueSet;
-import org.apache.pinot.core.common.BlockMetadata;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.query.request.context.QueryContext;
 
@@ -43,6 +42,8 @@ import org.apache.pinot.core.query.request.context.QueryContext;
 public abstract class BaseResultsBlock implements Block, DataTableBridge {
   private List<ProcessingException> _processingExceptions;
   private Map<String, String> _metadataMap = new HashMap<>();
+
+  // TODO: We can move all the fields to the map above and use MetadataKey for keys.
   private long _numTotalDocs;
   private long _numDocsScanned;
   private long _numEntriesScannedInFilter;
@@ -66,11 +67,6 @@ public abstract class BaseResultsBlock implements Block, DataTableBridge {
       _processingExceptions.forEach(x -> result.put(x.getErrorCode(), x.getMessage()));
     }
     return result;
-  }
-
-  @Override
-  public Map<String, String> getMetadataMap() {
-    return _metadataMap;
   }
 
   public void setProcessingExceptions(List<ProcessingException> processingExceptions) {
@@ -214,7 +210,7 @@ public abstract class BaseResultsBlock implements Block, DataTableBridge {
   }
 
   @Override
-  public BlockMetadata getMetadata() {
-    throw new UnsupportedOperationException();
+  public Map<String, String> getMetadata() {
+    return _metadataMap;
   }
 }

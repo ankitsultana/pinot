@@ -18,6 +18,9 @@
  */
 package org.apache.pinot.core.common;
 
+import java.util.Map;
+
+
 /**
  *
  * A block represents a set of rows.A segment will contain one or more blocks
@@ -55,5 +58,5 @@ public interface Block {
    *
    * @return
    */
-  BlockMetadata getMetadata();
+  Map<String, String> getMetadata();
 }

@@ -18,12 +18,12 @@
  */
 package org.apache.pinot.core.operator.blocks;
 
+import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
 import org.apache.pinot.core.common.BlockDocIdValueSet;
-import org.apache.pinot.core.common.BlockMetadata;
 import org.apache.pinot.core.common.BlockValSet;
 
 
@@ -58,7 +58,7 @@ public class InstanceResponseBlock implements Block {
   }
 
   @Override
-  public BlockMetadata getMetadata() {
+  public Map<String, String> getMetadata() {
     throw new UnsupportedOperationException();
   }
 }

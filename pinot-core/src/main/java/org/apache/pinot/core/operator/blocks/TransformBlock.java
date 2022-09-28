@@ -23,7 +23,6 @@ import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
 import org.apache.pinot.core.common.BlockDocIdValueSet;
-import org.apache.pinot.core.common.BlockMetadata;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.operator.docvalsets.TransformBlockValSet;
 import org.apache.pinot.core.operator.transform.function.TransformFunction;
@@ -79,7 +78,7 @@ public class TransformBlock implements Block {
   }
 
   @Override
-  public BlockMetadata getMetadata() {
+  public Map<String, String> getMetadata() {
     throw new UnsupportedOperationException();
   }
 }

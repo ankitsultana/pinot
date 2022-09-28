@@ -42,5 +42,5 @@ public interface DataTableBridge {
    */
   Map<Integer, String> getExceptions();
 
-  Map<String, String> getMetadataMap();
+  Map<String, String> getMetadata();
 }

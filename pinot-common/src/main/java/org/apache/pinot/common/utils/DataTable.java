@@ -43,8 +43,6 @@ public interface DataTable extends DataTableBridge {
   byte[] toBytes()
       throws IOException;
 
-  Map<String, String> getMetadata();
-
   DataSchema getDataSchema();
 
   int getNumberOfRows();

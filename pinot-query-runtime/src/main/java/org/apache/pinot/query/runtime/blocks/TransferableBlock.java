@@ -21,11 +21,11 @@ package org.apache.pinot.query.runtime.blocks;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
 import org.apache.pinot.core.common.BlockDocIdValueSet;
-import org.apache.pinot.core.common.BlockMetadata;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.common.datablock.BaseDataBlock;
 import org.apache.pinot.core.common.datablock.ColumnarDataBlock;
@@ -175,7 +175,7 @@ public class TransferableBlock implements Block {
   }
 
   @Override
-  public BlockMetadata getMetadata() {
+  public Map<String, String> getMetadata() {
     throw new UnsupportedOperationException();
   }
 }

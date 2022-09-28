@@ -292,14 +292,14 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       }
       if (queryRequest.isEnableTrace()) {
         if (TraceContext.traceEnabled() && dataTable != null) {
-          dataTable.getMetadataMap().put(MetadataKey.TRACE_INFO.getName(), TraceContext.getTraceInfo());
+          dataTable.getMetadata().put(MetadataKey.TRACE_INFO.getName(), TraceContext.getTraceInfo());
         }
       }
     }
 
     queryProcessingTimer.stopAndRecord();
     long queryProcessingTime = queryProcessingTimer.getDurationMs();
-    Map<String, String> metadata = dataTable.getMetadataMap();
+    Map<String, String> metadata = dataTable.getMetadata();
     metadata.put(MetadataKey.NUM_SEGMENTS_QUERIED.getName(), Integer.toString(numSegmentsAcquired));
     metadata.put(MetadataKey.TIME_USED_MS.getName(), Long.toString(queryProcessingTime));
 
@@ -400,7 +400,7 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
           : (useV2 ? queryPlan.execute().getDataTable(queryContext) : queryPlan.execute());
       planExecTimer.stopAndRecord();
 
-      Map<String, String> metadata = dataTable.getMetadataMap();
+      Map<String, String> metadata = dataTable.getMetadata();
       // Update the total docs in the metadata based on the un-pruned segments
       metadata.put(MetadataKey.TOTAL_DOCS.getName(), Long.toString(numTotalDocs));
 
