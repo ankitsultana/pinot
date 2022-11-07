@@ -267,8 +267,7 @@ abstract class BaseInstanceSelector implements InstanceSelector {
   }
 
   @Override
-  public SelectionResult select(BrokerRequest brokerRequest, List<String> segments) {
-    int requestId = (int) (_requestId.getAndIncrement() % MAX_REQUEST_ID);
+  public SelectionResult select(BrokerRequest brokerRequest, List<String> segments, long requestId) {
     Map<String, String> queryOptions = (brokerRequest.getPinotQuery() != null
         && brokerRequest.getPinotQuery().getQueryOptions() != null)
         ? brokerRequest.getPinotQuery().getQueryOptions()
@@ -295,6 +294,6 @@ abstract class BaseInstanceSelector implements InstanceSelector {
    * <p>NOTE: {@code segmentToEnabledInstancesMap} might contain {@code null} values (segment with no enabled
    * ONLINE/CONSUMING instances). If enabled instances are not {@code null}, they are sorted in alphabetical order.
    */
-  abstract Map<String, String> select(List<String> segments, int requestId,
+  abstract Map<String, String> select(List<String> segments, long requestId,
       Map<String, List<String>> segmentToEnabledInstancesMap, Map<String, String> queryOptions);
 }

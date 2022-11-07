@@ -552,7 +552,7 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
     int numPrunedSegmentsTotal = 0;
     if (offlineBrokerRequest != null) {
       // NOTE: Routing table might be null if table is just removed
-      RoutingTable routingTable = _routingManager.getRoutingTable(offlineBrokerRequest);
+      RoutingTable routingTable = _routingManager.getRoutingTable(offlineBrokerRequest, requestId);
       if (routingTable != null) {
         unavailableSegments.addAll(routingTable.getUnavailableSegments());
         Map<ServerInstance, List<String>> serverInstanceToSegmentsMap = routingTable.getServerInstanceToSegmentsMap();
@@ -568,7 +568,7 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
     }
     if (realtimeBrokerRequest != null) {
       // NOTE: Routing table might be null if table is just removed
-      RoutingTable routingTable = _routingManager.getRoutingTable(realtimeBrokerRequest);
+      RoutingTable routingTable = _routingManager.getRoutingTable(realtimeBrokerRequest, requestId);
       if (routingTable != null) {
         unavailableSegments.addAll(routingTable.getUnavailableSegments());
         Map<ServerInstance, List<String>> serverInstanceToSegmentsMap = routingTable.getServerInstanceToSegmentsMap();

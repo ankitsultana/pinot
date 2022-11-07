@@ -46,11 +46,14 @@ public class StagePlanner {
   private final WorkerManager _workerManager;
   private int _stageIdCounter;
   private TableCache _tableCache;
+  private long _requestId;
 
-  public StagePlanner(PlannerContext plannerContext, WorkerManager workerManager, TableCache tableCache) {
+  public StagePlanner(PlannerContext plannerContext, WorkerManager workerManager, TableCache tableCache,
+      long requestId) {
     _plannerContext = plannerContext;
     _workerManager = workerManager;
     _tableCache = tableCache;
+    _requestId = requestId;
   }
 
   /**
@@ -82,7 +85,7 @@ public class StagePlanner {
 
     // assign workers to each stage.
     for (Map.Entry<Integer, StageMetadata> e : queryPlan.getStageMetadataMap().entrySet()) {
-      _workerManager.assignWorkerToStage(e.getKey(), e.getValue());
+      _workerManager.assignWorkerToStage(e.getKey(), e.getValue(), _requestId);
     }
 
     return queryPlan;
