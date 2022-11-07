@@ -24,6 +24,7 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.logical.LogicalExchange;
+import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.StageMetadata;
@@ -44,10 +45,12 @@ public class StagePlanner {
   private final PlannerContext _plannerContext;
   private final WorkerManager _workerManager;
   private int _stageIdCounter;
+  private TableCache _tableCache;
 
-  public StagePlanner(PlannerContext plannerContext, WorkerManager workerManager) {
+  public StagePlanner(PlannerContext plannerContext, WorkerManager workerManager, TableCache tableCache) {
     _plannerContext = plannerContext;
     _workerManager = workerManager;
+    _tableCache = tableCache;
   }
 
   /**
@@ -63,7 +66,7 @@ public class StagePlanner {
 
     // walk the plan and create stages.
     StageNode globalStageRoot = walkRelPlan(relRootNode, getNewStageId());
-    ShuffleRewriteVisitor.optimizeShuffles(globalStageRoot);
+    ShuffleRewriteVisitor.optimizeShuffles(globalStageRoot, _tableCache);
 
     // global root needs to send results back to the ROOT, a.k.a. the client response node. the last stage only has one
     // receiver so doesn't matter what the exchange type is. setting it to SINGLETON by default.

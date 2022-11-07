@@ -18,9 +18,12 @@
  */
 package org.apache.pinot.query.planner.logical;
 
+import com.google.common.base.Preconditions;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
 import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.planner.stage.AggregateNode;
@@ -34,6 +37,9 @@ import org.apache.pinot.query.planner.stage.StageNode;
 import org.apache.pinot.query.planner.stage.StageNodeVisitor;
 import org.apache.pinot.query.planner.stage.TableScanNode;
 import org.apache.pinot.query.planner.stage.ValueNode;
+import org.apache.pinot.spi.config.table.ColumnPartitionConfig;
+import org.apache.pinot.spi.config.table.IndexingConfig;
+import org.apache.pinot.spi.config.table.TableConfig;
 
 
 /**
@@ -47,20 +53,23 @@ import org.apache.pinot.query.planner.stage.ValueNode;
  */
 public class ShuffleRewriteVisitor implements StageNodeVisitor<Set<Integer>, Void> {
 
+  private final TableCache _tableCache;
+
   /**
    * This method rewrites {@code root} <b>in place</b>, removing any unnecessary shuffles
    * by replacing the distribution type with {@link RelDistribution.Type#SINGLETON}.
    *
    * @param root the root node of the tree to rewrite
    */
-  public static void optimizeShuffles(StageNode root) {
-    root.visit(new ShuffleRewriteVisitor(), null);
+  public static void optimizeShuffles(StageNode root, TableCache tableCache) {
+    root.visit(new ShuffleRewriteVisitor(tableCache), null);
   }
 
   /**
-   * Access to this class should only be used via {@link #optimizeShuffles(StageNode)}
+   * Access to this class should only be used via {@link #optimizeShuffles(StageNode, TableCache)}
    */
-  private ShuffleRewriteVisitor() {
+  private ShuffleRewriteVisitor(TableCache tableCache) {
+    _tableCache = tableCache;
   }
 
   @Override
@@ -173,7 +182,24 @@ public class ShuffleRewriteVisitor implements StageNodeVisitor<Set<Integer>, Voi
 
   @Override
   public Set<Integer> visitTableScan(TableScanNode node, Void context) {
-    // TODO: add table partition in table config as partition keys - this info is not yet available
+    TableConfig tableConfig =
+        _tableCache.getTableConfig(node.getTableName());
+    Preconditions.checkNotNull(tableConfig, "table config is null");
+    IndexingConfig indexingConfig = tableConfig.getIndexingConfig();
+    if (indexingConfig != null && indexingConfig.getSegmentPartitionConfig() != null) {
+      Map<String, ColumnPartitionConfig> columnPartitionMap =
+          indexingConfig.getSegmentPartitionConfig().getColumnPartitionMap();
+      if (columnPartitionMap != null) {
+        Set<String> partitionColumns = columnPartitionMap.keySet();
+        Set<Integer> newPartitionKeys = new HashSet<>();
+        for (int i = 0; i < node.getTableScanColumns().size(); i++) {
+          if (partitionColumns.contains(node.getTableScanColumns().get(i))) {
+            newPartitionKeys.add(i);
+          }
+        }
+        return newPartitionKeys;
+      }
+    }
     return new HashSet<>();
   }
 
