@@ -74,7 +74,8 @@ public class MailboxSendOperatorTest {
   }
 
   @Test
-  public void shouldSwallowNoOpBlockFromUpstream() {
+  public void shouldSwallowNoOpBlockFromUpstream()
+      throws Exception {
     // Given:
     MailboxSendOperator operator = new MailboxSendOperator(
         _mailboxService, _input, ImmutableList.of(_server), RelDistribution.Type.HASH_DISTRIBUTED, _selector,
@@ -92,7 +93,8 @@ public class MailboxSendOperatorTest {
   }
 
   @Test
-  public void shouldSendErrorBlock() {
+  public void shouldSendErrorBlock()
+      throws Exception {
     // Given:
     MailboxSendOperator operator = new MailboxSendOperator(
         _mailboxService, _input, ImmutableList.of(_server), RelDistribution.Type.HASH_DISTRIBUTED, _selector,
@@ -111,7 +113,8 @@ public class MailboxSendOperatorTest {
   }
 
   @Test
-  public void shouldSendErrorBlockWhenInputThrows() {
+  public void shouldSendErrorBlockWhenInputThrows()
+      throws Exception {
     // Given:
     MailboxSendOperator operator = new MailboxSendOperator(
         _mailboxService, _input, ImmutableList.of(_server), RelDistribution.Type.HASH_DISTRIBUTED, _selector,
@@ -131,7 +134,8 @@ public class MailboxSendOperatorTest {
   }
 
   @Test
-  public void shouldSendEosBlock() {
+  public void shouldSendEosBlock()
+      throws Exception {
     // Given:
     MailboxSendOperator operator = new MailboxSendOperator(
         _mailboxService, _input, ImmutableList.of(_server), RelDistribution.Type.HASH_DISTRIBUTED, _selector,
@@ -150,7 +154,8 @@ public class MailboxSendOperatorTest {
   }
 
   @Test
-  public void shouldSendDataBlock() {
+  public void shouldSendDataBlock()
+      throws Exception {
     // Given:
     MailboxSendOperator operator = new MailboxSendOperator(
         _mailboxService, _input, ImmutableList.of(_server), RelDistribution.Type.HASH_DISTRIBUTED, _selector,
