@@ -91,8 +91,7 @@ public class MailboxReceiveOperator extends MultiStageOperator {
     if (_exchangeType == RelDistribution.Type.SINGLETON) {
       VirtualServer singletonInstance = null;
       for (VirtualServer serverInstance : sendingStageInstances) {
-        if (serverInstance.getHostname().equals(_mailboxService.getHostname())
-            && serverInstance.getQueryMailboxPort() == _mailboxService.getMailboxPort()) {
+        if (serverInstance.getVirtualId() == receiver.virtualId()) {
           Preconditions.checkState(singletonInstance == null, "multiple instance found for singleton exchange type!");
           singletonInstance = serverInstance;
         }

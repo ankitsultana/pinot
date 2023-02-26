@@ -90,13 +90,7 @@ public class MailboxSendOperator extends MultiStageOperator {
       // TODO: this logic should be moved into SingletonExchange
       VirtualServer singletonInstance = null;
       for (VirtualServer serverInstance : receivingStageInstances) {
-        if (serverInstance.getHostname().equals(mailboxService.getHostname())
-            && serverInstance.getQueryMailboxPort() == mailboxService.getMailboxPort()) {
-          if (singletonInstance != null && singletonInstance.getServer().equals(serverInstance.getServer())) {
-            throw new IllegalArgumentException("Cannot issue query with stageParallelism > 1 for queries that "
-                + "use SINGLETON exchange. This is an internal limitation that is being worked on - reissue "
-                + "your query again without stageParallelism.");
-          }
+        if (serverInstance.getVirtualId() == serverAddress.virtualId()) {
           Preconditions.checkState(singletonInstance == null, "multiple instance found for singleton exchange type!");
           singletonInstance = serverInstance;
         }

@@ -123,7 +123,7 @@ public class JsonMailboxIdentifier implements MailboxIdentifier {
   @JsonIgnore
   @Override
   public boolean isLocal() {
-    return _fromAddress.equals(_toAddress);
+    return _fromAddress.hostname().equals(_toAddress.hostname()) && _fromAddress.port() == _toAddress.port();
   }
 
   @Override

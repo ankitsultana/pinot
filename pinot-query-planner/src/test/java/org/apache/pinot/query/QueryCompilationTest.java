@@ -119,18 +119,18 @@ public class QueryCompilationTest extends QueryEnvironmentTestBase {
       if (tables.size() == 1) {
         // table scan stages; for tableA it should have 2 hosts, for tableB it should have only 1
         Assert.assertEquals(
-            e.getValue().getServerInstances().stream().map(VirtualServer::toString).collect(Collectors.toList()),
+            e.getValue().getVirtualServers().stream().map(VirtualServer::toString).collect(Collectors.toList()),
             tables.get(0).equals("a") ? ImmutableList.of("0@Server_localhost_2", "0@Server_localhost_1")
                 : ImmutableList.of("0@Server_localhost_1"));
       } else if (!PlannerUtils.isRootStage(e.getKey())) {
         // join stage should have both servers used.
         Assert.assertEquals(
-            e.getValue().getServerInstances().stream().map(VirtualServer::toString).collect(Collectors.toSet()),
+            e.getValue().getVirtualServers().stream().map(VirtualServer::toString).collect(Collectors.toSet()),
             ImmutableSet.of("0@Server_localhost_1", "0@Server_localhost_2"));
       } else {
         // reduce stage should have the reducer instance.
         Assert.assertEquals(
-            e.getValue().getServerInstances().stream().map(VirtualServer::toString).collect(Collectors.toSet()),
+            e.getValue().getVirtualServers().stream().map(VirtualServer::toString).collect(Collectors.toSet()),
             ImmutableSet.of("0@Server_localhost_3"));
       }
     }
@@ -157,22 +157,22 @@ public class QueryCompilationTest extends QueryEnvironmentTestBase {
     List<StageMetadata> tableScanMetadataList = queryPlan.getStageMetadataMap().values().stream()
         .filter(stageMetadata -> stageMetadata.getScannedTables().size() != 0).collect(Collectors.toList());
     Assert.assertEquals(tableScanMetadataList.size(), 1);
-    Assert.assertEquals(tableScanMetadataList.get(0).getServerInstances().size(), 2);
+    Assert.assertEquals(tableScanMetadataList.get(0).getVirtualServers().size(), 2);
 
     query = "SELECT * FROM d_REALTIME";
     queryPlan = _queryEnvironment.planQuery(query);
     tableScanMetadataList = queryPlan.getStageMetadataMap().values().stream()
         .filter(stageMetadata -> stageMetadata.getScannedTables().size() != 0).collect(Collectors.toList());
     Assert.assertEquals(tableScanMetadataList.size(), 1);
-    Assert.assertEquals(tableScanMetadataList.get(0).getServerInstances().size(), 1);
-    Assert.assertEquals(tableScanMetadataList.get(0).getServerInstances().get(0).toString(), "0@Server_localhost_2");
+    Assert.assertEquals(tableScanMetadataList.get(0).getVirtualServers().size(), 1);
+    Assert.assertEquals(tableScanMetadataList.get(0).getVirtualServers().get(0).toString(), "0@Server_localhost_2");
 
     query = "SELECT * FROM d";
     queryPlan = _queryEnvironment.planQuery(query);
     tableScanMetadataList = queryPlan.getStageMetadataMap().values().stream()
         .filter(stageMetadata -> stageMetadata.getScannedTables().size() != 0).collect(Collectors.toList());
     Assert.assertEquals(tableScanMetadataList.size(), 1);
-    Assert.assertEquals(tableScanMetadataList.get(0).getServerInstances().size(), 2);
+    Assert.assertEquals(tableScanMetadataList.get(0).getVirtualServers().size(), 2);
   }
 
   // Test that plan query can be run as multi-thread.
@@ -238,12 +238,12 @@ public class QueryCompilationTest extends QueryEnvironmentTestBase {
       List<String> tables = e.getValue().getScannedTables();
       if (tables.size() != 0) {
         // table scan stages; for tableB it should have only 1
-        Assert.assertEquals(e.getValue().getServerInstances().stream()
+        Assert.assertEquals(e.getValue().getVirtualServers().stream()
                 .map(VirtualServer::toString).sorted().collect(Collectors.toList()),
             ImmutableList.of("0@Server_localhost_1"));
       } else if (!PlannerUtils.isRootStage(e.getKey())) {
         // join stage should have both servers used.
-        Assert.assertEquals(e.getValue().getServerInstances().stream()
+        Assert.assertEquals(e.getValue().getVirtualServers().stream()
                 .map(VirtualServer::toString).sorted().collect(Collectors.toList()),
             ImmutableList.of("0@Server_localhost_1", "0@Server_localhost_2"));
       }

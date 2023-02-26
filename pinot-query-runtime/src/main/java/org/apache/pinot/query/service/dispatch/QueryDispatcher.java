@@ -86,7 +86,7 @@ public class QueryDispatcher {
     // run reduce stage and return result.
     MailboxReceiveNode reduceNode = (MailboxReceiveNode) queryPlan.getQueryStageMap().get(reduceStageId);
     MailboxReceiveOperator mailboxReceiveOperator = createReduceStageOperator(mailboxService,
-        queryPlan.getStageMetadataMap().get(reduceNode.getSenderStageId()).getServerInstances(), requestId,
+        queryPlan.getStageMetadataMap().get(reduceNode.getSenderStageId()).getVirtualServers(), requestId,
         reduceNode.getSenderStageId(), reduceStageId, reduceNode.getDataSchema(),
         new VirtualServerAddress(mailboxService.getHostname(), mailboxService.getMailboxPort(), 0), timeoutMs);
     List<DataBlock> resultDataBlocks =
@@ -107,7 +107,7 @@ public class QueryDispatcher {
       if (queryPlan.getQueryStageMap().get(stageId) instanceof MailboxReceiveNode) {
         reduceStageId = stageId;
       } else {
-        List<VirtualServer> serverInstances = stage.getValue().getServerInstances();
+        List<VirtualServer> serverInstances = stage.getValue().getVirtualServers();
         for (VirtualServer serverInstance : serverInstances) {
           String host = serverInstance.getHostname();
           int servicePort = serverInstance.getQueryServicePort();

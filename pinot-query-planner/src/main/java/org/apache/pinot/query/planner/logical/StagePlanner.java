@@ -18,8 +18,11 @@
  */
 package org.apache.pinot.query.planner.logical;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
@@ -27,14 +30,14 @@ import org.apache.calcite.rel.core.Exchange;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.QueryPlan;
-import org.apache.pinot.query.planner.StageMetadata;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
 import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.planner.physical.colocated.GreedyShuffleRewriteVisitor;
 import org.apache.pinot.query.planner.stage.MailboxReceiveNode;
 import org.apache.pinot.query.planner.stage.MailboxSendNode;
 import org.apache.pinot.query.planner.stage.StageNode;
-import org.apache.pinot.query.routing.WorkerManager;
+import org.apache.pinot.query.routing.PartitionWorkerManager;
+import org.apache.pinot.query.routing.WorkerManagerProvider;
 
 
 /**
@@ -44,12 +47,12 @@ import org.apache.pinot.query.routing.WorkerManager;
  */
 public class StagePlanner {
   private final PlannerContext _plannerContext;   // DO NOT REMOVE.
-  private final WorkerManager _workerManager;
+  private final WorkerManagerProvider _workerManager;
   private final TableCache _tableCache;
   private int _stageIdCounter;
   private long _requestId;
 
-  public StagePlanner(PlannerContext plannerContext, WorkerManager workerManager, long requestId,
+  public StagePlanner(PlannerContext plannerContext, WorkerManagerProvider workerManager, long requestId,
       TableCache tableCache) {
     _plannerContext = plannerContext;
     _workerManager = workerManager;
@@ -83,13 +86,21 @@ public class StagePlanner {
 
     QueryPlan queryPlan = StageMetadataVisitor.attachMetadata(relRoot.fields, globalReceiverNode);
 
-    // assign workers to each stage.
-    for (Map.Entry<Integer, StageMetadata> e : queryPlan.getStageMetadataMap().entrySet()) {
-      _workerManager.assignWorkerToStage(e.getKey(), e.getValue(), _requestId, _plannerContext.getOptions());
+    Map<Integer, List<Integer>> stageTree = new HashMap<>();
+    for (int i = 0; i < queryPlan.getStageMetadataMap().size(); i++) {
+      stageTree.put(i, new ArrayList<>());
+    }
+    for (int i = 0; i < queryPlan.getStageMetadataMap().size(); i++) {
+      computeStageTree(queryPlan.getQueryStageMap().get(i), stageTree);
     }
 
+    PartitionWorkerManager partitionWorkerManager = _workerManager.get(queryPlan, stageTree, _requestId,
+        _plannerContext.getOptions());
+    partitionWorkerManager.assign(0);
+    Set<Integer> localizedLeafStages = partitionWorkerManager.getLeafStagesWithLocalizedPartitions();
+
     // Run physical optimizations
-    runPhysicalOptimizers(queryPlan);
+    runPhysicalOptimizers(queryPlan, localizedLeafStages);
 
     return queryPlan;
   }
@@ -111,10 +122,21 @@ public class StagePlanner {
     }
   }
 
+  private void computeStageTree(StageNode stageNode, Map<Integer, List<Integer>> stageTree) {
+    int currentId = stageNode.getStageId();
+    if (stageNode instanceof MailboxReceiveNode) {
+      MailboxReceiveNode mailboxReceiveNode = (MailboxReceiveNode) stageNode;
+      stageTree.get(currentId).add(mailboxReceiveNode.getSenderStageId());
+    }
+    for (StageNode inputNode : stageNode.getInputs()) {
+      computeStageTree(inputNode, stageTree);
+    }
+  }
+
   // TODO: Switch to Worker SPI to avoid multiple-places where workers are assigned.
-  private void runPhysicalOptimizers(QueryPlan queryPlan) {
+  private void runPhysicalOptimizers(QueryPlan queryPlan, Set<Integer> localizedLeafStages) {
     if (_plannerContext.getOptions().getOrDefault("useColocatedJoin", "false").equals("true")) {
-      GreedyShuffleRewriteVisitor.optimizeShuffles(queryPlan, _tableCache);
+      GreedyShuffleRewriteVisitor.optimizeShuffles(queryPlan, _tableCache, localizedLeafStages);
     }
   }
 
