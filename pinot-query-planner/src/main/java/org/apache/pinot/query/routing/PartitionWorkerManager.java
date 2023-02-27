@@ -154,6 +154,7 @@ public class PartitionWorkerManager {
       String segmentName = entry.getKey();
       Integer partitionId = entry.getValue();
       if (partitionId == -1) {
+        LOGGER.warn("Partition Id not present for segment={}.. skipping colocation", segmentName);
         arePartitionsLocalized = false;
         break;
       }
@@ -201,12 +202,12 @@ public class PartitionWorkerManager {
         virtualServers.set(virtualId, virtualServer);
         serverToVirtualServer.put(serverInstance, virtualServer);
         virtualServerToSegmentsMap.put(virtualServer, new HashMap<>());
+        virtualServerToSegmentsMap.get(virtualServer).put(tableType, new ArrayList<>());
       }
       for (Map.Entry<String, ServerInstance> entry : segmentToServerMap.entrySet()) {
         String segment = entry.getKey();
         ServerInstance serverInstance = entry.getValue();
         VirtualServer virtualServer = serverToVirtualServer.get(serverInstance);
-        virtualServerToSegmentsMap.get(virtualServer).computeIfAbsent(tableType, (x) -> new ArrayList<>());
         virtualServerToSegmentsMap.get(virtualServer).get(tableType).add(segment);
       }
       stageMetadata.setVirtualServers(virtualServers);
@@ -219,12 +220,12 @@ public class PartitionWorkerManager {
       VirtualServer virtualServer = new VirtualServer(partitionIdToServer.get(virtualId), virtualId);
       virtualServers.add(virtualServer);
       virtualServerToSegmentsMap.put(virtualServer, new HashMap<>());
+      virtualServerToSegmentsMap.get(virtualServer).put(tableType, new ArrayList<>());
     }
     for (Map.Entry<String, Integer> entry : routingTable.getSegmentToPartitionMap().entrySet()) {
       String segmentName = entry.getKey();
       Integer partition = entry.getValue();
       VirtualServer virtualServer = virtualServers.get(partition);
-      virtualServerToSegmentsMap.get(virtualServer).computeIfAbsent(tableType, (x) -> new ArrayList<>());
       virtualServerToSegmentsMap.get(virtualServer).get(tableType).add(segmentName);
     }
     stageMetadata.setVirtualServers(virtualServers);
@@ -262,6 +263,7 @@ public class PartitionWorkerManager {
       virtualServers.add(virtualServer);
       serverToVirtualServers.get(virtualServer.getServer()).add(virtualServer);
       virtualServerToSegments.put(virtualServer, new HashMap<>());
+      virtualServerToSegments.get(virtualServer).put(tableType, new ArrayList<>());
     }
     for (Map.Entry<String, ServerInstance> entry : segmentToServerMap.entrySet()) {
       String segment = entry.getKey();
@@ -269,7 +271,6 @@ public class PartitionWorkerManager {
       int idx = rotatorByServer.get(serverInstance).getAndIncrement()
           % serverToVirtualServers.get(serverInstance).size();
       VirtualServer virtualServer = serverToVirtualServers.get(serverInstance).get(idx);
-      virtualServerToSegments.get(virtualServer).computeIfAbsent(tableType, (x) -> new ArrayList<>());
       virtualServerToSegments.get(virtualServer).get(tableType).add(segment);
     }
     stageMetadata.setVirtualServers(virtualServers);

@@ -161,11 +161,8 @@ public class QueryRunner {
   public void processQuery(DistributedStagePlan distributedStagePlan, Map<String, String> requestMetadataMap) {
     long requestId = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID));
     if (isLeafStage(distributedStagePlan)) {
+      MailboxSendOperator mailboxSendOperator = null;
       try {
-        // TODO: make server query request return via mailbox, this is a hack to gather the non-streaming data table
-        // and package it here for return. But we should really use a MailboxSendOperator directly put into the
-        // server executor.
-        long leafStageStartMillis = System.currentTimeMillis();
         List<ServerPlanRequestContext> serverQueryRequests =
             constructServerQueryRequests(
                 distributedStagePlan, requestMetadataMap, _helixPropertyStore, _mailboxService);
@@ -181,7 +178,7 @@ public class QueryRunner {
         StageMetadata receivingStageMetadata = distributedStagePlan.getMetadataMap().get(sendNode.getReceiverStageId());
         VirtualServerAddress rootServer =
             new VirtualServerAddress(_hostname, _port, distributedStagePlan.getServer().getVirtualId());
-        MailboxSendOperator mailboxSendOperator = new MailboxSendOperator(_mailboxService,
+        mailboxSendOperator = new MailboxSendOperator(_mailboxService,
             new LeafStageTransferableBlockOperator(serverQueryResults, sendNode.getDataSchema(), requestId,
                 sendNode.getStageId(), rootServer), receivingStageMetadata.getVirtualServers(),
             sendNode.getExchangeType(), sendNode.getPartitionKeySelector(), rootServer, requestId,
@@ -191,8 +188,10 @@ public class QueryRunner {
           LOGGER.debug("Acquired transferable block: {}", blockCounter++);
         }
         mailboxSendOperator.close();
-        LOGGER.info("Done: {} stage={}", rootServer, distributedStagePlan.getStageId());
       } catch (Exception e) {
+        if (mailboxSendOperator != null) {
+          mailboxSendOperator.cancel(e);
+        }
         LOGGER.error("Error in leaf stage", e);
       }
     } else {
