@@ -144,7 +144,10 @@ public class PartitionWorkerManager {
     RoutingTable routingTable = routingTableMap.values().iterator().next();
     String tableType = routingTableMap.keySet().iterator().next();
     Map<String, ServerInstance> segmentToServerMap = routingTable.getSegmentToServerMap();
-    int numServers = new HashSet<>(segmentToServerMap.values()).size();
+    int numServers = routingTable.getServerInstanceToSegmentsMap().size();
+    Preconditions.checkState(stageParallelism == -1 || stageParallelism >= numServers,
+        String.format("Parallelism=%d less than number of servers matched for leaf-stage=%d", stageParallelism,
+            numServers));
     Map<Integer, ServerInstance> partitionIdToServer = new HashMap<>();
     boolean arePartitionsLocalized = true;
     for (Map.Entry<String, Integer> entry : routingTable.getSegmentToPartitionMap().entrySet()) {
@@ -188,6 +191,7 @@ public class PartitionWorkerManager {
         virtualServers.add(null);
       }
       Map<ServerInstance, VirtualServer> serverToVirtualServer = new HashMap<>();
+      Map<VirtualServer, Map<String, List<String>>> virtualServerToSegmentsMap = new HashMap<>();
       for (Map.Entry<ServerInstance, Integer> entry : serverResidue.entrySet()) {
         ServerInstance serverInstance = entry.getKey();
         int virtualId = entry.getValue();
@@ -196,13 +200,12 @@ public class PartitionWorkerManager {
         VirtualServer virtualServer = new VirtualServer(serverInstance, virtualId);
         virtualServers.set(virtualId, virtualServer);
         serverToVirtualServer.put(serverInstance, virtualServer);
+        virtualServerToSegmentsMap.put(virtualServer, new HashMap<>());
       }
-      Map<VirtualServer, Map<String, List<String>>> virtualServerToSegmentsMap = new HashMap<>();
       for (Map.Entry<String, ServerInstance> entry : segmentToServerMap.entrySet()) {
         String segment = entry.getKey();
         ServerInstance serverInstance = entry.getValue();
         VirtualServer virtualServer = serverToVirtualServer.get(serverInstance);
-        virtualServerToSegmentsMap.computeIfAbsent(virtualServer, (x) -> new HashMap<>());
         virtualServerToSegmentsMap.get(virtualServer).computeIfAbsent(tableType, (x) -> new ArrayList<>());
         virtualServerToSegmentsMap.get(virtualServer).get(tableType).add(segment);
       }
@@ -211,15 +214,16 @@ public class PartitionWorkerManager {
       return true;
     }
     List<VirtualServer> virtualServers = new ArrayList<>(stageParallelism);
-    for (int virtualId = 0; virtualId < stageParallelism; virtualId++) {
-      virtualServers.add(new VirtualServer(partitionIdToServer.get(virtualId), virtualId));
-    }
     Map<VirtualServer, Map<String, List<String>>> virtualServerToSegmentsMap = new HashMap<>();
+    for (int virtualId = 0; virtualId < stageParallelism; virtualId++) {
+      VirtualServer virtualServer = new VirtualServer(partitionIdToServer.get(virtualId), virtualId);
+      virtualServers.add(virtualServer);
+      virtualServerToSegmentsMap.put(virtualServer, new HashMap<>());
+    }
     for (Map.Entry<String, Integer> entry : routingTable.getSegmentToPartitionMap().entrySet()) {
       String segmentName = entry.getKey();
       Integer partition = entry.getValue();
       VirtualServer virtualServer = virtualServers.get(partition);
-      virtualServerToSegmentsMap.computeIfAbsent(virtualServer, (x) -> new HashMap<>());
       virtualServerToSegmentsMap.get(virtualServer).computeIfAbsent(tableType, (x) -> new ArrayList<>());
       virtualServerToSegmentsMap.get(virtualServer).get(tableType).add(segmentName);
     }
@@ -237,10 +241,13 @@ public class PartitionWorkerManager {
     RoutingTable routingTable = routingTableMap.values().iterator().next();
     String tableType = routingTableMap.keySet().iterator().next();
     Map<String, ServerInstance> segmentToServerMap = routingTable.getSegmentToServerMap();
-    int numServers = segmentToServerMap.values().size();
+    int numServers = routingTable.getServerInstanceToSegmentsMap().size();
     if (stageParallelism == -1) {
       stageParallelism = numServers;
     }
+    Preconditions.checkState(stageParallelism >= numServers,
+        String.format("Parallelism=%d less than number of servers matched for leaf-stage=%d", stageParallelism,
+            numServers));
     List<ServerInstance> servers = new ArrayList<>(new HashSet<>(segmentToServerMap.values()));
     Map<ServerInstance, List<VirtualServer>> serverToVirtualServers = new HashMap<>();
     Map<ServerInstance, AtomicInteger> rotatorByServer = new HashMap<>();
@@ -249,19 +256,19 @@ public class PartitionWorkerManager {
       rotatorByServer.put(serverInstance, new AtomicInteger(0));
     }
     List<VirtualServer> virtualServers = new ArrayList<>();
+    Map<VirtualServer, Map<String, List<String>>> virtualServerToSegments = new HashMap<>();
     for (int virtualId = 0; virtualId < stageParallelism; virtualId++) {
       VirtualServer virtualServer = new VirtualServer(servers.get(virtualId % servers.size()), virtualId);
       virtualServers.add(virtualServer);
       serverToVirtualServers.get(virtualServer.getServer()).add(virtualServer);
+      virtualServerToSegments.put(virtualServer, new HashMap<>());
     }
-    Map<VirtualServer, Map<String, List<String>>> virtualServerToSegments = new HashMap<>();
     for (Map.Entry<String, ServerInstance> entry : segmentToServerMap.entrySet()) {
       String segment = entry.getKey();
       ServerInstance serverInstance = entry.getValue();
       int idx = rotatorByServer.get(serverInstance).getAndIncrement()
           % serverToVirtualServers.get(serverInstance).size();
       VirtualServer virtualServer = serverToVirtualServers.get(serverInstance).get(idx);
-      virtualServerToSegments.computeIfAbsent(virtualServer, (x) -> new HashMap<>());
       virtualServerToSegments.get(virtualServer).computeIfAbsent(tableType, (x) -> new ArrayList<>());
       virtualServerToSegments.get(virtualServer).get(tableType).add(segment);
     }

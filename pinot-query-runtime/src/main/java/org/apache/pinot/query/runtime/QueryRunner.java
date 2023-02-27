@@ -161,38 +161,40 @@ public class QueryRunner {
   public void processQuery(DistributedStagePlan distributedStagePlan, Map<String, String> requestMetadataMap) {
     long requestId = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID));
     if (isLeafStage(distributedStagePlan)) {
-      // TODO: make server query request return via mailbox, this is a hack to gather the non-streaming data table
-      // and package it here for return. But we should really use a MailboxSendOperator directly put into the
-      // server executor.
-      long leafStageStartMillis = System.currentTimeMillis();
-      List<ServerPlanRequestContext> serverQueryRequests =
-          constructServerQueryRequests(distributedStagePlan, requestMetadataMap, _helixPropertyStore, _mailboxService);
+      try {
+        // TODO: make server query request return via mailbox, this is a hack to gather the non-streaming data table
+        // and package it here for return. But we should really use a MailboxSendOperator directly put into the
+        // server executor.
+        long leafStageStartMillis = System.currentTimeMillis();
+        List<ServerPlanRequestContext> serverQueryRequests =
+            constructServerQueryRequests(
+                distributedStagePlan, requestMetadataMap, _helixPropertyStore, _mailboxService);
 
-      // send the data table via mailbox in one-off fashion (e.g. no block-level split, one data table/partition key)
-      List<InstanceResponseBlock> serverQueryResults = new ArrayList<>(serverQueryRequests.size());
-      for (ServerPlanRequestContext requestContext : serverQueryRequests) {
-        ServerQueryRequest request = new ServerQueryRequest(requestContext.getInstanceRequest(),
-            new ServerMetrics(PinotMetricUtils.getPinotMetricsRegistry()), System.currentTimeMillis());
-        serverQueryResults.add(processServerQuery(request, _scheduler.getWorkerPool()));
+        // send the data table via mailbox in one-off fashion (e.g. no block-level split, one data table/partition key)
+        List<InstanceResponseBlock> serverQueryResults = new ArrayList<>(serverQueryRequests.size());
+        for (ServerPlanRequestContext requestContext : serverQueryRequests) {
+          ServerQueryRequest request = new ServerQueryRequest(requestContext.getInstanceRequest(),
+              new ServerMetrics(PinotMetricUtils.getPinotMetricsRegistry()), System.currentTimeMillis());
+          serverQueryResults.add(processServerQuery(request, _scheduler.getWorkerPool()));
+        }
+        MailboxSendNode sendNode = (MailboxSendNode) distributedStagePlan.getStageRoot();
+        StageMetadata receivingStageMetadata = distributedStagePlan.getMetadataMap().get(sendNode.getReceiverStageId());
+        VirtualServerAddress rootServer =
+            new VirtualServerAddress(_hostname, _port, distributedStagePlan.getServer().getVirtualId());
+        MailboxSendOperator mailboxSendOperator = new MailboxSendOperator(_mailboxService,
+            new LeafStageTransferableBlockOperator(serverQueryResults, sendNode.getDataSchema(), requestId,
+                sendNode.getStageId(), rootServer), receivingStageMetadata.getVirtualServers(),
+            sendNode.getExchangeType(), sendNode.getPartitionKeySelector(), rootServer, requestId,
+            sendNode.getStageId(), sendNode.getReceiverStageId());
+        int blockCounter = 0;
+        while (!TransferableBlockUtils.isEndOfStream(mailboxSendOperator.nextBlock())) {
+          LOGGER.debug("Acquired transferable block: {}", blockCounter++);
+        }
+        mailboxSendOperator.close();
+        LOGGER.info("Done: {} stage={}", rootServer, distributedStagePlan.getStageId());
+      } catch (Exception e) {
+        LOGGER.error("Error in leaf stage", e);
       }
-      LOGGER.debug(
-          "RequestId:" + requestId + " StageId:" + distributedStagePlan.getStageId() + " Leaf stage v1 processing time:"
-              + (System.currentTimeMillis() - leafStageStartMillis) + " ms");
-      MailboxSendNode sendNode = (MailboxSendNode) distributedStagePlan.getStageRoot();
-      StageMetadata receivingStageMetadata = distributedStagePlan.getMetadataMap().get(sendNode.getReceiverStageId());
-      VirtualServerAddress rootServer =
-          new VirtualServerAddress(_hostname, _port, distributedStagePlan.getServer().getVirtualId());
-      MailboxSendOperator mailboxSendOperator = new MailboxSendOperator(_mailboxService,
-          new LeafStageTransferableBlockOperator(serverQueryResults, sendNode.getDataSchema(), requestId,
-              sendNode.getStageId(), _rootServer), receivingStageMetadata.getVirtualServers(),
-          sendNode.getExchangeType(), sendNode.getPartitionKeySelector(), rootServer,
-          serverQueryRequests.get(0).getRequestId(),
-          sendNode.getStageId(), sendNode.getReceiverStageId());
-      int blockCounter = 0;
-      while (!TransferableBlockUtils.isEndOfStream(mailboxSendOperator.nextBlock())) {
-        LOGGER.debug("Acquired transferable block: {}", blockCounter++);
-      }
-      mailboxSendOperator.toExplainString();
     } else {
       long timeoutMs = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS));
       StageNode stageRoot = distributedStagePlan.getStageRoot();
