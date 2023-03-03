@@ -134,6 +134,7 @@ public class RoundRobinScheduler implements OpChainScheduler {
         _lock.lock();
         try {
           if (_available.containsKey(opChainId)) {
+            LOGGER.info("OpChain={} idle-timeout reached.. adding it to ready-queue", opChainId);
             _available.remove(opChainId);
             _ready.offer(_aliveChains.get(opChainId));
           }
@@ -153,6 +154,7 @@ public class RoundRobinScheduler implements OpChainScheduler {
       _aliveChains.put(operatorChain.getId(), operatorChain);
       _ready.offer(operatorChain);
     } finally {
+      LOGGER.info("Registered OpChain={}", operatorChain.getId());
       _lock.unlock();
     }
     trace("registered " + operatorChain);
@@ -170,6 +172,7 @@ public class RoundRobinScheduler implements OpChainScheduler {
       // could be a dangling entry in _seenMail.
       _seenMail.remove(chainId);
     } finally {
+      LOGGER.info("Deregistered={}", operatorChain.getId());
       _lock.unlock();
     }
   }
@@ -179,9 +182,11 @@ public class RoundRobinScheduler implements OpChainScheduler {
     long releaseTs = _ticker.get() + _releaseTimeoutMs;
     _lock.lock();
     try {
+      LOGGER.info("Yielding={}", operatorChain.getId());
       // It could be that this OpChain received data before it could be yielded completely. In that case, mark it ready
       // to get it scheduled asap.
       if (_seenMail.contains(operatorChain.getId())) {
+        LOGGER.info("Yield short-circuiting to ready={}", operatorChain.getId());
         _seenMail.remove(operatorChain.getId());
         _ready.add(operatorChain);
         return;
@@ -200,7 +205,7 @@ public class RoundRobinScheduler implements OpChainScheduler {
     // If this chain isn't alive as per the scheduler, don't do anything. If the OpChain is registered after this, it
     // will anyways be scheduled to run since new OpChains are run immediately.
     if (!_aliveChains.containsKey(opChainId)) {
-      trace("got mail, but the OpChain is not registered so ignoring the event " + mailbox);
+      LOGGER.info("got mail, but the OpChain is not registered so ignoring the event " + mailbox);
       return;
     }
     _lock.lock();
@@ -209,9 +214,11 @@ public class RoundRobinScheduler implements OpChainScheduler {
         return;
       }
       if (_available.containsKey(opChainId)) {
+        LOGGER.info("Got callback for={}.. putting it in ready", opChainId);
         _available.remove(opChainId);
         _ready.offer(_aliveChains.get(opChainId));
       } else {
+        LOGGER.info("Got callback for={}.. making available", opChainId);
         // There are two cases here:
         // 1. OpChain is in the _ready queue: the next time it gets polled, we'll remove the _seenMail entry.
         // 2. OpChain is running: the next time yield is called for it, we'll check against _seenMail and put it back

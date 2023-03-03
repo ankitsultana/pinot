@@ -93,13 +93,13 @@ public abstract class QueryRunnerTestBase extends QueryTestSet {
       if (queryPlan.getQueryStageMap().get(stageId) instanceof MailboxReceiveNode) {
         MailboxReceiveNode reduceNode = (MailboxReceiveNode) queryPlan.getQueryStageMap().get(stageId);
         mailboxReceiveOperator = QueryDispatcher.createReduceStageOperator(_mailboxService,
-            queryPlan.getStageMetadataMap().get(reduceNode.getSenderStageId()).getServerInstances(),
+            queryPlan.getStageMetadataMap().get(reduceNode.getSenderStageId()).getVirtualServers(),
             Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID)), reduceNode.getSenderStageId(),
             reduceNode.getStageId(), reduceNode.getDataSchema(),
             new VirtualServerAddress("localhost", _reducerGrpcPort, 0),
             Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS)));
       } else {
-        for (VirtualServer serverInstance : queryPlan.getStageMetadataMap().get(stageId).getServerInstances()) {
+        for (VirtualServer serverInstance : queryPlan.getStageMetadataMap().get(stageId).getVirtualServers()) {
           DistributedStagePlan distributedStagePlan =
               QueryDispatcher.constructDistributedStagePlan(queryPlan, stageId, serverInstance);
           _servers.get(serverInstance.getServer()).processQuery(distributedStagePlan, requestMetadataMap);

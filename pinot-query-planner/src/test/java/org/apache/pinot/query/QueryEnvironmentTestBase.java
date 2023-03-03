@@ -29,7 +29,7 @@ import org.apache.calcite.jdbc.CalciteSchemaBuilder;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.query.catalog.PinotCatalog;
-import org.apache.pinot.query.routing.WorkerManager;
+import org.apache.pinot.query.routing.WorkerManagerProvider;
 import org.apache.pinot.query.testutils.MockRoutingManagerFactory;
 import org.apache.pinot.query.type.TypeFactory;
 import org.apache.pinot.query.type.TypeSystem;
@@ -147,7 +147,7 @@ public class QueryEnvironmentTestBase {
     TableCache tableCache = factory.buildTableCache();
     return new QueryEnvironment(new TypeFactory(new TypeSystem()),
         CalciteSchemaBuilder.asRootSchema(new PinotCatalog(tableCache)),
-        new WorkerManager("localhost", reducerPort, routingManager), tableCache);
+        new WorkerManagerProvider("localhost", reducerPort, routingManager, tableCache), tableCache);
   }
 
   /**

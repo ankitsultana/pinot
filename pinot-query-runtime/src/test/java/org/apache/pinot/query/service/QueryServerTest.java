@@ -144,8 +144,8 @@ public class QueryServerTest extends QueryTestSet {
   }
 
   private static boolean isMetadataMapsEqual(StageMetadata left, StageMetadata right) {
-    return left.getServerInstances().equals(right.getServerInstances())
-        && left.getServerInstanceToSegmentsMap().equals(right.getServerInstanceToSegmentsMap())
+    return left.getVirtualServers().equals(right.getVirtualServers())
+        && left.getVirtualServerToSegmentsMap().equals(right.getVirtualServerToSegmentsMap())
         && left.getScannedTables().equals(right.getScannedTables());
   }
 
@@ -178,7 +178,7 @@ public class QueryServerTest extends QueryTestSet {
   }
 
   private Worker.QueryRequest getQueryRequest(QueryPlan queryPlan, int stageId) {
-    VirtualServer serverInstance = queryPlan.getStageMetadataMap().get(stageId).getServerInstances().get(0);
+    VirtualServer serverInstance = queryPlan.getStageMetadataMap().get(stageId).getVirtualServers().get(0);
 
     return Worker.QueryRequest.newBuilder().setStagePlan(QueryPlanSerDeUtils.serialize(
             QueryDispatcher.constructDistributedStagePlan(queryPlan, stageId, serverInstance)))

@@ -51,7 +51,11 @@ import org.apache.pinot.query.catalog.PinotCatalog;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.mailbox.MultiplexingMailboxService;
 import org.apache.pinot.query.planner.QueryPlan;
-import org.apache.pinot.query.routing.WorkerManager;
+import org.apache.pinot.query.planner.StageMetadata;
+import org.apache.pinot.query.planner.stage.StageNode;
+import org.apache.pinot.query.planner.stage.TableScanNode;
+import org.apache.pinot.query.routing.VirtualServer;
+import org.apache.pinot.query.routing.WorkerManagerProvider;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.query.service.dispatch.QueryDispatcher;
@@ -98,7 +102,7 @@ public class MultiStageBrokerRequestHandler extends BaseBrokerRequestHandler {
         CommonConstants.Broker.DEFAULT_BROKER_TIMEOUT_MS);
     _queryEnvironment = new QueryEnvironment(new TypeFactory(new TypeSystem()),
         CalciteSchemaBuilder.asRootSchema(new PinotCatalog(tableCache)),
-        new WorkerManager(_reducerHostname, _reducerPort, routingManager), _tableCache);
+        new WorkerManagerProvider(_reducerHostname, _reducerPort, routingManager, _tableCache), _tableCache);
     _queryDispatcher = new QueryDispatcher();
 
     // it is OK to ignore the onDataAvailable callback because the broker top-level operators

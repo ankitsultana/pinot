@@ -45,7 +45,6 @@ import org.apache.pinot.query.planner.stage.StageNodeVisitor;
 import org.apache.pinot.query.planner.stage.TableScanNode;
 import org.apache.pinot.query.planner.stage.ValueNode;
 import org.apache.pinot.query.planner.stage.WindowNode;
-import org.apache.pinot.query.routing.VirtualServer;
 import org.apache.pinot.spi.config.table.ColumnPartitionConfig;
 import org.apache.pinot.spi.config.table.IndexingConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -71,8 +70,9 @@ public class GreedyShuffleRewriteVisitor
   private final TableCache _tableCache;
   private final Map<Integer, StageMetadata> _stageMetadataMap;
   private boolean _canSkipShuffleForJoin;
+  private final Set<Integer> _localizedLeafStages;
 
-  public static void optimizeShuffles(QueryPlan queryPlan, TableCache tableCache) {
+  public static void optimizeShuffles(QueryPlan queryPlan, TableCache tableCache, Set<Integer> localizedLeafStages) {
     StageNode rootStageNode = queryPlan.getQueryStageMap().get(0);
     Map<Integer, StageMetadata> stageMetadataMap = queryPlan.getStageMetadataMap();
     GreedyShuffleRewriteContext context = GreedyShuffleRewritePreComputeVisitor.preComputeContext(rootStageNode);
@@ -80,13 +80,15 @@ public class GreedyShuffleRewriteVisitor
     // TODO: If this assumption is wrong, we can compute the reverse topological ordering explicitly.
     for (int stageId = stageMetadataMap.size() - 1; stageId >= 0; stageId--) {
       StageNode stageNode = context.getRootStageNode(stageId);
-      stageNode.visit(new GreedyShuffleRewriteVisitor(tableCache, stageMetadataMap), context);
+      stageNode.visit(new GreedyShuffleRewriteVisitor(tableCache, stageMetadataMap, localizedLeafStages), context);
     }
   }
 
-  private GreedyShuffleRewriteVisitor(TableCache tableCache, Map<Integer, StageMetadata> stageMetadataMap) {
+  private GreedyShuffleRewriteVisitor(TableCache tableCache, Map<Integer, StageMetadata> stageMetadataMap,
+      Set<Integer> localizedLeafStages) {
     _tableCache = tableCache;
     _stageMetadataMap = stageMetadataMap;
+    _localizedLeafStages = localizedLeafStages;
     _canSkipShuffleForJoin = false;
   }
 
@@ -136,8 +138,8 @@ public class GreedyShuffleRewriteVisitor
     canColocate = canColocate && checkPartitionScheme(innerLeafNodes.get(0), innerLeafNodes.get(1), context);
     if (canColocate) {
       // If shuffle can be skipped, reassign servers.
-      _stageMetadataMap.get(node.getStageId()).setServerInstances(
-          _stageMetadataMap.get(innerLeafNodes.get(0).getSenderStageId()).getServerInstances());
+      /* _stageMetadataMap.get(node.getStageId()).setVirtualServers(
+          _stageMetadataMap.get(innerLeafNodes.get(0).getSenderStageId()).getVirtualServers()); */
       _canSkipShuffleForJoin = true;
     }
 
@@ -168,14 +170,12 @@ public class GreedyShuffleRewriteVisitor
       if (selector == null) {
         return new HashSet<>();
       } else if (colocationKeyCondition(oldColocationKeys, selector)
-          && areServersSuperset(node.getStageId(), node.getSenderStageId())) {
+          && areNumberOfQueryPartitionsEqual(node.getStageId(), node.getSenderStageId())) {
         node.setExchangeType(RelDistribution.Type.SINGLETON);
-        _stageMetadataMap.get(node.getStageId()).setServerInstances(
-            _stageMetadataMap.get(node.getSenderStageId()).getServerInstances());
         return oldColocationKeys;
       }
       // This means we can't skip shuffle and there's a partitioning enforced by receiver.
-      int numPartitions = _stageMetadataMap.get(node.getStageId()).getServerInstances().size();
+      int numPartitions = _stageMetadataMap.get(node.getStageId()).getVirtualServers().size();
       List<ColocationKey> colocationKeys =
           ((FieldSelectionKeySelector) selector).getColumnIndices().stream()
               .map(x -> new ColocationKey(x, numPartitions, selector.hashAlgorithm())).collect(Collectors.toList());
@@ -192,7 +192,7 @@ public class GreedyShuffleRewriteVisitor
       return new HashSet<>();
     }
     // This means we can't skip shuffle and there's a partitioning enforced by receiver.
-    int numPartitions = _stageMetadataMap.get(node.getStageId()).getServerInstances().size();
+    int numPartitions = _stageMetadataMap.get(node.getStageId()).getVirtualServers().size();
     List<ColocationKey> colocationKeys =
         ((FieldSelectionKeySelector) selector).getColumnIndices().stream()
             .map(x -> new ColocationKey(x, numPartitions, selector.hashAlgorithm())).collect(Collectors.toList());
@@ -208,7 +208,7 @@ public class GreedyShuffleRewriteVisitor
     // If receiver is not a join-stage, then we can determine distribution type now.
     if (!context.isJoinStage(node.getReceiverStageId())) {
       Set<ColocationKey> colocationKeys;
-      if (canSkipShuffleBasic && areServersSuperset(node.getReceiverStageId(), node.getStageId())) {
+      if (canSkipShuffleBasic && areNumberOfQueryPartitionsEqual(node.getReceiverStageId(), node.getStageId())) {
         // Servers are not re-assigned on sender-side. If needed, they are re-assigned on the receiver side.
         node.setExchangeType(RelDistribution.Type.SINGLETON);
         colocationKeys = oldColocationKeys;
@@ -253,6 +253,9 @@ public class GreedyShuffleRewriteVisitor
 
   @Override
   public Set<ColocationKey> visitTableScan(TableScanNode node, GreedyShuffleRewriteContext context) {
+    if (!_localizedLeafStages.contains(node.getStageId())) {
+      return new HashSet<>();
+    }
     TableConfig tableConfig =
         _tableCache.getTableConfig(node.getTableName());
     if (tableConfig == null) {
@@ -293,23 +296,17 @@ public class GreedyShuffleRewriteVisitor
   /**
    * Checks if servers assigned to the receiver stage are a super-set of the sender stage.
    */
-  private boolean areServersSuperset(int receiverStageId, int senderStageId) {
-    return _stageMetadataMap.get(receiverStageId).getServerInstances().containsAll(
-        _stageMetadataMap.get(senderStageId).getServerInstances());
+  private boolean areNumberOfQueryPartitionsEqual(int receiverStageId, int senderStageId) {
+    return _stageMetadataMap.get(receiverStageId).getVirtualServers().size()
+        == _stageMetadataMap.get(senderStageId).getVirtualServers().size();
   }
 
   /*
-   * We allow shuffle skip only when both of the following conditions are met:
-   * 1. Left and right stage have the same servers (say S).
-   * 2. Servers assigned to the join-stage are a superset of S.
+   * We allow shuffle skip only when the number of query-partitions for all stages involved is the same.
    */
   private boolean canServerAssignmentAllowShuffleSkip(int currentStageId, int leftStageId, int rightStageId) {
-    Set<VirtualServer> leftServerInstances = new HashSet<>(_stageMetadataMap.get(leftStageId).getServerInstances());
-    List<VirtualServer> rightServerInstances = _stageMetadataMap.get(rightStageId).getServerInstances();
-    List<VirtualServer> currentServerInstances = _stageMetadataMap.get(currentStageId).getServerInstances();
-    return leftServerInstances.containsAll(rightServerInstances)
-        && leftServerInstances.size() == rightServerInstances.size()
-        && currentServerInstances.containsAll(leftServerInstances);
+    return areNumberOfQueryPartitionsEqual(currentStageId, leftStageId)
+        && areNumberOfQueryPartitionsEqual(currentStageId, rightStageId);
   }
 
   /**

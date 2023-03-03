@@ -22,7 +22,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.planner.stage.AggregateNode;
 import org.apache.pinot.query.planner.stage.FilterNode;
 import org.apache.pinot.query.planner.stage.JoinNode;
@@ -61,7 +60,7 @@ public class ExplainPlanStageVisitor implements StageNodeVisitor<StringBuilder, 
     }
 
     // the root of a query plan always only has a single node
-    VirtualServer rootServer = queryPlan.getStageMetadataMap().get(0).getServerInstances().get(0);
+    VirtualServer rootServer = queryPlan.getStageMetadataMap().get(0).getVirtualServers().get(0);
     return explainFrom(queryPlan, queryPlan.getQueryStageMap().get(0), rootServer);
   }
 
@@ -138,9 +137,9 @@ public class ExplainPlanStageVisitor implements StageNodeVisitor<StringBuilder, 
     MailboxSendNode sender = (MailboxSendNode) node.getSender();
     int senderStageId = node.getSenderStageId();
     StageMetadata metadata = _queryPlan.getStageMetadataMap().get(senderStageId);
-    Map<ServerInstance, Map<String, List<String>>> segments = metadata.getServerInstanceToSegmentsMap();
+    Map<VirtualServer, Map<String, List<String>>> segments = metadata.getVirtualServerToSegmentsMap();
 
-    Iterator<VirtualServer> iterator = metadata.getServerInstances().iterator();
+    Iterator<VirtualServer> iterator = metadata.getVirtualServers().iterator();
     while (iterator.hasNext()) {
       VirtualServer serverInstance = iterator.next();
       if (segments.containsKey(serverInstance)) {
@@ -171,7 +170,7 @@ public class ExplainPlanStageVisitor implements StageNodeVisitor<StringBuilder, 
     appendInfo(node, context);
 
     int receiverStageId = node.getReceiverStageId();
-    List<VirtualServer> servers = _queryPlan.getStageMetadataMap().get(receiverStageId).getServerInstances();
+    List<VirtualServer> servers = _queryPlan.getStageMetadataMap().get(receiverStageId).getVirtualServers();
     context._builder.append("->");
     String receivers = servers.stream()
         .map(VirtualServer::toString)
@@ -196,7 +195,7 @@ public class ExplainPlanStageVisitor implements StageNodeVisitor<StringBuilder, 
         .append(' ')
         .append(_queryPlan.getStageMetadataMap()
             .get(node.getStageId())
-            .getServerInstanceToSegmentsMap()
+            .getVirtualServerToSegmentsMap()
             .get(context._host.getServer()))
         .append('\n');
   }

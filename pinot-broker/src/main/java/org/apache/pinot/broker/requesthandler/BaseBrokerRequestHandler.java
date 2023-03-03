@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ConcurrentHashMap;
@@ -114,7 +115,7 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
   protected final TableCache _tableCache;
   protected final BrokerMetrics _brokerMetrics;
 
-  protected final AtomicLong _requestIdGenerator = new AtomicLong();
+  protected final AtomicLong _requestIdGenerator;
   protected final QueryOptimizer _queryOptimizer = new QueryOptimizer();
 
   protected final String _brokerId;
@@ -132,6 +133,7 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
   public BaseBrokerRequestHandler(PinotConfiguration config, String brokerId, BrokerRoutingManager routingManager,
       AccessControlFactory accessControlFactory, QueryQuotaManager queryQuotaManager, TableCache tableCache,
       BrokerMetrics brokerMetrics) {
+    _requestIdGenerator = new AtomicLong(Math.abs(new Random(System.currentTimeMillis()).nextLong()));
     _brokerId = brokerId;
     _config = config;
     _routingManager = routingManager;

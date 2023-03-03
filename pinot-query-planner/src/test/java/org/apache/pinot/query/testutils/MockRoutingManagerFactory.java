@@ -99,7 +99,8 @@ public class MockRoutingManagerFactory {
     _routingTableMap.clear();
     for (Map.Entry<String, Map<ServerInstance, List<String>>> tableEntry : _tableServerSegmentMap.entrySet()) {
       String tableNameWithType = tableEntry.getKey();
-      RoutingTable fakeRoutingTable = new RoutingTable(tableEntry.getValue(), Collections.emptyList(), 0);
+      RoutingTable fakeRoutingTable = new RoutingTable(tableEntry.getValue(), new HashMap<>(),
+          Collections.emptyList(), 0, new HashMap<>());
       _routingTableMap.put(tableNameWithType, fakeRoutingTable);
     }
     return new FakeRoutingManager(_routingTableMap, _serverInstances, _hybridTables);

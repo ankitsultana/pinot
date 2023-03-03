@@ -56,7 +56,7 @@ import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.logical.StagePlanner;
-import org.apache.pinot.query.routing.WorkerManager;
+import org.apache.pinot.query.routing.WorkerManagerProvider;
 import org.apache.pinot.query.type.TypeFactory;
 import org.apache.pinot.sql.parsers.CalciteSqlParser;
 import org.apache.pinot.sql.parsers.SqlNodeAndOptions;
@@ -80,10 +80,10 @@ public class QueryEnvironment {
 
   // Pinot extensions
   private final Collection<RelOptRule> _logicalRuleSet;
-  private final WorkerManager _workerManager;
+  private final WorkerManagerProvider _workerManager;
   private final TableCache _tableCache;
 
-  public QueryEnvironment(TypeFactory typeFactory, CalciteSchema rootSchema, WorkerManager workerManager,
+  public QueryEnvironment(TypeFactory typeFactory, CalciteSchema rootSchema, WorkerManagerProvider workerManager,
       TableCache tableCache) {
     _typeFactory = typeFactory;
     _rootSchema = rootSchema;
