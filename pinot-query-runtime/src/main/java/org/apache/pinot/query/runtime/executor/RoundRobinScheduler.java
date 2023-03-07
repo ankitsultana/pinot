@@ -256,6 +256,13 @@ public class RoundRobinScheduler implements OpChainScheduler {
     } finally {
       _lock.unlock();
     }
+    OpChain opChain = _aliveChains.get(opChainId);
+    if (opChain != null) {
+      // Even though we issue interrupt, we also issue a cancel.
+      // Reason being that we cannot be sure how the underlying Mailbox channels handle interruption, and the
+      // operators may be stuck on sending/receiving data.
+      opChain.cancel(new InterruptedException("foo"));
+    }
   }
 
   @Override
