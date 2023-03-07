@@ -18,11 +18,13 @@
  */
 package org.apache.pinot.query.runtime.executor;
 
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.pinot.query.mailbox.MailboxIdentifier;
 import org.apache.pinot.query.runtime.operator.OpChain;
+import org.apache.pinot.query.runtime.operator.OpChainId;
 
 
 /**
@@ -73,6 +75,8 @@ public interface OpChainScheduler {
   @Nullable
   OpChain next(long time, TimeUnit timeUnit)
       throws InterruptedException;
+
+  void cancel(OpChainId opChainId, Future<?> future);
 
   /**
    * @return the number of operator chains registered with the scheduler

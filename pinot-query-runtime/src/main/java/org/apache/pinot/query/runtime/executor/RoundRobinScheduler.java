@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -181,7 +182,7 @@ public class RoundRobinScheduler implements OpChainScheduler {
     try {
       // It could be that this OpChain received data before it could be yielded completely. In that case, mark it ready
       // to get it scheduled asap.
-      if (_seenMail.contains(operatorChain.getId())) {
+      if (_seenMail.contains(operatorChain.getId()) || _aliveChains.get(operatorChain.getId()).isInterrupted()) {
         _seenMail.remove(operatorChain.getId());
         _ready.add(operatorChain);
         return;
@@ -227,6 +228,34 @@ public class RoundRobinScheduler implements OpChainScheduler {
   @Override
   public OpChain next(long time, TimeUnit timeUnit) throws InterruptedException {
     return _ready.poll(time, timeUnit);
+  }
+
+  @Override
+  public void cancel(OpChainId opChainId, Future<?> future) {
+    if (!_aliveChains.containsKey(opChainId)) {
+      return;
+    }
+    _lock.lock();
+    try {
+      if (!_aliveChains.containsKey(opChainId)) {
+        return;
+      }
+      // First mark OpChain as interrupted to ensure it throws next time it is scheduled/run
+      OpChain opChain = _aliveChains.get(opChainId);
+      opChain.markInterrupted();
+      if (_available.containsKey(opChainId)) {
+        _available.remove(opChainId);
+        _ready.offer(opChain);
+      } else {
+        // OpChain is either running or in ready queue. We use the Future to cancel which will interrupt the thread
+        // if one has started running. If the task is in the queue of the ThreadPoolExecutor then this won't do
+        // anything. However in that case the moment the OpChain starts running it will throw since the first thing
+        // that is checked is interrupt-status.
+        future.cancel(true);
+      }
+    } finally {
+      _lock.unlock();
+    }
   }
 
   @Override

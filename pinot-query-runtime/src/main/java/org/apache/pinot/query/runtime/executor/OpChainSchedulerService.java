@@ -19,12 +19,16 @@
 package org.apache.pinot.query.runtime.executor;
 
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.apache.pinot.core.util.trace.TraceRunnable;
 import org.apache.pinot.query.mailbox.MailboxIdentifier;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
 import org.apache.pinot.query.runtime.operator.OpChain;
+import org.apache.pinot.query.runtime.operator.OpChainId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +47,7 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
 
   private final OpChainScheduler _scheduler;
   private final ExecutorService _workerPool;
+  private final Map<OpChainId, Future<?>> _futureMap = new ConcurrentHashMap<>();
 
   public OpChainSchedulerService(OpChainScheduler scheduler, ExecutorService workerPool) {
     _scheduler = scheduler;
@@ -64,7 +69,7 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
         continue;
       }
       LOGGER.trace("({}): Scheduling", operatorChain);
-      _workerPool.submit(new TraceRunnable() {
+      _futureMap.put(operatorChain.getId(), _workerPool.submit(new TraceRunnable() {
         @Override
         public void runJob() {
           boolean isFinished = false;
@@ -73,6 +78,10 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
           try {
             LOGGER.trace("({}): Executing", operatorChain);
             operatorChain.getStats().executing();
+
+            if (operatorChain.isInterrupted()) {
+              throw new InterruptedException("foo");
+            }
 
             // so long as there's work to be done, keep getting the next block
             // when the operator chain returns a NOOP block, then yield the execution
@@ -108,7 +117,7 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
             }
           }
         }
-      });
+      }));
     }
   }
 
@@ -125,6 +134,10 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
         operatorChain,
         operatorChain.getReceivingMailbox(),
         _scheduler.size());
+  }
+
+  public final void cancel(OpChainId opChainId) {
+    _scheduler.cancel(opChainId, _futureMap.get(opChainId));
   }
 
   /**
@@ -147,6 +160,7 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
     try {
       opChain.close();
     } finally {
+      _futureMap.remove(opChain.getId());
       _scheduler.deregister(opChain);
     }
   }
@@ -155,6 +169,7 @@ public class OpChainSchedulerService extends AbstractExecutionThreadService {
     try {
       opChain.cancel(e);
     } finally {
+      _futureMap.remove(opChain.getId());
       _scheduler.deregister(opChain);
     }
   }

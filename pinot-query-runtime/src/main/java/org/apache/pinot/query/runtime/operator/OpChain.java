@@ -35,6 +35,7 @@ public class OpChain implements AutoCloseable {
   private final Set<MailboxIdentifier> _receivingMailbox;
   private final OpChainStats _stats;
   private final OpChainId _id;
+  private boolean _interrupted;
 
   public OpChain(MultiStageOperator root, List<MailboxIdentifier> receivingMailboxes, int virtualServerId,
       long requestId, int stageId) {
@@ -80,5 +81,13 @@ public class OpChain implements AutoCloseable {
    */
   public void cancel(Throwable e) {
     _root.cancel(e);
+  }
+
+  public void markInterrupted() {
+    _interrupted = true;
+  }
+
+  public boolean isInterrupted() {
+    return _interrupted;
   }
 }
