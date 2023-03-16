@@ -118,7 +118,10 @@ public class LiteralContext {
     if (_value == null) {
       return "null";
     }
-    // TODO: print out the type.
-    return '\'' + _value.toString() + '\'';
+    if (_value instanceof String) {
+      return '\'' + (String) _value + '\'';
+    } else {
+      return String.valueOf(_value);
+    }
   }
 }
