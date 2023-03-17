@@ -24,6 +24,8 @@ import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.ScannableTable;
+import org.apache.calcite.schema.Statistic;
+import org.apache.calcite.schema.Statistics;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.pinot.query.type.TypeFactory;
 import org.apache.pinot.spi.data.Schema;
@@ -57,5 +59,10 @@ public class PinotTable extends AbstractTable implements ScannableTable {
   @Override
   public Enumerable<Object[]> scan(DataContext dataContext) {
     return null;
+  }
+
+  @Override
+  public Statistic getStatistic() {
+    return Statistics.UNKNOWN;
   }
 }

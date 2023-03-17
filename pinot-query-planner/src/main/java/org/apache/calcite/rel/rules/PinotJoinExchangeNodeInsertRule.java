@@ -62,6 +62,7 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
     RelNode leftExchange;
     RelNode rightExchange;
     JoinInfo joinInfo = join.analyzeCondition();
+    call.getMetadataQuery().splitCount(call.rel(0));
 
     if (joinInfo.leftKeys.isEmpty()) {
       // when there's no JOIN key, use broadcast.

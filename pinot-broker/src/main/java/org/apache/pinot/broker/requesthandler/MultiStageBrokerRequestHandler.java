@@ -162,7 +162,7 @@ public class MultiStageBrokerRequestHandler extends BaseBrokerRequestHandler {
           queryPlan = _queryEnvironment.planQuery(query, sqlNodeAndOptions, requestId);
           break;
       }
-    } catch (Exception e) {
+    } catch (Throwable e) {
       LOGGER.info("Caught exception while compiling SQL request {}: {}, {}", requestId, query, e.getMessage());
       _brokerMetrics.addMeteredGlobalValue(BrokerMeter.REQUEST_COMPILATION_EXCEPTIONS, 1);
       requestContext.setErrorCode(QueryException.SQL_PARSING_ERROR_CODE);

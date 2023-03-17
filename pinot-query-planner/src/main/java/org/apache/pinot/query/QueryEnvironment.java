@@ -19,11 +19,13 @@
 package org.apache.pinot.query;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Properties;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.config.CalciteConnectionProperty;
 import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.pinot.PinotRelMetadataProvider;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptUtil;
@@ -36,6 +38,8 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.hint.HintStrategyTable;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
+import org.apache.calcite.rel.metadata.ChainedRelMetadataProvider;
+import org.apache.calcite.rel.metadata.DefaultRelMetadataProvider;
 import org.apache.calcite.rel.rules.PinotQueryRuleSets;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
@@ -220,6 +224,8 @@ public class QueryEnvironment {
     // 3. convert sqlNode to relNode.
     RexBuilder rexBuilder = new RexBuilder(_typeFactory);
     RelOptCluster cluster = RelOptCluster.create(plannerContext.getRelOptPlanner(), rexBuilder);
+    cluster.setMetadataProvider(ChainedRelMetadataProvider.of(ImmutableList.of(PinotRelMetadataProvider.INSTANCE,
+        DefaultRelMetadataProvider.INSTANCE)));
     SqlToRelConverter sqlToRelConverter =
         new SqlToRelConverter(plannerContext.getPlanner(), plannerContext.getValidator(), _catalogReader, cluster,
             StandardConvertletTable.INSTANCE, _config.getSqlToRelConverterConfig());

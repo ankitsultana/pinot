@@ -32,6 +32,8 @@ import org.apache.calcite.rel.hint.PinotHintUtils;
 import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -105,6 +107,7 @@ import org.apache.calcite.tools.RelBuilderFactory;
  * </ul>
  */
 public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
+  private static final Logger LOGGER = LoggerFactory.getLogger(PinotJoinToDynamicBroadcastRule.class);
   public static final PinotJoinToDynamicBroadcastRule INSTANCE =
       new PinotJoinToDynamicBroadcastRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
@@ -140,6 +143,7 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
         ? ((HepRelVertex) join.getLeft()).getCurrentRel() : join.getLeft());
     LogicalExchange right = (LogicalExchange) (join.getRight() instanceof HepRelVertex
         ? ((HepRelVertex) join.getRight()).getCurrentRel() : join.getRight());
+    LOGGER.info("Testing parallelism={}", call.getMetadataQuery().splitCount(join));
 
     LogicalExchange broadcastDynamicFilterExchange;
     Set<String> joinStrategyStrings = PinotHintUtils.getJoinStrategyStrings(join.getHints());

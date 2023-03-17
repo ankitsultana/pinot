@@ -32,6 +32,7 @@ public class PinotHintStrategyTable {
 
   public static final String TABLE_PARTITION_HINT_KEY = "partitioned";
   public static final String JOIN_STRATEGY_HINT_KEY = "joinStrategy";
+  public static final String RESOURCE_HINT_KEY = "RESOURCE";
 
 
 
@@ -45,6 +46,8 @@ public class PinotHintStrategyTable {
       .hintStrategy(SKIP_LEAF_STAGE_GROUP_BY_AGGREGATION, HintPredicates.AGGREGATE)
       .hintStrategy(TABLE_PARTITION_HINT_KEY, HintPredicates.TABLE_SCAN)
       .hintStrategy(JOIN_STRATEGY_HINT_KEY, HintPredicates.JOIN)
+      .hintStrategy(RESOURCE_HINT_KEY, HintPredicates.or(HintPredicates.TABLE_SCAN, HintPredicates.AGGREGATE,
+          HintPredicates.JOIN, HintPredicates.CALC, HintPredicates.PROJECT))
       .build();
 
   public static boolean containsHint(ImmutableList<RelHint> hintList, String hintName) {
