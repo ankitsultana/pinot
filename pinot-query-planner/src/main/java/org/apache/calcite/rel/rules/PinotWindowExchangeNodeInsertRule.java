@@ -23,12 +23,13 @@ import com.google.common.collect.ImmutableSet;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.PinotRelDistributions;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Window;
-import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalSortExchange;
 import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.sql.SqlKind;
@@ -76,11 +77,14 @@ public class PinotWindowExchangeNodeInsertRule extends RelOptRule {
     // Perform all validations
     validateWindows(window);
 
+    Integer parallelism = call.getMetadataQuery().splitCount(window);
     Window.Group windowGroup = window.groups.get(0);
     if (windowGroup.keys.isEmpty() && windowGroup.orderKeys.getKeys().isEmpty()) {
       // Empty OVER()
       // Add a single LogicalExchange for empty OVER() since no sort is required
-      LogicalExchange exchange = LogicalExchange.create(windowInput, RelDistributions.hash(Collections.emptyList()));
+      PinotExchange exchange = PinotExchange.create(windowInput,
+          PinotRelDistributions.hash(Collections.emptyList(), parallelism),
+          false);
       call.transformTo(
           LogicalWindow.create(window.getTraitSet(), exchange, window.constants, window.getRowType(), window.groups));
     } else if (windowGroup.keys.isEmpty() && !windowGroup.orderKeys.getKeys().isEmpty()) {
@@ -99,8 +103,8 @@ public class PinotWindowExchangeNodeInsertRule extends RelOptRule {
       if (isPartitionByOnly) {
         // Only PARTITION BY or PARTITION BY and ORDER BY on the same key(s)
         // Add a LogicalExchange hashed on the partition by keys
-        LogicalExchange exchange = LogicalExchange.create(windowInput,
-            RelDistributions.hash(windowGroup.keys.toList()));
+        PinotExchange exchange = PinotExchange.create(windowInput,
+            PinotRelDistributions.hash(windowGroup.keys.toList(), parallelism), false);
         call.transformTo(LogicalWindow.create(window.getTraitSet(), exchange, window.constants, window.getRowType(),
             window.groups));
       } else {

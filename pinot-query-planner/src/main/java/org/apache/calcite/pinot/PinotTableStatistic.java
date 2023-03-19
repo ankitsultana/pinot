@@ -37,6 +37,6 @@ public class PinotTableStatistic implements Statistic {
 
   @Override
   public @Nullable RelDistribution getDistribution() {
-    return null;
+    return PinotRelDistribution.create(_tableConfig);
   }
 }

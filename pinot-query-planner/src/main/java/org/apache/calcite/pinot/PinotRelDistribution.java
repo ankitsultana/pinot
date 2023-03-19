@@ -18,19 +18,19 @@
  */
 package org.apache.calcite.pinot;
 
+import com.google.common.collect.Ordering;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.plan.RelMultipleTrait;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.util.mapping.Mapping;
 import org.apache.calcite.util.mapping.Mappings;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.pinot.spi.config.table.ColumnPartitionConfig;
 import org.apache.pinot.spi.config.table.SegmentPartitionConfig;
@@ -38,30 +38,109 @@ import org.apache.pinot.spi.config.table.TableConfig;
 
 
 public class PinotRelDistribution implements RelDistribution {
-  @Nullable
-  private final Set<List<Integer>> _colocationKeys;
+  private static final Ordering<Iterable<Integer>> ORDERING =
+      Ordering.<Integer>natural().lexicographical();
+
+  public static final PinotRelDistribution ANY = new PinotRelDistribution(
+      Collections.emptyList(), null, null, Type.ANY);
+
+  private final List<Integer> _keys;
   @Nullable
   private final Integer _numPartitions;
   @Nullable
   private final String _functionName;
+  private final Type _type;
 
-  private PinotRelDistribution(Set<List<Integer>> colocationKeys, Integer numPartitions, String functionName) {
-    _colocationKeys = colocationKeys;
+  PinotRelDistribution(List<Integer> keys, Integer numPartitions, String functionName, Type type) {
+    _keys = keys;
     _numPartitions = numPartitions;
     _functionName = functionName;
+    _type = type;
   }
 
-  public static PinotRelDistribution create(TableConfig tableConfig, CalciteSchema calciteSchema) {
+  @Override
+  public Type getType() {
+    return _type;
+  }
+
+  @Override
+  public List<Integer> getKeys() {
+    return _keys;
+  }
+
+  @Override
+  public RelDistribution apply(Mappings.TargetMapping mapping) {
+    if (_keys.isEmpty()) {
+      return this;
+    }
+    for (int key : _keys) {
+      if (mapping.getTargetOpt(key) == -1) {
+        return ANY;
+      }
+    }
+    List<Integer> mappedKeys = Mappings.apply2((Mapping) mapping, _keys);
+    // TODO: Some canonicalization is required perhaps
+    return new PinotRelDistribution(mappedKeys, _numPartitions, _functionName, _type);
+  }
+
+  @Override
+  public boolean isTop() {
+    return false;
+  }
+
+  @Override
+  public int compareTo(@Nonnull RelMultipleTrait o) {
+    final PinotRelDistribution distribution = (PinotRelDistribution) o;
+    if (_type == distribution.getType()
+        && (_type == Type.HASH_DISTRIBUTED
+            || _type == Type.RANGE_DISTRIBUTED)) {
+      return ORDERING.compare(_keys, distribution.getKeys());
+    }
+    return _type.compareTo(distribution.getType());
+  }
+
+  @Override
+  public RelTraitDef getTraitDef() {
+    return PinotRelDistributionTraitDef.INSTANCE;
+  }
+
+  @Override
+  public boolean satisfies(RelTrait trait) {
+    throw new UnsupportedOperationException("satisfies is not implemented");
+    /*
+    Preconditions.checkState(trait instanceof PinotRelDistribution);
+    PinotRelDistribution inputTrait = (PinotRelDistribution) trait;
+    if (_type.equals(RelDistribution.Type.ANY)) {
+      return true;
+    } else if (_type.equals(Type.HASH_DISTRIBUTED)) {
+      if (inputTrait.getType().equals(Type.HASH_DISTRIBUTED)) {
+        Preconditions.checkState(_numPartitions != null && _functionName != null);
+        return _keys.containsAll(inputTrait.getKeys())
+            && _numPartitions.equals(inputTrait._numPartitions)
+            && _functionName.equals(inputTrait._functionName);
+      }
+      return false;
+    } else if (_type.equals(Type.BROADCAST_DISTRIBUTED)) {
+    }
+    return false; */
+  }
+
+  @Override
+  public void register(RelOptPlanner planner) {
+  }
+
+  public static PinotRelDistribution create(TableConfig tableConfig) {
     Map<String, ColumnPartitionConfig> partitionConfigMap = getColumnPartitionMap(tableConfig);
     if (partitionConfigMap.size() == 1) {
       String columnName = partitionConfigMap.keySet().iterator().next();
       ColumnPartitionConfig columnPartitionConfig = partitionConfigMap.values().iterator().next();
+      // TODO: How to determine columnIndex from schema
       Integer columnIndex = -1;
       List<Integer> columnIndices = Collections.singletonList(columnIndex);
-      return new PinotRelDistribution(Set.of(columnIndices),
-          columnPartitionConfig.getNumPartitions(), columnPartitionConfig.getFunctionName());
+      return new PinotRelDistribution(columnIndices,
+          columnPartitionConfig.getNumPartitions(), columnPartitionConfig.getFunctionName(), Type.HASH_DISTRIBUTED);
     }
-    return new PinotRelDistribution(null, null, null);
+    return new PinotRelDistribution(Collections.emptyList(), null, null, Type.ANY);
   }
 
   private static Map<String, ColumnPartitionConfig> getColumnPartitionMap(TableConfig tableConfig) {
@@ -74,49 +153,5 @@ public class PinotRelDistribution implements RelDistribution {
       }
     }
     return Collections.emptyMap();
-  }
-
-  @Override
-  public Type getType() {
-    return null;
-  }
-
-  @Override
-  public List<Integer> getKeys() {
-    return CollectionUtils.isNotEmpty(_colocationKeys) && _colocationKeys.size() == 1
-        ? _colocationKeys.iterator().next() : null;
-  }
-
-  @Override
-  public RelDistribution apply(Mappings.TargetMapping mapping) {
-    return null;
-  }
-
-  @Override
-  public boolean isTop() {
-    return false;
-  }
-
-  @Override
-  public int compareTo(RelMultipleTrait o) {
-    return 0;
-  }
-
-  @Override
-  public RelTraitDef getTraitDef() {
-    return null;
-  }
-
-  @Override
-  public boolean satisfies(RelTrait trait) {
-    return false;
-  }
-
-  @Override
-  public void register(RelOptPlanner planner) {
-  }
-
-  public Set<List<Integer>> colocationKeys() {
-    return _colocationKeys;
   }
 }

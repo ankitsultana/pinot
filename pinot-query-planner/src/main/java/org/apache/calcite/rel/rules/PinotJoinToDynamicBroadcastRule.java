@@ -20,16 +20,15 @@ package org.apache.calcite.rel.rules;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Set;
+import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.PinotRelDistributions;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.hep.HepRelVertex;
-import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.hint.PinotHintUtils;
-import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.slf4j.Logger;
@@ -126,11 +125,9 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
       return false;
     }
     JoinInfo joinInfo = join.analyzeCondition();
-    RelNode left = join.getLeft() instanceof HepRelVertex ? ((HepRelVertex) join.getLeft()).getCurrentRel()
-        : join.getLeft();
-    RelNode right = join.getRight() instanceof HepRelVertex ? ((HepRelVertex) join.getRight()).getCurrentRel()
-        : join.getRight();
-    return left instanceof LogicalExchange && right instanceof LogicalExchange
+    RelNode left = PinotRuleUtils.unwrapHepRelVertex(join.getLeft());
+    RelNode right = PinotRuleUtils.unwrapHepRelVertex(join.getRight());
+    return left instanceof PinotExchange && right instanceof PinotExchange
         && PinotRuleUtils.noExchangeInSubtree(left.getInput(0))
         && (join.getJoinType() == JoinRelType.INNER
         || (join.getJoinType() == JoinRelType.SEMI && joinInfo.nonEquiConditions.isEmpty()));
@@ -139,27 +136,25 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
   @Override
   public void onMatch(RelOptRuleCall call) {
     Join join = call.rel(0);
-    LogicalExchange left = (LogicalExchange) (join.getLeft() instanceof HepRelVertex
-        ? ((HepRelVertex) join.getLeft()).getCurrentRel() : join.getLeft());
-    LogicalExchange right = (LogicalExchange) (join.getRight() instanceof HepRelVertex
-        ? ((HepRelVertex) join.getRight()).getCurrentRel() : join.getRight());
+    PinotExchange left = (PinotExchange) PinotRuleUtils.unwrapHepRelVertex(join.getLeft());
+    PinotExchange right = (PinotExchange) PinotRuleUtils.unwrapHepRelVertex(join.getRight());
     LOGGER.info("Testing parallelism={}", call.getMetadataQuery().splitCount(join));
 
-    LogicalExchange broadcastDynamicFilterExchange;
+    PinotExchange broadcastDynamicFilterExchange;
     Set<String> joinStrategyStrings = PinotHintUtils.getJoinStrategyStrings(join.getHints());
     if (joinStrategyStrings.contains("colocated")) {
-      broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(),
-          RelDistributions.SINGLETON);
+      broadcastDynamicFilterExchange = PinotExchange.create(right.getInput(),
+          PinotRelDistributions.SINGLETON, true);
     } else {
-      broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(),
-          RelDistributions.BROADCAST_DISTRIBUTED);
+      broadcastDynamicFilterExchange = PinotExchange.create(right.getInput(),
+          PinotRelDistributions.BROADCAST, false);
     }
     Join dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
             join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
-    LogicalExchange passThroughAfterJoinExchange =
-        LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);
+    PinotExchange passThroughAfterJoinExchange =
+        PinotExchange.create(dynamicFilterJoin, PinotRelDistributions.SINGLETON, true);
     call.transformTo(passThroughAfterJoinExchange);
   }
 }
