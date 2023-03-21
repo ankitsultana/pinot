@@ -66,14 +66,14 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
 
     if (joinInfo.leftKeys.isEmpty()) {
       // when there's no JOIN key, use broadcast.
-      leftExchange = PinotExchange.create(leftInput, PinotRelDistributions.RANDOM, false);
-      rightExchange = PinotExchange.create(rightInput, PinotRelDistributions.BROADCAST, false);
+      leftExchange = PinotExchange.create(leftInput, PinotRelDistributions.RANDOM);
+      rightExchange = PinotExchange.create(rightInput, PinotRelDistributions.BROADCAST);
     } else {
       // when join key exists, use hash distribution.
       leftExchange = PinotExchange.create(
-          leftInput, PinotRelDistributions.hash(joinInfo.leftKeys, parallelism), false);
+          leftInput, PinotRelDistributions.hash(joinInfo.leftKeys, parallelism));
       rightExchange = PinotExchange.create(
-          rightInput, PinotRelDistributions.hash(joinInfo.rightKeys, parallelism), false);
+          rightInput, PinotRelDistributions.hash(joinInfo.rightKeys, parallelism));
     }
 
     RelNode newJoinNode =

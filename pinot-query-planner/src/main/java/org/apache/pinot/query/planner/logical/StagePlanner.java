@@ -20,6 +20,8 @@ package org.apache.pinot.query.planner.logical;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.PinotRelDistribution;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
@@ -96,8 +98,7 @@ public class StagePlanner {
   private StageNode walkRelPlan(RelNode node, int currentStageId) {
     if (PinotRuleUtils.isExchange(node)) {
       StageNode nextStageRoot = walkRelPlan(node.getInput(0), getNewStageId());
-      RelDistribution distribution = ((Exchange) node).getDistribution();
-      return createSendReceivePair(nextStageRoot, distribution, currentStageId);
+      return createSendReceivePair(nextStageRoot, (Exchange) node, currentStageId);
     } else {
       StageNode stageNode = RelToStageConverter.toStageNode(node, currentStageId);
       List<RelNode> inputs = node.getInputs();
@@ -108,17 +109,26 @@ public class StagePlanner {
     }
   }
 
-  private StageNode createSendReceivePair(StageNode nextStageRoot, RelDistribution distribution, int currentStageId) {
+  private StageNode createSendReceivePair(StageNode nextStageRoot, Exchange exchange, int currentStageId) {
+    RelDistribution distribution = exchange.getDistribution();
     List<Integer> distributionKeys = distribution.getKeys();
     RelDistribution.Type exchangeType = distribution.getType();
 
+    // TODO: Using Singleton here is a temporary hack.
+    boolean isIdentityHashExchange = false;
+    if (exchange instanceof PinotExchange) {
+      PinotRelDistribution pinotRelDistribution = (PinotRelDistribution) distribution;
+      if (pinotRelDistribution.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)) {
+        isIdentityHashExchange = ((PinotExchange) exchange).isIdentity();
+        exchangeType = RelDistribution.Type.SINGLETON;
+      }
+    }
     // make an exchange sender and receiver node pair
     // only HASH_DISTRIBUTED requires a partition key selector; so all other types (SINGLETON and BROADCAST)
     // of exchange will not carry a partition key selector.
     KeySelector<Object[], Object[]> keySelector = exchangeType == RelDistribution.Type.HASH_DISTRIBUTED
         ? new FieldSelectionKeySelector(distributionKeys) : null;
 
-    // TODO: Pass parallelism here.
     StageNode mailboxSender = new MailboxSendNode(nextStageRoot.getStageId(), nextStageRoot.getDataSchema(),
         currentStageId, exchangeType, keySelector);
     StageNode mailboxReceiver = new MailboxReceiveNode(currentStageId, nextStageRoot.getDataSchema(),

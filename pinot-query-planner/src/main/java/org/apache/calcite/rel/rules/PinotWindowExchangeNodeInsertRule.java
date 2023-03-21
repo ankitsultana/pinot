@@ -83,8 +83,7 @@ public class PinotWindowExchangeNodeInsertRule extends RelOptRule {
       // Empty OVER()
       // Add a single LogicalExchange for empty OVER() since no sort is required
       PinotExchange exchange = PinotExchange.create(windowInput,
-          PinotRelDistributions.hash(Collections.emptyList(), parallelism),
-          false);
+          PinotRelDistributions.hash(Collections.emptyList(), parallelism));
       call.transformTo(
           LogicalWindow.create(window.getTraitSet(), exchange, window.constants, window.getRowType(), window.groups));
     } else if (windowGroup.keys.isEmpty() && !windowGroup.orderKeys.getKeys().isEmpty()) {
@@ -104,7 +103,7 @@ public class PinotWindowExchangeNodeInsertRule extends RelOptRule {
         // Only PARTITION BY or PARTITION BY and ORDER BY on the same key(s)
         // Add a LogicalExchange hashed on the partition by keys
         PinotExchange exchange = PinotExchange.create(windowInput,
-            PinotRelDistributions.hash(windowGroup.keys.toList(), parallelism), false);
+            PinotRelDistributions.hash(windowGroup.keys.toList(), parallelism));
         call.transformTo(LogicalWindow.create(window.getTraitSet(), exchange, window.constants, window.getRowType(),
             window.groups));
       } else {

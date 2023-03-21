@@ -24,7 +24,10 @@ import org.apache.calcite.rel.RelDistribution;
 
 
 public class PinotRelDistributions {
-  private static final String DEFAULT_HASH_FUNCTION = "absHashCode";
+  private static final String DEFAULT_HASH_FUNCTION = "murmur";
+
+  private PinotRelDistributions() {
+  }
 
   public static final PinotRelDistribution ANY = new PinotRelDistribution(
       Collections.emptyList(), null, null, RelDistribution.Type.ANY);

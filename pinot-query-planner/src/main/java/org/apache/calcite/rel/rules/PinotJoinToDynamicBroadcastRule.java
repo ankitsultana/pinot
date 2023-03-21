@@ -144,17 +144,17 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
     Set<String> joinStrategyStrings = PinotHintUtils.getJoinStrategyStrings(join.getHints());
     if (joinStrategyStrings.contains("colocated")) {
       broadcastDynamicFilterExchange = PinotExchange.create(right.getInput(),
-          PinotRelDistributions.SINGLETON, true);
+          PinotRelDistributions.SINGLETON);
     } else {
       broadcastDynamicFilterExchange = PinotExchange.create(right.getInput(),
-          PinotRelDistributions.BROADCAST, false);
+          PinotRelDistributions.BROADCAST);
     }
     Join dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
             join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
     PinotExchange passThroughAfterJoinExchange =
-        PinotExchange.create(dynamicFilterJoin, PinotRelDistributions.SINGLETON, true);
+        PinotExchange.create(dynamicFilterJoin, PinotRelDistributions.SINGLETON);
     call.transformTo(passThroughAfterJoinExchange);
   }
 }

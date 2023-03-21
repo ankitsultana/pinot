@@ -137,10 +137,10 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     PinotExchange exchange = null;
     if (groupSetIndices.size() == 0) {
       exchange = PinotExchange.create(newLeafAgg,
-          PinotRelDistributions.hash(Collections.emptyList(), parallelism), false);
+          PinotRelDistributions.hash(Collections.emptyList(), parallelism));
     } else {
       exchange = PinotExchange.create(newLeafAgg,
-          PinotRelDistributions.hash(groupSetIndices, parallelism), false);
+          PinotRelDistributions.hash(groupSetIndices, parallelism));
     }
 
     // 3. attach intermediate agg stage.
@@ -261,8 +261,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     Integer parallelism = call.getMetadataQuery().splitCount(oldAggRel);
     // 2. Create an exchange on top of the LogicalProject.
     PinotExchange exchange = PinotExchange.create(project,
-        PinotRelDistributions.hash(newAggGroupByColumns, parallelism),
-        false);
+        PinotRelDistributions.hash(newAggGroupByColumns, parallelism));
 
     // 3. Create an intermediate stage aggregation.
     RelNode newAggNode =
