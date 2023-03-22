@@ -25,6 +25,7 @@ import java.util.Properties;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.config.CalciteConnectionProperty;
 import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.pinot.PinotExchangeShuttle;
 import org.apache.calcite.pinot.PinotRelIdentityHashOptShuttle;
 import org.apache.calcite.pinot.PinotRelMetadataProvider;
 import org.apache.calcite.plan.RelOptCluster;
@@ -208,6 +209,7 @@ public class QueryEnvironment {
     RelRoot relation = toRelation(validated, plannerContext);
     RelNode optimized = optimize(relation, plannerContext);
     if (plannerContext.getOptions().getOrDefault("useColocatedJoin", "false").equals("true")) {
+      optimized = optimized.accept(new PinotExchangeShuttle());
       optimized = optimized.accept(new PinotRelIdentityHashOptShuttle(_tableCache, plannerContext.getOptions()));
     }
     return relation.withRel(optimized);

@@ -21,14 +21,15 @@ package org.apache.calcite.rel.rules;
 import com.google.common.collect.ImmutableList;
 import java.util.Set;
 import org.apache.calcite.pinot.PinotExchange;
-import org.apache.calcite.pinot.PinotRelDistributions;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.hint.PinotHintUtils;
+import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.slf4j.Logger;
@@ -136,25 +137,23 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
   @Override
   public void onMatch(RelOptRuleCall call) {
     Join join = call.rel(0);
-    PinotExchange left = (PinotExchange) PinotRuleUtils.unwrapHepRelVertex(join.getLeft());
-    PinotExchange right = (PinotExchange) PinotRuleUtils.unwrapHepRelVertex(join.getRight());
+    LogicalExchange left = (LogicalExchange) PinotRuleUtils.unwrapHepRelVertex(join.getLeft());
+    LogicalExchange right = (LogicalExchange) PinotRuleUtils.unwrapHepRelVertex(join.getRight());
     LOGGER.info("Testing parallelism={}", call.getMetadataQuery().splitCount(join));
 
-    PinotExchange broadcastDynamicFilterExchange;
+    LogicalExchange broadcastDynamicFilterExchange;
     Set<String> joinStrategyStrings = PinotHintUtils.getJoinStrategyStrings(join.getHints());
     if (joinStrategyStrings.contains("colocated")) {
-      broadcastDynamicFilterExchange = PinotExchange.create(right.getInput(),
-          PinotRelDistributions.SINGLETON);
+      broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(), RelDistributions.SINGLETON);
     } else {
-      broadcastDynamicFilterExchange = PinotExchange.create(right.getInput(),
-          PinotRelDistributions.BROADCAST);
+      broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(), RelDistributions.BROADCAST_DISTRIBUTED);
     }
     Join dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
             join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
-    PinotExchange passThroughAfterJoinExchange =
-        PinotExchange.create(dynamicFilterJoin, PinotRelDistributions.SINGLETON);
+    LogicalExchange passThroughAfterJoinExchange =
+        LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);
     call.transformTo(passThroughAfterJoinExchange);
   }
 }

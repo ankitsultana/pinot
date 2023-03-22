@@ -31,7 +31,6 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttleImpl;
 import org.apache.calcite.rel.core.Exchange;
-import org.apache.calcite.rel.core.SortExchange;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.calcite.rel.hint.RelHint;
@@ -87,8 +86,6 @@ public class PinotRelIdentityHashOptShuttle extends RelShuttleImpl {
   @Override
   public RelNode visit(LogicalJoin join) {
     join = (LogicalJoin) super.visitChildren(join);
-    if (isBroadcastJoin(join)) {
-    }
     RelNode leftChild = join.getInput(0);
     RelNode rightChild = join.getInput(1);
     int leftFieldCount = leftChild.getRowType().getFieldNames().size();
@@ -173,8 +170,6 @@ public class PinotRelIdentityHashOptShuttle extends RelShuttleImpl {
       return this.visit((PinotExchange) other);
     } else if (other instanceof PinotSortExchange) {
       return this.visit((PinotSortExchange) other);
-    } else if (other instanceof SortExchange) {
-      return this.visit((SortExchange) other);
     }
     throw new IllegalStateException(String.format("Found instance: %s", other.getClass()));
   }
@@ -201,13 +196,8 @@ public class PinotRelIdentityHashOptShuttle extends RelShuttleImpl {
   }
 
   public RelNode visit(PinotSortExchange pinotSortExchange) {
+    pinotSortExchange = (PinotSortExchange) super.visitChildren(pinotSortExchange);
     return pinotSortExchange;
-  }
-
-  public RelNode visit(SortExchange sortExchange) {
-    sortExchange = (SortExchange) super.visitChildren(sortExchange);
-    return PinotSortExchange.create(sortExchange.getInput(),
-        PinotRelDistribution.of(sortExchange.getDistribution()), sortExchange.getCollation());
   }
 
   private RelTraitSet apply(RelTraitSet inputTraits, Mappings.TargetMapping mapping) {

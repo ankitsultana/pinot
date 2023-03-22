@@ -21,11 +21,14 @@ package org.apache.calcite.pinot;
 import com.google.common.base.Preconditions;
 import java.util.Objects;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelDistributionTraitDef;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Exchange;
+import org.apache.calcite.rel.logical.LogicalExchange;
 
 
 public class PinotExchange extends Exchange {
@@ -45,6 +48,18 @@ public class PinotExchange extends Exchange {
 
   public boolean isIdentity() {
     return _isIdentity;
+  }
+
+  public static PinotExchange create(LogicalExchange logicalExchange) {
+    PinotRelDistribution pinotRelDistribution = PinotRelDistribution.create(logicalExchange.getDistribution());
+    RelTraitSet newTraitSet = RelTraitSet.createEmpty();
+    for (RelTrait relTrait : logicalExchange.getTraitSet()) {
+      if (!relTrait.getTraitDef().equals(RelDistributionTraitDef.INSTANCE)) {
+        newTraitSet = newTraitSet.plus(relTrait);
+      }
+    }
+    return new PinotExchange(logicalExchange.getCluster(), newTraitSet.plus(pinotRelDistribution),
+        logicalExchange.getInput(), false);
   }
 
   public static PinotExchange create(RelNode input, PinotRelDistribution relDistribution) {

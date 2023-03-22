@@ -168,7 +168,7 @@ public class PinotRelDistribution implements RelDistribution {
     return PinotRelDistributions.hash(columnIndices, -1);
   }
 
-  public static PinotRelDistribution of(RelDistribution relDistribution) {
+  public static PinotRelDistribution create(RelDistribution relDistribution) {
     if (relDistribution.getType().equals(Type.BROADCAST_DISTRIBUTED)) {
       return PinotRelDistributions.BROADCAST;
     } else if (relDistribution.getType().equals(Type.ANY)) {

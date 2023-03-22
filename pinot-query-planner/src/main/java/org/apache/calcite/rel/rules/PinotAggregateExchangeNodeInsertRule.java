@@ -27,19 +27,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.calcite.pinot.PinotExchange;
-import org.apache.calcite.pinot.PinotRelDistributions;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.hep.HepRelVertex;
+import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.calcite.rel.hint.PinotHintUtils;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
@@ -131,16 +132,13 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
         new LogicalAggregate(oldAggRel.getCluster(), oldAggRel.getTraitSet(), newLeafAggHints, oldAggRel.getInput(),
             oldAggRel.getGroupSet(), oldAggRel.getGroupSets(), oldAggRel.getAggCallList());
 
-    Integer parallelism = call.getMetadataQuery().splitCount(oldAggRel);
     // 2. attach exchange.
     List<Integer> groupSetIndices = ImmutableIntList.range(0, oldAggRel.getGroupCount());
-    PinotExchange exchange = null;
+    LogicalExchange exchange = null;
     if (groupSetIndices.size() == 0) {
-      exchange = PinotExchange.create(newLeafAgg,
-          PinotRelDistributions.hash(Collections.emptyList(), parallelism));
+      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(Collections.emptyList()));
     } else {
-      exchange = PinotExchange.create(newLeafAgg,
-          PinotRelDistributions.hash(groupSetIndices, parallelism));
+      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(groupSetIndices));
     }
 
     // 3. attach intermediate agg stage.
@@ -148,7 +146,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     call.transformTo(newAggNode);
   }
 
-  private RelNode makeNewIntermediateAgg(RelOptRuleCall ruleCall, Aggregate oldAggRel, PinotExchange exchange,
+  private RelNode makeNewIntermediateAgg(RelOptRuleCall ruleCall, Aggregate oldAggRel, Exchange exchange,
       boolean isLeafStageAggregationPresent, List<Integer> argList, List<Integer> groupByList) {
 
     // add the exchange as the input node to the relation builder.
@@ -258,10 +256,8 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
       project = createLogicalProjectForAggregate(oldAggRel, newAggArgColumns, newAggGroupByColumns);
     }
 
-    Integer parallelism = call.getMetadataQuery().splitCount(oldAggRel);
     // 2. Create an exchange on top of the LogicalProject.
-    PinotExchange exchange = PinotExchange.create(project,
-        PinotRelDistributions.hash(newAggGroupByColumns, parallelism));
+    LogicalExchange exchange = LogicalExchange.create(project, RelDistributions.hash(newAggGroupByColumns));
 
     // 3. Create an intermediate stage aggregation.
     RelNode newAggNode =

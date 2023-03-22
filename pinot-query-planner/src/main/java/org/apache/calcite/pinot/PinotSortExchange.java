@@ -19,9 +19,11 @@
 package org.apache.calcite.pinot;
 
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelDistributionTraitDef;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.SortExchange;
 
@@ -45,6 +47,18 @@ public class PinotSortExchange extends SortExchange {
 
   public PinotRelDistribution getPinotRelDistribution() {
     return (PinotRelDistribution) this.distribution;
+  }
+
+  public static PinotSortExchange create(SortExchange sortExchange) {
+    PinotRelDistribution pinotRelDistribution = PinotRelDistribution.create(sortExchange.getDistribution());
+    RelTraitSet newTraitSet = RelTraitSet.createEmpty();
+    for (RelTrait relTrait : sortExchange.getTraitSet()) {
+      if (!relTrait.getTraitDef().equals(RelDistributionTraitDef.INSTANCE)) {
+        newTraitSet = newTraitSet.plus(relTrait);
+      }
+    }
+    return new PinotSortExchange(sortExchange.getCluster(), newTraitSet.plus(pinotRelDistribution),
+        sortExchange.getInput(), pinotRelDistribution, sortExchange.getCollation(), false, false);
   }
 
   public static PinotSortExchange create(RelNode input, PinotRelDistribution relDistribution, RelCollation collation) {

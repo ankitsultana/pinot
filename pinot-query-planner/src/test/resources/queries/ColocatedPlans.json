@@ -3,7 +3,7 @@
     "queries": [
       {
         "description": "Inner join with order by",
-        "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts, b.col3 FROM a /*+ partitioned (column='col1') */ JOIN b /*+ partitioned (column='col2') */ ON a.col1 = b.col2 ORDER BY a.col1 option(useColocatedJoin=true)",
+        "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts, b.col3 FROM a /*+ partitioned (column='col1', partitions='4') */ JOIN b /*+ partitioned (column='col2', partitions='4') */ ON a.col1 = b.col2 ORDER BY a.col1 option(useColocatedJoin=true, queryParallelism=4)",
         "output": [
           "Execution Plan",
           "\nLogicalProject(col1=[$0], ts=[$1], col3=[$3])",
@@ -21,19 +21,38 @@
         ]
       },
       {
-        "description": "Inner join with order by and select column with alias",
-        "sql": "EXPLAIN PLAN FOR SELECT a.col1 AS value1, a.ts AS ts1, b.col3 FROM a JOIN b ON a.col1 = b.col2 ORDER BY a.col1 option(useColocatedJoin=true)",
+        "description": "Left side of join gets identity exchange",
+        "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts, b.col3 FROM a /*+ partitioned (column='col1', partitions='2') */ JOIN b /*+ partitioned (column='col2', partitions='4') */ ON a.col1 = b.col2 ORDER BY a.col1 option(useColocatedJoin=true, queryParallelism=2)",
         "output": [
           "Execution Plan",
-          "\nLogicalProject(value1=[$0], ts1=[$1], col3=[$3])",
+          "\nLogicalProject(col1=[$0], ts=[$1], col3=[$3])",
           "\n  LogicalSort(sort0=[$0], dir0=[ASC], offset=[0])",
-          "\n    LogicalSortExchange(distribution=[hash], collation=[[0]])",
+          "\n    PinotSortExchange(distribution=[hash=([])], collation=[[0]])",
           "\n      LogicalSort(sort0=[$0], dir0=[ASC])",
           "\n        LogicalJoin(condition=[=($0, $2)], joinType=[inner])",
-          "\n          LogicalExchange(distribution=[hash[0]])",
+          "\n          PinotExchange(distribution=[hash=([0])], identity=[true])",
           "\n            LogicalProject(col1=[$3], ts=[$4])",
           "\n              LogicalTableScan(table=[[a]])",
-          "\n          LogicalExchange(distribution=[hash[0]])",
+          "\n          PinotExchange(distribution=[hash=([0])], identity=[false])",
+          "\n            LogicalProject(col2=[$1], col3=[$2])",
+          "\n              LogicalTableScan(table=[[b]])",
+          "\n"
+        ]
+      },
+      {
+        "description": "Right side of join gets identity exchange",
+        "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts, b.col3 FROM a /*+ partitioned (column='col1', partitions='2') */ JOIN b /*+ partitioned (column='col2', partitions='4') */ ON a.col1 = b.col2 ORDER BY a.col1 option(useColocatedJoin=true, queryParallelism=4)",
+        "output": [
+          "Execution Plan",
+          "\nLogicalProject(col1=[$0], ts=[$1], col3=[$3])",
+          "\n  LogicalSort(sort0=[$0], dir0=[ASC], offset=[0])",
+          "\n    PinotSortExchange(distribution=[hash=([])], collation=[[0]])",
+          "\n      LogicalSort(sort0=[$0], dir0=[ASC])",
+          "\n        LogicalJoin(condition=[=($0, $2)], joinType=[inner])",
+          "\n          PinotExchange(distribution=[hash=([0])], identity=[false])",
+          "\n            LogicalProject(col1=[$3], ts=[$4])",
+          "\n              LogicalTableScan(table=[[a]])",
+          "\n          PinotExchange(distribution=[hash=([0])], identity=[true])",
           "\n            LogicalProject(col2=[$1], col3=[$2])",
           "\n              LogicalTableScan(table=[[b]])",
           "\n"

@@ -19,13 +19,13 @@
 package org.apache.calcite.rel.rules;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.calcite.pinot.PinotExchange;
-import org.apache.calcite.pinot.PinotRelDistributions;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
 
@@ -66,14 +66,12 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
 
     if (joinInfo.leftKeys.isEmpty()) {
       // when there's no JOIN key, use broadcast.
-      leftExchange = PinotExchange.create(leftInput, PinotRelDistributions.RANDOM);
-      rightExchange = PinotExchange.create(rightInput, PinotRelDistributions.BROADCAST);
+      leftExchange = LogicalExchange.create(leftInput, RelDistributions.RANDOM_DISTRIBUTED);
+      rightExchange = LogicalExchange.create(rightInput, RelDistributions.BROADCAST_DISTRIBUTED);
     } else {
       // when join key exists, use hash distribution.
-      leftExchange = PinotExchange.create(
-          leftInput, PinotRelDistributions.hash(joinInfo.leftKeys, parallelism));
-      rightExchange = PinotExchange.create(
-          rightInput, PinotRelDistributions.hash(joinInfo.rightKeys, parallelism));
+      leftExchange = LogicalExchange.create(leftInput, RelDistributions.hash(joinInfo.leftKeys));
+      rightExchange = LogicalExchange.create(rightInput, RelDistributions.hash(joinInfo.rightKeys));
     }
 
     RelNode newJoinNode =
