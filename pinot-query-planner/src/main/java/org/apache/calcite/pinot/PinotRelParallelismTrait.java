@@ -27,17 +27,32 @@ public class PinotRelParallelismTrait implements RelTrait {
 
   private final Integer _parallelism;
 
-  @Override
-  public RelTraitDef getTraitDef() {
-    return PinotRelParallelismTraitDef.INSTANCE;
+  public PinotRelParallelismTrait(int parallelism) {
+    _parallelism = canonicalize(parallelism);
   }
 
   @Override
   public boolean satisfies(RelTrait trait) {
+    if (trait.getTraitDef().equals(PinotRelParallelismTraitDef.INSTANCE)) {
+      return ((PinotRelParallelismTrait) trait).getParallelism().equals(_parallelism);
+    }
     return false;
   }
 
   @Override
+  public RelTraitDef<PinotRelParallelismTrait> getTraitDef() {
+    return PinotRelParallelismTraitDef.INSTANCE;
+  }
+
+  @Override
   public void register(RelOptPlanner planner) {
+  }
+
+  public Integer getParallelism() {
+    return _parallelism;
+  }
+
+  private Integer canonicalize(int parallelism) {
+    return parallelism <= 0 ? -1 : parallelism;
   }
 }

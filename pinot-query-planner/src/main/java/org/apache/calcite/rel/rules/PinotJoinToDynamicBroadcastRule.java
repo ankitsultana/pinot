@@ -21,6 +21,7 @@ package org.apache.calcite.rel.rules;
 import com.google.common.collect.ImmutableList;
 import java.util.Set;
 import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.PinotJoin;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelDistributions;
@@ -112,7 +113,7 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
       new PinotJoinToDynamicBroadcastRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
   public PinotJoinToDynamicBroadcastRule(RelBuilderFactory factory) {
-    super(operand(LogicalJoin.class, any()), factory, null);
+    super(operand(PinotJoin.class, any()), factory, null);
   }
 
   @Override
@@ -148,12 +149,12 @@ public class PinotJoinToDynamicBroadcastRule extends RelOptRule {
     } else {
       broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(), RelDistributions.BROADCAST_DISTRIBUTED);
     }
-    Join dynamicFilterJoin =
+    LogicalJoin dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
             join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
     LogicalExchange passThroughAfterJoinExchange =
-        LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);
+        LogicalExchange.create(PinotJoin.of(dynamicFilterJoin), RelDistributions.SINGLETON);
     call.transformTo(passThroughAfterJoinExchange);
   }
 }

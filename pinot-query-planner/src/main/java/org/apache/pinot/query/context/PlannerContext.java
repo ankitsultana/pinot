@@ -19,7 +19,6 @@
 package org.apache.pinot.query.context;
 
 import java.util.Map;
-import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.prepare.PlannerImpl;
@@ -38,6 +37,8 @@ import org.apache.pinot.query.validate.Validator;
  * It is used to hold per query context for query planning, which cannot be shared across queries.
  */
 public class PlannerContext implements AutoCloseable {
+  private final FrameworkConfig _config;
+
   private final PlannerImpl _planner;
 
   private final SqlValidator _validator;
@@ -48,9 +49,14 @@ public class PlannerContext implements AutoCloseable {
 
   public PlannerContext(FrameworkConfig config, Prepare.CatalogReader catalogReader, RelDataTypeFactory typeFactory,
       HepProgram hepProgram) {
+    _config = config;
     _planner = new PlannerImpl(config);
     _validator = new Validator(config.getOperatorTable(), catalogReader, typeFactory);
-    _relOptPlanner = new LogicalPlanner(hepProgram, Contexts.EMPTY_CONTEXT);
+    _relOptPlanner = new LogicalPlanner(hepProgram, config.getContext());
+  }
+
+  public FrameworkConfig getConfig() {
+    return _config;
   }
 
   public PlannerImpl getPlanner() {

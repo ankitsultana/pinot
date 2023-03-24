@@ -114,6 +114,8 @@ public class PinotQueryRuleSets {
 
   // Pinot specific rules that should be run after all other rules
   public static final Collection<RelOptRule> PINOT_POST_RULES = ImmutableList.of(
+      LogicalToPinotRelNodeRule.INSTANCE,
+
       // add an extra exchange for sort
       PinotSortExchangeNodeInsertRule.INSTANCE,
       // copy exchanges down, this must be done after SortExchangeNodeInsertRule
@@ -122,6 +124,7 @@ public class PinotQueryRuleSets {
       PinotJoinExchangeNodeInsertRule.INSTANCE,
       PinotAggregateExchangeNodeInsertRule.INSTANCE,
       PinotWindowExchangeNodeInsertRule.INSTANCE,
-      PinotJoinToDynamicBroadcastRule.INSTANCE
+      PinotJoinToDynamicBroadcastRule.INSTANCE,
+      PinotVerifyRule.INSTANCE
   );
 }
