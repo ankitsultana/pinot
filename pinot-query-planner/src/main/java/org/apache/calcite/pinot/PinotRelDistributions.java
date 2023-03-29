@@ -67,7 +67,8 @@ public class PinotRelDistributions {
       Integer columnIndex = rowType.getFieldNames().indexOf(columnName);
       List<Integer> columnIndices = Collections.singletonList(columnIndex);
       return new PinotRelDistribution(columnIndices,
-          columnPartitionConfig.getNumPartitions(), columnPartitionConfig.getFunctionName(), RelDistribution.Type.HASH_DISTRIBUTED);
+          columnPartitionConfig.getNumPartitions(), columnPartitionConfig.getFunctionName(),
+          RelDistribution.Type.HASH_DISTRIBUTED);
     }
     return PinotRelDistributions.ANY;
   }

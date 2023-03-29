@@ -57,7 +57,7 @@ import org.apache.commons.collections.MapUtils;
 
 public class PinotRelDistributionTransformer {
 
-  public PinotRelDistributionTransformer() {
+  private PinotRelDistributionTransformer() {
   }
 
   public static RelNode dispatch(RelNode relNode, PinotPlannerSessionContext context) {

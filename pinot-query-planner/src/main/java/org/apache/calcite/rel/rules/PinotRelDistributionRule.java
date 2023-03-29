@@ -20,12 +20,11 @@ package org.apache.calcite.rel.rules;
 
 import org.apache.calcite.pinot.PinotPlannerSessionContext;
 import org.apache.calcite.pinot.PinotRelDistributionTraitDef;
+import org.apache.calcite.pinot.PinotRelDistributionTransformer;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.tools.RelBuilderFactory;
-
-import static org.apache.calcite.pinot.PinotRelDistributionTransformer.dispatch;
 
 
 public class PinotRelDistributionRule extends RelOptRule {
@@ -50,6 +49,6 @@ public class PinotRelDistributionRule extends RelOptRule {
   public void onMatch(RelOptRuleCall call) {
     RelNode relNode = call.rel(0);
     PinotPlannerSessionContext context = (PinotPlannerSessionContext) call.getPlanner().getContext();
-    call.transformTo(dispatch(relNode, context));
+    call.transformTo(PinotRelDistributionTransformer.dispatch(relNode, context));
   }
 }

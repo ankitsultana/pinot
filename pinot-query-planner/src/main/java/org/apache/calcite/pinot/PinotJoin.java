@@ -47,7 +47,8 @@ public class PinotJoin extends Join {
   @Override
   public PinotJoin copy(RelTraitSet traitSet, RexNode conditionExpr, RelNode left, RelNode right, JoinRelType joinType,
       boolean semiJoinDone) {
-    return new PinotJoin(getCluster(), traitSet, hints, left, right, conditionExpr, variablesSet, joinType, semiJoinDone);
+    return new PinotJoin(getCluster(), traitSet, hints, left, right, conditionExpr, variablesSet, joinType,
+        semiJoinDone);
   }
 
   public static PinotJoin of(LogicalJoin join) {
