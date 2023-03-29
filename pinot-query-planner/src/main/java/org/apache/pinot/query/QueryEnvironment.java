@@ -38,8 +38,8 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.hint.HintStrategyTable;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
-import org.apache.calcite.rel.rules.PinotParallelismRule;
 import org.apache.calcite.rel.rules.PinotQueryRuleSets;
+import org.apache.calcite.rel.rules.PinotRelDistributionRule;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.runtime.CalciteContextException;
@@ -113,7 +113,7 @@ public class QueryEnvironment {
     hepProgramBuilder.addRuleCollection(PinotQueryRuleSets.PRUNE_RULES);
 
     hepProgramBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-    hepProgramBuilder.addRuleInstance(PinotParallelismRule.INSTANCE);
+    hepProgramBuilder.addRuleInstance(PinotRelDistributionRule.INSTANCE);
     hepProgramBuilder.addMatchOrder(HepMatchOrder.DEPTH_FIRST);
     // Run pinot specific rules that should run after all other rules, using 1 HepInstruction per rule.
     for (RelOptRule relOptRule : PinotQueryRuleSets.PINOT_POST_RULES) {

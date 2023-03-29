@@ -20,9 +20,7 @@ package org.apache.calcite.pinot;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Ordering;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,20 +29,12 @@ import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.rel.RelDistribution;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.util.mapping.Mappings;
-import org.apache.commons.collections.MapUtils;
-import org.apache.pinot.spi.config.table.ColumnPartitionConfig;
-import org.apache.pinot.spi.config.table.SegmentPartitionConfig;
-import org.apache.pinot.spi.config.table.TableConfig;
 
 
 public class PinotRelDistribution implements RelDistribution {
   private static final Ordering<Iterable<Integer>> ORDERING =
       Ordering.<Integer>natural().lexicographical();
-
-  public static final PinotRelDistribution ANY = new PinotRelDistribution(
-      Collections.emptyList(), null, null, Type.ANY);
 
   private final List<Integer> _keys;
   @Nullable
@@ -71,13 +61,15 @@ public class PinotRelDistribution implements RelDistribution {
   }
 
   @Override
-  public RelDistribution apply(Mappings.TargetMapping mapping) {
+  public RelDistribution apply(@Nullable Mappings.TargetMapping mapping) {
     if (_keys.isEmpty()) {
       return this;
+    } else if (mapping == null) {
+      return PinotRelDistributions.ANY;
     }
     for (int key : _keys) {
       if (mapping.getTargetOpt(key) == -1) {
-        return ANY;
+        return PinotRelDistributions.ANY;
       }
     }
     List<Integer> mappedKeys = _keys.stream().map(mapping::getTargetOpt).collect(Collectors.toList());
@@ -148,26 +140,6 @@ public class PinotRelDistribution implements RelDistribution {
     return "unknown";
   }
 
-  public static PinotRelDistribution create(TableConfig tableConfig, RelDataType rowType) {
-    Map<String, ColumnPartitionConfig> partitionConfigMap = getColumnPartitionMap(tableConfig);
-    if (partitionConfigMap.size() == 1) {
-      String columnName = partitionConfigMap.keySet().iterator().next();
-      ColumnPartitionConfig columnPartitionConfig = partitionConfigMap.values().iterator().next();
-      Integer columnIndex = rowType.getFieldNames().indexOf(columnName);
-      List<Integer> columnIndices = Collections.singletonList(columnIndex);
-      return new PinotRelDistribution(columnIndices,
-          columnPartitionConfig.getNumPartitions(), columnPartitionConfig.getFunctionName(), Type.HASH_DISTRIBUTED);
-    }
-    return PinotRelDistributions.ANY;
-  }
-
-  public static PinotRelDistribution create(String columnName, RelDataType rowType) {
-    Integer columnIndex = rowType.getFieldNames().indexOf(columnName);
-    Preconditions.checkState(columnIndex >= 0);
-    List<Integer> columnIndices = Collections.singletonList(columnIndex);
-    return PinotRelDistributions.hash(columnIndices, -1);
-  }
-
   public static PinotRelDistribution create(RelDistribution relDistribution) {
     if (relDistribution.getType().equals(Type.BROADCAST_DISTRIBUTED)) {
       return PinotRelDistributions.BROADCAST;
@@ -179,17 +151,5 @@ public class PinotRelDistribution implements RelDistribution {
       return PinotRelDistributions.hash(relDistribution.getKeys(), -1);
     }
     throw new IllegalStateException(String.format("Found dist: %s", relDistribution.getType()));
-  }
-
-  private static Map<String, ColumnPartitionConfig> getColumnPartitionMap(TableConfig tableConfig) {
-    if (tableConfig.getIndexingConfig() != null) {
-      if (tableConfig.getIndexingConfig().getSegmentPartitionConfig() != null) {
-        SegmentPartitionConfig segmentPartitionConfig = tableConfig.getIndexingConfig().getSegmentPartitionConfig();
-        if (MapUtils.isNotEmpty(segmentPartitionConfig.getColumnPartitionMap())) {
-          return segmentPartitionConfig.getColumnPartitionMap();
-        }
-      }
-    }
-    return Collections.emptyMap();
   }
 }

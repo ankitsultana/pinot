@@ -53,6 +53,6 @@ public class PinotRelDistributionTraitDef extends RelTraitDef<PinotRelDistributi
 
   @Override
   public PinotRelDistribution getDefault() {
-    return PinotRelDistribution.ANY;
+    return PinotRelDistributions.ANY;
   }
 }

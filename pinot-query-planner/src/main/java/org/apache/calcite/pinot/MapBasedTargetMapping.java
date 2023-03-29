@@ -61,7 +61,11 @@ public class MapBasedTargetMapping implements Mappings.TargetMapping {
 
   @Override
   public int getTarget(int source) {
-    return _map.getOrDefault(source, -1);
+    int result = getTargetOpt(source);
+    if (result == -1) {
+      throw new Mappings.NoElementException("");
+    }
+    return result;
   }
 
   @Override

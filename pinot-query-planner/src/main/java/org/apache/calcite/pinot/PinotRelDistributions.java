@@ -18,9 +18,16 @@
  */
 package org.apache.calcite.pinot;
 
+import com.google.common.base.Preconditions;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.commons.collections.MapUtils;
+import org.apache.pinot.spi.config.table.ColumnPartitionConfig;
+import org.apache.pinot.spi.config.table.SegmentPartitionConfig;
+import org.apache.pinot.spi.config.table.TableConfig;
 
 
 public class PinotRelDistributions {
@@ -43,5 +50,37 @@ public class PinotRelDistributions {
 
   public static PinotRelDistribution hash(List<Integer> keys, Integer numPartitions) {
     return new PinotRelDistribution(keys, numPartitions, DEFAULT_HASH_FUNCTION, RelDistribution.Type.HASH_DISTRIBUTED);
+  }
+
+  public static PinotRelDistribution hash(String columnName, Integer numPartitions, RelDataType rowType) {
+    int columnIndex = rowType.getFieldNames().indexOf(columnName);
+    Preconditions.checkState(columnIndex >= 0);
+    List<Integer> columnIndices = Collections.singletonList(columnIndex);
+    return PinotRelDistributions.hash(columnIndices, numPartitions);
+  }
+
+  public static PinotRelDistribution of(TableConfig tableConfig, RelDataType rowType) {
+    Map<String, ColumnPartitionConfig> partitionConfigMap = getColumnPartitionMap(tableConfig);
+    if (partitionConfigMap.size() == 1) {
+      String columnName = partitionConfigMap.keySet().iterator().next();
+      ColumnPartitionConfig columnPartitionConfig = partitionConfigMap.values().iterator().next();
+      Integer columnIndex = rowType.getFieldNames().indexOf(columnName);
+      List<Integer> columnIndices = Collections.singletonList(columnIndex);
+      return new PinotRelDistribution(columnIndices,
+          columnPartitionConfig.getNumPartitions(), columnPartitionConfig.getFunctionName(), RelDistribution.Type.HASH_DISTRIBUTED);
+    }
+    return PinotRelDistributions.ANY;
+  }
+
+  private static Map<String, ColumnPartitionConfig> getColumnPartitionMap(TableConfig tableConfig) {
+    if (tableConfig.getIndexingConfig() != null) {
+      if (tableConfig.getIndexingConfig().getSegmentPartitionConfig() != null) {
+        SegmentPartitionConfig segmentPartitionConfig = tableConfig.getIndexingConfig().getSegmentPartitionConfig();
+        if (MapUtils.isNotEmpty(segmentPartitionConfig.getColumnPartitionMap())) {
+          return segmentPartitionConfig.getColumnPartitionMap();
+        }
+      }
+    }
+    return Collections.emptyMap();
   }
 }

@@ -18,20 +18,21 @@
  */
 package org.apache.calcite.rel.rules;
 
-import com.google.common.base.Preconditions;
-import org.apache.calcite.pinot.PinotJoin;
+import org.apache.calcite.pinot.PinotPlannerSessionContext;
+import org.apache.calcite.pinot.PinotRelDistributionTraitDef;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
 
+import static org.apache.calcite.pinot.PinotRelDistributionTransformer.dispatch;
 
-public class LogicalToPinotRelNodeRule extends RelOptRule {
-  public static final LogicalToPinotRelNodeRule INSTANCE =
-      new LogicalToPinotRelNodeRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
-  protected LogicalToPinotRelNodeRule(RelBuilderFactory factory) {
+public class PinotRelDistributionRule extends RelOptRule {
+  public static final PinotRelDistributionRule INSTANCE =
+      new PinotRelDistributionRule(PinotRuleUtils.PINOT_REL_FACTORY);
+
+  public PinotRelDistributionRule(RelBuilderFactory factory) {
     super(operand(RelNode.class, any()), factory, null);
   }
 
@@ -40,14 +41,15 @@ public class LogicalToPinotRelNodeRule extends RelOptRule {
     if (call.rels.length < 1) {
       return false;
     }
-    Preconditions.checkState(call.rels.length == 1);
     RelNode relNode = call.rel(0);
-    return relNode instanceof LogicalJoin;
+    // Only match a node if it doesn't already have a PinotRelDistribution trait
+    return relNode.getTraitSet().getTrait(PinotRelDistributionTraitDef.INSTANCE) == null;
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    LogicalJoin logicalJoin = call.rel(0);
-    call.transformTo(PinotJoin.of(logicalJoin));
+    RelNode relNode = call.rel(0);
+    PinotPlannerSessionContext context = (PinotPlannerSessionContext) call.getPlanner().getContext();
+    call.transformTo(dispatch(relNode, context));
   }
 }

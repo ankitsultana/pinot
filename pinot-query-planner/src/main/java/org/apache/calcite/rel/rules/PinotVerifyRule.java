@@ -19,7 +19,7 @@
 package org.apache.calcite.rel.rules;
 
 import com.google.common.base.Preconditions;
-import org.apache.calcite.pinot.PinotRelParallelismTraitDef;
+import org.apache.calcite.pinot.PinotRelDistributionTraitDef;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
@@ -45,7 +45,7 @@ public class PinotVerifyRule extends RelOptRule {
   @Override
   public void onMatch(RelOptRuleCall call) {
     RelNode relNode = call.rel(0);
-    Preconditions.checkNotNull(relNode.getTraitSet().getTrait(PinotRelParallelismTraitDef.INSTANCE),
-        String.format("Parallelism not set for RelNode: %s", relNode.getClass()));
+    Preconditions.checkNotNull(relNode.getTraitSet().getTrait(PinotRelDistributionTraitDef.INSTANCE),
+        String.format("PinotRelDistribution not set for RelNode: %s", relNode.getClass()));
   }
 }
