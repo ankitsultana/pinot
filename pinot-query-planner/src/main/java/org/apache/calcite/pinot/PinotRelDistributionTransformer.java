@@ -129,6 +129,10 @@ public class PinotRelDistributionTransformer {
 
   public static Project applyProject(Project project, PinotPlannerSessionContext context) {
     GeneralMapping generalMapping = GeneralMapping.infer(project);
+    if (generalMapping == null) {
+      return (Project) project.copy(PinotTraitUtils.setDistribution(project.getInput().getTraitSet(),
+          PinotRelDistributions.ANY), project.getInputs());
+    }
     Mappings.TargetMapping targetMapping = generalMapping.asTargetMapping();
     RelTraitSet relTraitSet;
     if (targetMapping == null) {

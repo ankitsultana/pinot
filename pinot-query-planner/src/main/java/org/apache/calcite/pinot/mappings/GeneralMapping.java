@@ -20,7 +20,6 @@ package org.apache.calcite.pinot.mappings;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,7 +30,6 @@ import javax.annotation.Nullable;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.Project;
-import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
@@ -118,17 +116,15 @@ public class GeneralMapping implements Iterable<IntPair> {
     return generalMapping;
   }
 
-  public static GeneralMapping infer(Project project) {
+  // TODO: Review this.
+  public static @Nullable GeneralMapping infer(Project project) {
     GeneralMapping mapping = new GeneralMapping();
     for (int i = 0; i < project.getProjects().size(); i++) {
       RexNode p = project.getProjects().get(i);
       if (p instanceof RexInputRef) {
         mapping.add(((RexInputRef) p).getIndex(), i);
-      } else {
-        List<RexInputRef> rexNodes = exploreRexInputRef(p);
-        for (RexInputRef rexInputRef : rexNodes) {
-          mapping.add(rexInputRef.getIndex(), i);
-        }
+      } else if (!(p instanceof RexLiteral)) {
+        return null;
       }
     }
     return mapping;
@@ -153,22 +149,5 @@ public class GeneralMapping implements Iterable<IntPair> {
     GeneralMapping rightMapping = GeneralMapping.of(
         new OffsetTargetMapping(0, leftMapping.getSourceCount(), leftMapping.getSourceCount()));
     return Pair.of(leftMapping, rightMapping);
-  }
-
-  // TODO: Use RexShuttle.
-  private static List<RexInputRef> exploreRexInputRef(RexNode rexNode) {
-    if (rexNode instanceof RexCall) {
-      List<RexInputRef> result = new ArrayList<>();
-      RexCall rexCall = (RexCall) rexNode;
-      for (RexNode operand : rexCall.getOperands()) {
-        result.addAll(exploreRexInputRef(operand));
-      }
-      return result;
-    } else if (rexNode instanceof RexInputRef) {
-      return Collections.singletonList((RexInputRef) rexNode);
-    } else if (rexNode instanceof RexLiteral) {
-      return Collections.emptyList();
-    }
-    throw new UnsupportedOperationException(String.format("Found: %s", rexNode.getClass()));
   }
 }

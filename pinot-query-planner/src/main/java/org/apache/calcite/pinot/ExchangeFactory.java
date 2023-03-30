@@ -22,10 +22,12 @@ import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.calcite.pinot.mappings.GeneralMapping;
 import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
-import org.apache.calcite.pinot.traits.PinotTraitUtils;
+import org.apache.calcite.pinot.traits.PinotRelDistributions;
 import org.apache.calcite.plan.RelTrait;
+import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Exchange;
@@ -36,17 +38,24 @@ public class ExchangeFactory {
   }
 
   public static Exchange create(RelNode receiver, RelNode sender) {
+    if (receiver.getTraitSet().stream().anyMatch(x -> x.getTraitDef().equals(RelCollationTraitDef.INSTANCE))) {
+      // TODO: We don't do identity exchanges when RelCollation trait is present.
+      RelCollation collation = null;
+      PinotRelDistribution relDistribution = PinotRelDistributions.ANY;
+      for (RelTrait trait : receiver.getTraitSet()) {
+        if (trait.getTraitDef().equals(RelCollationTraitDef.INSTANCE)) {
+          collation = (RelCollation) trait;
+        } else if (trait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {
+          relDistribution = (PinotRelDistribution) trait;
+        }
+      }
+      return PinotSortExchange.create(sender, relDistribution, collation);
+    }
     List<RelTrait> unsatisfiedTraits = new ArrayList<>();
     for (RelTrait receiverTrait : receiver.getTraitSet()) {
       if (sender.getTraitSet().stream().noneMatch(receiverTrait::satisfies)) {
         unsatisfiedTraits.add(receiverTrait);
       }
-    }
-    // TODO: We don't do identity exchanges when RelCollation trait is present.
-    if (receiver.getTraitSet().stream().anyMatch(x -> x.getTraitDef().equals(RelCollationTraitDef.INSTANCE))) {
-      for (RelTrait trait : receiver.getTraitSet()) {
-      }
-      // Needs to be a PinotSortExchange
     }
     if (unsatisfiedTraits.isEmpty()) {
       return PinotExchange.createIdentity(sender);
