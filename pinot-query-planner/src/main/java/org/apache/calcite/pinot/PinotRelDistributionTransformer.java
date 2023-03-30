@@ -20,16 +20,19 @@ package org.apache.calcite.pinot;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
+import org.apache.calcite.pinot.mappings.GeneralMapping;
+import org.apache.calcite.pinot.traits.PinotRelDistribution;
+import org.apache.calcite.pinot.traits.PinotRelDistributions;
+import org.apache.calcite.pinot.traits.PinotTraitUtils;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
@@ -43,23 +46,28 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Values;
+import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalTableScan;
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
-import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rel.logical.LogicalWindow;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections.MapUtils;
 
 
 public class PinotRelDistributionTransformer {
 
+  // Supported window functions
+  // OTHER_FUNCTION supported are: BOOL_AND, BOOL_OR
+  private static final Set<SqlKind> SUPPORTED_WINDOW_FUNCTION_KIND = ImmutableSet.of(SqlKind.SUM, SqlKind.SUM0,
+      SqlKind.MIN, SqlKind.MAX, SqlKind.COUNT, SqlKind.OTHER_FUNCTION);
+
   private PinotRelDistributionTransformer() {
   }
 
+  // TODO: Ensure Collation is not copied over
   public static RelNode dispatch(RelNode relNode, PinotPlannerSessionContext context) {
     if (relNode instanceof TableScan) {
       return applyTableScan((TableScan) relNode, context);
@@ -75,6 +83,8 @@ public class PinotRelDistributionTransformer {
       return applyFilter((Filter) relNode, context);
     } else if (relNode instanceof Sort) {
       return applySort((Sort) relNode, context);
+    } else if (relNode instanceof Window) {
+      return applyWindow((Window) relNode, context);
     } else {
       throw new UnsupportedOperationException(String.format("Found: %s", relNode.getClass()));
     }
@@ -108,48 +118,23 @@ public class PinotRelDistributionTransformer {
     Preconditions.checkState(aggregate.getGroupSets().size() <= 1, "Grouping sets are not supported at the moment");
     RelTraitSet newTraitSet;
     if (aggregate.getGroupCount() == 0) {
-      newTraitSet = make(aggregate.getInput().getTraitSet(), PinotRelDistributions.SINGLETON);
+      newTraitSet = PinotTraitUtils.setDistribution(aggregate.getInput().getTraitSet(),
+          PinotRelDistributions.SINGLETON);
     } else {
-      Map<Integer, Integer> oldToNewIndex = new HashMap<>();
-      List<Integer> groupSet = aggregate.getGroupSet().asList();
-      for (int i = 0; i < groupSet.size(); i++) {
-        oldToNewIndex.put(groupSet.get(i), i);
-      }
-      newTraitSet = applyMapping(aggregate.getInput().getTraitSet(), MapBasedTargetMapping.of(oldToNewIndex));
+      GeneralMapping mapping = GeneralMapping.infer(aggregate);
+      newTraitSet = PinotTraitUtils.apply(aggregate.getInput().getTraitSet(), mapping.asTargetMapping());
     }
     return (Aggregate) aggregate.copy(newTraitSet, aggregate.getInputs());
   }
 
   public static Project applyProject(Project project, PinotPlannerSessionContext context) {
-    Map<Integer, Integer> oldToNewIndex = new HashMap<>();
-    boolean isComplex = false;
-    for (int i = 0; i < project.getProjects().size(); i++) {
-      RexNode p = project.getProjects().get(i);
-      int oldIndex = -1;
-      if (p instanceof RexInputRef) {
-        oldIndex = ((RexInputRef) p).getIndex();
-      } else {
-        List<RexInputRef> rexNodes = exploreRexInputRef(p);
-        if (rexNodes.size() == 1) {
-          oldIndex = rexNodes.get(0).getIndex();
-        } else if (rexNodes.size() > 1) {
-          isComplex = true;
-          break;
-        }
-      }
-      if (oldToNewIndex.containsKey(oldIndex)) {
-        isComplex = true;
-        break;
-      }
-      oldToNewIndex.put(oldIndex, i);
-    }
+    GeneralMapping generalMapping = GeneralMapping.infer(project);
+    Mappings.TargetMapping targetMapping = generalMapping.asTargetMapping();
     RelTraitSet relTraitSet;
-    if (isComplex) {
-      // TODO: Happens when either we have two columns in a RexCall or if duplicate columns. In this case we drop all
-      // DistributionTraits.
-      relTraitSet = make(project.getInput().getTraitSet(), PinotRelDistributions.ANY);
+    if (targetMapping == null) {
+      relTraitSet = PinotTraitUtils.setDistribution(project.getInput().getTraitSet(), PinotRelDistributions.ANY);
     } else {
-      relTraitSet = applyMapping(project.getInput().getTraitSet(), MapBasedTargetMapping.of(oldToNewIndex));
+      relTraitSet = PinotTraitUtils.apply(project.getInput().getTraitSet(), targetMapping);
     }
     return (Project) project.copy(relTraitSet, project.getInputs());
   }
@@ -157,8 +142,8 @@ public class PinotRelDistributionTransformer {
   public static Join applyJoin(Join join, PinotPlannerSessionContext context) {
     RelNode leftChild = join.getInput(0);
     RelNode rightChild = join.getInput(1);
-    Set<PinotRelDistribution> leftRelDistributions = filterPinotRelDistribution(leftChild.getTraitSet());
-    Set<PinotRelDistribution> rightRelDistributions = filterPinotRelDistribution(rightChild.getTraitSet());
+    Set<PinotRelDistribution> leftRelDistributions = PinotTraitUtils.asSet(leftChild.getTraitSet());
+    Set<PinotRelDistribution> rightRelDistributions = PinotTraitUtils.asSet(rightChild.getTraitSet());
     Optional<PinotRelDistribution> leftHashDistribution =
         leftRelDistributions.stream()
             .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).findFirst();
@@ -166,12 +151,12 @@ public class PinotRelDistributionTransformer {
         rightRelDistributions.stream()
             .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).findFirst();
     RelTraitSet joinTraits = RelTraitSet.createEmpty();
-    int leftFieldCount = leftChild.getRowType().getFieldNames().size();
-    OffsetTargetMapping offsetTargetMapping =
-        new OffsetTargetMapping(rightChild.getRowType().getFieldCount(), leftFieldCount);
+    GeneralMapping rightMapping = Objects.requireNonNull(GeneralMapping.infer(join).right);
+    Mappings.TargetMapping rightTargetMapping = Objects.requireNonNull(rightMapping.asTargetMapping());
     if (join.getJoinType().equals(JoinRelType.INNER)) {
       JoinInfo joinInfo = join.analyzeCondition();
       Preconditions.checkState(joinInfo.isEqui(), "non-equi joins not supported yet");
+      Preconditions.checkState(joinInfo.leftKeys.size() > 0 && joinInfo.rightKeys.size() > 0);
       int numPartitions = -1;
       if (leftHashDistribution.isPresent()) {
         numPartitions = leftHashDistribution.get().getNumPartitions();
@@ -191,10 +176,10 @@ public class PinotRelDistributionTransformer {
       }
       if (rightSatisfied) {
         for (RelTrait relTrait : rightChild.getTraitSet()) {
-          joinTraits.plus(relTrait.apply(offsetTargetMapping));
+          joinTraits.plus(relTrait.apply(rightTargetMapping));
         }
       } else {
-        joinTraits = joinTraits.plus(joinRequirement.get(1).apply(offsetTargetMapping));
+        joinTraits = joinTraits.plus(joinRequirement.get(1).apply(rightTargetMapping));
       }
     } else {
       throw new IllegalStateException("Only inner join supported right now");
@@ -202,6 +187,49 @@ public class PinotRelDistributionTransformer {
     return new LogicalJoin(join.getCluster(), joinTraits, join.getHints(), leftChild, rightChild, join.getCondition(),
         join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
         ImmutableList.copyOf(join.getSystemFieldList()));
+  }
+
+  public static Window applyWindow(Window window, PinotPlannerSessionContext context) {
+    // Perform all validations
+    Preconditions.checkState(window instanceof LogicalWindow);
+    validateWindows(window);
+
+    LogicalWindow logicalWindow = (LogicalWindow) window;
+    Window.Group windowGroup = window.groups.get(0);
+    if (windowGroup.keys.isEmpty() && windowGroup.orderKeys.getKeys().isEmpty()) {
+      return logicalWindow.copy(RelTraitSet.createEmpty().plus(PinotRelDistributions.SINGLETON),
+          logicalWindow.getInputs());
+    } else if (windowGroup.keys.isEmpty() && !windowGroup.orderKeys.getKeys().isEmpty()) {
+      return logicalWindow.copy(RelTraitSet.createEmpty().plus(windowGroup.orderKeys), logicalWindow.getInputs());
+    }
+    boolean isPartitionByOnly = isPartitionByOnlyQuery(windowGroup);
+
+    if (isPartitionByOnly) {
+      RelTraitSet baseTraits = PinotTraitUtils.removeCollations(window.getTraitSet());
+      Set<PinotRelDistribution> hashDistributions = PinotTraitUtils.asSet(baseTraits).stream()
+          .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).collect(Collectors.toSet());
+      if (hashDistributions.size() > 0) {
+        int numPartitions = hashDistributions.iterator().next().getNumPartitions();
+        if (numPartitions != -1) {
+          PinotRelDistribution desiredDistribution = PinotRelDistributions.hash(
+              windowGroup.keys.asList(), numPartitions);
+          for (PinotRelDistribution inputDistribution : hashDistributions) {
+            if (inputDistribution.satisfies(desiredDistribution)) {
+              return logicalWindow.copy(baseTraits, logicalWindow.getInputs());
+            }
+          }
+        }
+      }
+      PinotRelDistribution desiredDistribution = PinotRelDistributions.hash(windowGroup.keys.asList(), -1);
+      RelTraitSet traitsWithDistribution = PinotTraitUtils.setDistribution(baseTraits, desiredDistribution);
+      return logicalWindow.copy(traitsWithDistribution, logicalWindow.getInputs());
+    }
+    // partition-by with order-by
+    // TODO: It is possible to avoid shuffle here.
+    RelTraitSet relTraitSet = RelTraitSet.createEmpty()
+        .plus(PinotRelDistributions.hash(windowGroup.keys.asList(), -1))
+        .plus(windowGroup.orderKeys);
+    return logicalWindow.copy(relTraitSet, logicalWindow.getInputs());
   }
 
   public static Values applyValues(Values values, PinotPlannerSessionContext context) {
@@ -217,60 +245,54 @@ public class PinotRelDistributionTransformer {
     return sort.copy(newTraitSet, sort.getInputs());
   }
 
-  private static Set<PinotRelDistribution> filterPinotRelDistribution(RelTraitSet relTraitSet) {
-    Set<PinotRelDistribution> result = new HashSet<>();
-    for (RelTrait relTrait : relTraitSet) {
-      if (relTrait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {
-        result.add((PinotRelDistribution) relTrait);
-      }
+  private static boolean isPartitionByOnlyQuery(Window.Group windowGroup) {
+    boolean isPartitionByOnly = false;
+    if (windowGroup.orderKeys.getKeys().isEmpty()) {
+      return true;
     }
-    return result;
+
+    if (windowGroup.orderKeys.getKeys().size() == windowGroup.keys.asList().size()) {
+      Set<Integer> partitionByKeyList = new HashSet<>(windowGroup.keys.toList());
+      Set<Integer> orderByKeyList = new HashSet<>(windowGroup.orderKeys.getKeys());
+      isPartitionByOnly = partitionByKeyList.equals(orderByKeyList);
+    }
+    return isPartitionByOnly;
   }
 
-  private static RelTraitSet make(RelTraitSet inputTraits, PinotRelDistribution distribution) {
-    RelTraitSet result = RelTraitSet.createEmpty();
-    for (RelTrait trait : inputTraits) {
-      if (!trait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {
-        result = result.plus(trait);
-      }
-    }
-    return result.plus(distribution);
+  private static void validateWindows(Window window) {
+    int numGroups = window.groups.size();
+    // For Phase 1 we only handle single window groups
+    Preconditions.checkState(numGroups <= 1,
+        String.format("Currently only 1 window group is supported, query has %d groups", numGroups));
+
+    // Validate that only supported window aggregation functions are present
+    Window.Group windowGroup = window.groups.get(0);
+    validateWindowAggCallsSupported(windowGroup);
+
+    // Validate the frame
+    validateWindowFrames(windowGroup);
   }
 
-  private static RelTraitSet applyMapping(RelTraitSet inputTraits, @Nullable Mappings.TargetMapping mapping) {
-    RelTraitSet relTraitSet = RelTraitSet.createEmpty();
-    boolean added = false;
-    for (RelTrait trait : inputTraits) {
-      if (!trait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {
-        relTraitSet = relTraitSet.plus(trait);
-      } else {
-        PinotRelDistribution pinotRelDistribution = (PinotRelDistribution) trait;
-        PinotRelDistribution newDistribution = (PinotRelDistribution) pinotRelDistribution.apply(mapping);
-        if (!newDistribution.getType().equals(RelDistribution.Type.ANY)) {
-          added = true;
-          relTraitSet = relTraitSet.plus(newDistribution);
-        }
-      }
+  private static void validateWindowAggCallsSupported(Window.Group windowGroup) {
+    for (int i = 0; i < windowGroup.aggCalls.size(); i++) {
+      Window.RexWinAggCall aggCall = windowGroup.aggCalls.get(i);
+      SqlKind aggKind = aggCall.getKind();
+      Preconditions.checkState(SUPPORTED_WINDOW_FUNCTION_KIND.contains(aggKind),
+          String.format("Unsupported Window function kind: %s. Only aggregation functions are supported!", aggKind));
     }
-    if (!added) {
-      relTraitSet = relTraitSet.plus(PinotRelDistributions.ANY);
-    }
-    return relTraitSet;
   }
 
-  private static List<RexInputRef> exploreRexInputRef(RexNode rexNode) {
-    if (rexNode instanceof RexCall) {
-      List<RexInputRef> result = new ArrayList<>();
-      RexCall rexCall = (RexCall) rexNode;
-      for (RexNode operand : rexCall.getOperands()) {
-        result.addAll(exploreRexInputRef(operand));
-      }
-      return result;
-    } else if (rexNode instanceof RexInputRef) {
-      return Collections.singletonList((RexInputRef) rexNode);
-    } else if (rexNode instanceof RexLiteral) {
-      return Collections.emptyList();
+  private static void validateWindowFrames(Window.Group windowGroup) {
+    // For Phase 1 only the default frame is supported
+    Preconditions.checkState(!windowGroup.isRows, "Default frame must be of type RANGE and not ROWS");
+    Preconditions.checkState(windowGroup.lowerBound.isPreceding() && windowGroup.lowerBound.isUnbounded(),
+        String.format("Lower bound must be UNBOUNDED PRECEDING but it is: %s", windowGroup.lowerBound));
+    if (windowGroup.orderKeys.getKeys().isEmpty()) {
+      Preconditions.checkState(windowGroup.upperBound.isFollowing() && windowGroup.upperBound.isUnbounded(),
+          String.format("Upper bound must be UNBOUNDED PRECEDING but it is: %s", windowGroup.upperBound));
+    } else {
+      Preconditions.checkState(windowGroup.upperBound.isCurrentRow(),
+          String.format("Upper bound must be CURRENT ROW but it is: %s", windowGroup.upperBound));
     }
-    throw new UnsupportedOperationException(String.format("Found: %s", rexNode.getClass()));
   }
 }

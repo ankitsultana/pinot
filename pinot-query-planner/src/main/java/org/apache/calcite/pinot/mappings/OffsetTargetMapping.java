@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.calcite.pinot;
+package org.apache.calcite.pinot.mappings;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;

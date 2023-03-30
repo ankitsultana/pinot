@@ -19,7 +19,7 @@
 package org.apache.calcite.rel.rules;
 
 import org.apache.calcite.pinot.PinotPlannerSessionContext;
-import org.apache.calcite.pinot.PinotRelDistributionTraitDef;
+import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
 import org.apache.calcite.pinot.PinotRelDistributionTransformer;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -27,11 +27,11 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.tools.RelBuilderFactory;
 
 
-public class PinotRelDistributionRule extends RelOptRule {
-  public static final PinotRelDistributionRule INSTANCE =
-      new PinotRelDistributionRule(PinotRuleUtils.PINOT_REL_FACTORY);
+public class PinotTraitAssignmentRule extends RelOptRule {
+  public static final PinotTraitAssignmentRule INSTANCE =
+      new PinotTraitAssignmentRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
-  public PinotRelDistributionRule(RelBuilderFactory factory) {
+  public PinotTraitAssignmentRule(RelBuilderFactory factory) {
     super(operand(RelNode.class, any()), factory, null);
   }
 

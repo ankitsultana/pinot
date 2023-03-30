@@ -19,7 +19,7 @@
 package org.apache.calcite.rel.rules;
 
 import com.google.common.base.Preconditions;
-import org.apache.calcite.pinot.PinotRelDistributionTraitDef;
+import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;

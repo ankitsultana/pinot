@@ -18,6 +18,7 @@
  */
 package org.apache.calcite.pinot;
 
+import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;

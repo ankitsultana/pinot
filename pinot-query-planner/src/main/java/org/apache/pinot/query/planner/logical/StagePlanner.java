@@ -21,7 +21,7 @@ package org.apache.pinot.query.planner.logical;
 import java.util.List;
 import java.util.Map;
 import org.apache.calcite.pinot.PinotExchange;
-import org.apache.calcite.pinot.PinotRelDistribution;
+import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;

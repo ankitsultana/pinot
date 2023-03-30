@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.calcite.pinot;
+package org.apache.calcite.pinot.mappings;
 
 import java.util.Iterator;
 import java.util.Map;
