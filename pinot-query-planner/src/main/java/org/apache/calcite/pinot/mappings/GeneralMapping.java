@@ -33,9 +33,9 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.mapping.IntPair;
 import org.apache.calcite.util.mapping.Mappings;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 // TODO: Extend CoreMappings?
@@ -147,7 +147,7 @@ public class GeneralMapping implements Iterable<IntPair> {
     GeneralMapping leftMapping =
         GeneralMapping.of(new Mappings.IdentityMapping(join.getLeft().getRowType().getFieldCount()));
     GeneralMapping rightMapping = GeneralMapping.of(
-        new OffsetTargetMapping(0, leftMapping.getSourceCount(), leftMapping.getSourceCount()));
+        new OffsetTargetMapping(0, join.getRight().getRowType().getFieldCount(), leftMapping.getSourceCount()));
     return Pair.of(leftMapping, rightMapping);
   }
 }

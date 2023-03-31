@@ -53,6 +53,7 @@ import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.util.ImmutableIntList;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections.MapUtils;
 
@@ -155,12 +156,17 @@ public class PinotRelDistributionTransformer {
         rightRelDistributions.stream()
             .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).findFirst();
     RelTraitSet joinTraits = RelTraitSet.createEmpty();
-    GeneralMapping rightMapping = Objects.requireNonNull(GeneralMapping.infer(join).right);
+    GeneralMapping rightMapping = Objects.requireNonNull(GeneralMapping.infer(join).getRight());
     Mappings.TargetMapping rightTargetMapping = Objects.requireNonNull(rightMapping.asTargetMapping());
-    if (join.getJoinType().equals(JoinRelType.INNER)) {
-      JoinInfo joinInfo = join.analyzeCondition();
-      Preconditions.checkState(joinInfo.isEqui(), "non-equi joins not supported yet");
-      Preconditions.checkState(joinInfo.leftKeys.size() > 0 && joinInfo.rightKeys.size() > 0);
+    JoinInfo joinInfo = join.analyzeCondition();
+    if (!joinInfo.isEqui() || joinInfo.leftKeys.isEmpty()) {
+      int leftFieldCount = join.getLeft().getRowType().getFieldCount();
+      int rightFieldCount = join.getRight().getRowType().getFieldCount();
+      joinTraits = RelTraitSet.createEmpty()
+          .plus(PinotRelDistributions.random(ImmutableIntList.range(0, leftFieldCount)))
+          .plus(PinotRelDistributions.broadcast(
+              ImmutableIntList.range(leftFieldCount, leftFieldCount + rightFieldCount)));
+    } else if (join.getJoinType().equals(JoinRelType.INNER)) {
       int numPartitions = -1;
       if (leftHashDistribution.isPresent()) {
         numPartitions = leftHashDistribution.get().getNumPartitions();

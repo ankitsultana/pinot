@@ -19,52 +19,111 @@
 package org.apache.calcite.pinot;
 
 import com.google.common.base.Preconditions;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.Set;
 import org.apache.calcite.pinot.mappings.GeneralMapping;
 import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
 import org.apache.calcite.pinot.traits.PinotRelDistributions;
-import org.apache.calcite.plan.RelTrait;
-import org.apache.calcite.rel.RelCollation;
-import org.apache.calcite.rel.RelCollationTraitDef;
-import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.pinot.traits.PinotTraitUtils;
+import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Exchange;
+import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.core.Window;
+import org.apache.calcite.util.mapping.Mappings;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 public class ExchangeFactory {
   private ExchangeFactory() {
   }
 
-  public static Exchange create(RelNode receiver, RelNode sender) {
-    if (receiver.getTraitSet().stream().anyMatch(x -> x.getTraitDef().equals(RelCollationTraitDef.INSTANCE))) {
-      // TODO: We don't do identity exchanges when RelCollation trait is present.
-      RelCollation collation = null;
-      PinotRelDistribution relDistribution = PinotRelDistributions.ANY;
-      for (RelTrait trait : receiver.getTraitSet()) {
-        if (trait.getTraitDef().equals(RelCollationTraitDef.INSTANCE)) {
-          collation = (RelCollation) trait;
-        } else if (trait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {
-          relDistribution = (PinotRelDistribution) trait;
+  public static Pair<PinotExchange, PinotExchange> create(Join join) {
+    Pair<Set<PinotRelDistribution>, Set<PinotRelDistribution>> joinDistributions =
+        PinotTraitUtils.getJoinDistributions(join);
+    PinotExchange leftExchange = null;
+    RelDistribution.Type leftDistributionType = joinDistributions.getLeft().iterator().next().getType();
+    if (leftDistributionType.equals(RelDistribution.Type.HASH_DISTRIBUTED)) {
+      boolean allTraitsSatisfied = true;
+      for (PinotRelDistribution requiredLeftDistribution : joinDistributions.getLeft()) {
+        boolean isTraitSatisfied = join.getLeft().getTraitSet()
+            .stream().anyMatch(inputTrait -> inputTrait.satisfies(requiredLeftDistribution));
+        if (!isTraitSatisfied) {
+          allTraitsSatisfied = false;
+          break;
         }
       }
-      return PinotSortExchange.create(sender, relDistribution, collation);
-    }
-    List<RelTrait> unsatisfiedTraits = new ArrayList<>();
-    for (RelTrait receiverTrait : receiver.getTraitSet()) {
-      if (sender.getTraitSet().stream().noneMatch(receiverTrait::satisfies)) {
-        unsatisfiedTraits.add(receiverTrait);
+      if (allTraitsSatisfied) {
+        leftExchange = PinotExchange.createIdentity(join.getLeft());
       }
+    } else if (leftDistributionType.equals(RelDistribution.Type.RANDOM_DISTRIBUTED)) {
+      leftExchange = PinotExchange.create(join.getLeft(), PinotRelDistributions.RANDOM);
+    } else {
+      throw new IllegalStateException(String.format("Found unexpected distribution for left-child of join: %s",
+          leftDistributionType));
     }
-    if (unsatisfiedTraits.isEmpty()) {
-      return PinotExchange.createIdentity(sender);
+
+    PinotExchange rightExchange = null;
+    RelDistribution.Type rightDistributionType = joinDistributions.getRight().iterator().next().getType();
+    if (rightDistributionType.equals(RelDistribution.Type.HASH_DISTRIBUTED)) {
+      GeneralMapping rightMapping = GeneralMapping.infer(join).getRight().inverse();
+      Mappings.TargetMapping joinToRightInput = rightMapping.asTargetMapping();
+      boolean allTraitsSatisfied = true;
+      for (PinotRelDistribution rightDistribution : joinDistributions.getRight()) {
+        PinotRelDistribution requiredRightDistribution = rightDistribution.apply(joinToRightInput);
+        boolean isTraitSatisfied = join.getRight().getTraitSet()
+            .stream().anyMatch(inputTrait -> inputTrait.satisfies(requiredRightDistribution));
+        if (!isTraitSatisfied) {
+          allTraitsSatisfied = false;
+          break;
+        }
+      }
+      if (allTraitsSatisfied) {
+        rightExchange = PinotExchange.createIdentity(join.getLeft());
+      } else {
+        Preconditions.checkState(joinDistributions.getRight().size() == 1);
+        PinotRelDistribution exchangeDistribution =
+            joinDistributions.getRight().stream().iterator().next().apply(joinToRightInput);
+        rightExchange = PinotExchange.create(join.getRight(), exchangeDistribution);
+      }
+    } else if (rightDistributionType.equals(RelDistribution.Type.BROADCAST_DISTRIBUTED)) {
+      rightExchange = PinotExchange.create(join.getRight(), PinotRelDistributions.BROADCAST);
+    } else {
+      throw new IllegalStateException(String.format("Found unexpected distribution for right-child of join: %s",
+          rightDistributionType));
     }
-    Preconditions.checkState(receiver.getTraitSet().size() == 1);
-    Preconditions.checkState(receiver.getTraitSet().stream()
-        .allMatch(x -> x.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)));
-    PinotRelDistribution onlyTrait =
-        receiver.getTraitSet().stream().map(x -> (PinotRelDistribution) x).collect(Collectors.toList()).get(0);
-    return new PinotExchange(receiver.getCluster(), );
+    return Pair.of(leftExchange, rightExchange);
+  }
+
+  public static PinotExchange create(Aggregate aggregate) {
+     PinotRelDistribution distribution = Objects.requireNonNull(aggregate.getTraitSet().getDistribution());
+     if (distribution.getType().equals(RelDistribution.Type.SINGLETON)) {
+       return PinotExchange.create(aggregate.getInput(), PinotRelDistributions.SINGLETON);
+     }
+     Preconditions.checkState(distribution.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED),
+         String.format("Found unexpected distribution-type for aggregate: %s", distribution.getType()));
+     List<PinotRelDistribution> distributionTraits =
+         Objects.requireNonNull(aggregate.getTraitSet().getTraits(PinotRelDistributionTraitDef.INSTANCE));
+     Mappings.TargetMapping aggToInput = GeneralMapping.infer(aggregate).inverse().asTargetMapping();
+     boolean allTraitsSatisfied = true;
+     for (PinotRelDistribution aggDistribution : distributionTraits) {
+       PinotRelDistribution requiredTrait = aggDistribution.apply(aggToInput);
+       Preconditions.checkNotNull(requiredTrait, "Indicates a bug in setting traits");
+       if (aggregate.getInput().getTraitSet().stream().noneMatch(inputTrait -> inputTrait.satisfies(requiredTrait))) {
+         allTraitsSatisfied = false;
+         break;
+       }
+     }
+     if (allTraitsSatisfied) {
+       return PinotExchange.createIdentity(aggregate.getInput());
+     }
+     Preconditions.checkState(distributionTraits.size() == 1);
+     return PinotExchange.create(aggregate.getInput(), distributionTraits.get(0).apply(aggToInput));
+  }
+
+  public static Exchange create(Window window) {
+    throw new UnsupportedOperationException("TODO");
   }
 }

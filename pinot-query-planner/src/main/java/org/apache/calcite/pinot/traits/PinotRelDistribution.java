@@ -61,7 +61,7 @@ public class PinotRelDistribution implements RelDistribution {
   }
 
   @Override
-  public RelDistribution apply(@Nullable Mappings.TargetMapping mapping) {
+  public PinotRelDistribution apply(@Nullable Mappings.TargetMapping mapping) {
     if (_keys.isEmpty()) {
       return this;
     } else if (mapping == null) {

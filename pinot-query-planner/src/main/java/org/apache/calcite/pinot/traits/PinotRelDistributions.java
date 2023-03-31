@@ -59,6 +59,14 @@ public class PinotRelDistributions {
     return PinotRelDistributions.hash(columnIndices, numPartitions);
   }
 
+  public static PinotRelDistribution broadcast(List<Integer> keys) {
+    return new PinotRelDistribution(keys, null, null, RelDistribution.Type.BROADCAST_DISTRIBUTED);
+  }
+
+  public static PinotRelDistribution random(List<Integer> keys) {
+    return new PinotRelDistribution(keys, null, null, RelDistribution.Type.RANDOM_DISTRIBUTED);
+  }
+
   public static PinotRelDistribution of(TableConfig tableConfig, RelDataType rowType) {
     Map<String, ColumnPartitionConfig> partitionConfigMap = getColumnPartitionMap(tableConfig);
     if (partitionConfigMap.size() == 1) {

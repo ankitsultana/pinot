@@ -18,6 +18,7 @@
  */
 package org.apache.calcite.pinot.traits;
 
+import com.google.common.base.Preconditions;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -25,10 +26,17 @@ import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.util.mapping.Mappings;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 public class PinotTraitUtils {
+
+  private PinotTraitUtils() {
+  }
+
   public static RelTraitSet apply(RelTraitSet inputTraits, Mappings.TargetMapping mapping) {
     RelTraitSet relTraitSet = RelTraitSet.createEmpty();
     boolean added = false;
@@ -78,6 +86,24 @@ public class PinotTraitUtils {
       }
     }
     return result;
+  }
+
+  public static Pair<Set<PinotRelDistribution>, Set<PinotRelDistribution>> getJoinDistributions(Join join) {
+    Set<PinotRelDistribution> leftDistributions = new HashSet<>();
+    Set<PinotRelDistribution> rightDistributions = new HashSet<>();
+    int leftFieldCount = join.getLeft().getRowType().getFieldCount();
+    for (RelTrait trait : join.getTraitSet()) {
+      if (trait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {
+        PinotRelDistribution pinotDistribution = (PinotRelDistribution) trait;
+        Preconditions.checkState(CollectionUtils.isNotEmpty(pinotDistribution.getKeys()));
+        if (pinotDistribution.getKeys().stream().min(Integer::compareTo).orElseThrow() >= leftFieldCount) {
+          rightDistributions.add(pinotDistribution);
+        } else {
+          leftDistributions.add(pinotDistribution);
+        }
+      }
+    }
+    return Pair.of(leftDistributions, rightDistributions);
   }
 
   public static RelTraitSet removeCollations(RelTraitSet relTraitSet) {

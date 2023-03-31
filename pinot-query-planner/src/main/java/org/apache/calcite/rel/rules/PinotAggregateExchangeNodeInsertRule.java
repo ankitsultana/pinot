@@ -27,8 +27,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.calcite.pinot.ExchangeFactory;
+import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.mappings.GeneralMapping;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTrait;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
@@ -52,7 +57,6 @@ import org.apache.calcite.sql.fun.SqlSumEmptyIsZeroAggFunction;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.apache.calcite.util.ImmutableIntList;
 
 
 /**
@@ -125,25 +129,53 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
       return;
     }
 
-    // 1. attach leaf agg RelHint to original agg.
     ImmutableList<RelHint> newLeafAggHints =
         new ImmutableList.Builder<RelHint>().addAll(oldHints).add(INTERMEDIATE_STAGE_HINT).build();
-    Aggregate newLeafAgg =
-        new LogicalAggregate(oldAggRel.getCluster(), oldAggRel.getTraitSet(), newLeafAggHints, oldAggRel.getInput(),
+    RelTraitSet oldAggTraits = oldAggRel.getInput().getTraitSet();
+    GeneralMapping inputToAggMapping = GeneralMapping.infer(oldAggRel);
+    RelTraitSet newPartialAggTraits = RelTraitSet.createEmpty();
+    for (RelTrait oldTrait : oldAggTraits) {
+      RelTrait newTrait = oldTrait.apply(inputToAggMapping.asTargetMapping());
+      if (newTrait != null) {
+        newPartialAggTraits = newPartialAggTraits.plus(newTrait);
+      }
+    }
+    Aggregate newPartialAgg =
+        new LogicalAggregate(oldAggRel.getCluster(), newPartialAggTraits, newLeafAggHints, oldAggRel.getInput(),
             oldAggRel.getGroupSet(), oldAggRel.getGroupSets(), oldAggRel.getAggCallList());
 
-    // 2. attach exchange.
-    List<Integer> groupSetIndices = ImmutableIntList.range(0, oldAggRel.getGroupCount());
-    LogicalExchange exchange = null;
-    if (groupSetIndices.size() == 0) {
-      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(Collections.emptyList()));
-    } else {
-      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(groupSetIndices));
+    RelNode newAggNode = makeFullAggNode(oldAggRel, newPartialAgg);
+    call.transformTo(newAggNode);
+  }
+
+  private Aggregate makeFullAggNode(Aggregate oldAggRel, Aggregate newPartialAgg) {
+    RexBuilder rexBuilder = new RexBuilder(oldAggRel.getCluster().getTypeFactory());
+
+    final int nGroups = oldAggRel.getGroupCount();
+    for (int i = 0; i < nGroups; i++) {
+      rexBuilder.makeInputRef(oldAggRel, i);
     }
 
-    // 3. attach intermediate agg stage.
-    RelNode newAggNode = makeNewIntermediateAgg(call, oldAggRel, exchange, true, null, null);
-    call.transformTo(newAggNode);
+    // create new aggregate function calls from exchange input.
+    List<AggregateCall> oldCalls = oldAggRel.getAggCallList();
+    List<AggregateCall> newCalls = new ArrayList<>();
+    Map<AggregateCall, RexNode> aggCallMapping = new HashMap<>();
+
+    for (int oldCallIndex = 0; oldCallIndex < oldCalls.size(); oldCallIndex++) {
+      AggregateCall oldCall = oldCalls.get(oldCallIndex);
+      convertAggCall(rexBuilder, oldAggRel, oldCallIndex, oldCall, newCalls, aggCallMapping,
+          true, null);
+    }
+
+    ImmutableList<RelHint> orgHints = oldAggRel.getHints();
+    ImmutableList<RelHint> newFullAggHints =
+        new ImmutableList.Builder<RelHint>().addAll(orgHints).add(FINAL_STAGE_HINT).build();
+    ImmutableBitSet groupSet = ImmutableBitSet.range(nGroups);
+    LogicalAggregate tempFullAgg = new LogicalAggregate(newPartialAgg.getCluster(), oldAggRel.getTraitSet(),
+        newFullAggHints, newPartialAgg, groupSet, null, newCalls);
+    PinotExchange exchange = ExchangeFactory.create(tempFullAgg);
+    return new LogicalAggregate(tempFullAgg.getCluster(), tempFullAgg.getTraitSet(), tempFullAgg.getHints(),
+        exchange, tempFullAgg.getGroupSet(), tempFullAgg.getGroupSets(), tempFullAgg.getAggCallList());
   }
 
   private RelNode makeNewIntermediateAgg(RelOptRuleCall ruleCall, Aggregate oldAggRel, Exchange exchange,
