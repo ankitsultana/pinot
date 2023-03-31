@@ -57,6 +57,8 @@ import org.apache.calcite.util.ImmutableIntList;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections.MapUtils;
 
+import static org.apache.calcite.plan.PinotTraitUtils.asSet;
+
 
 public class PinotRelDistributionTransformer {
 
@@ -123,7 +125,19 @@ public class PinotRelDistributionTransformer {
           PinotRelDistributions.SINGLETON);
     } else {
       GeneralMapping mapping = GeneralMapping.infer(aggregate);
-      newTraitSet = PinotTraitUtils.apply(aggregate.getInput().getTraitSet(), mapping.asTargetMapping());
+      Set<PinotRelDistribution> inputDistributions = PinotTraitUtils.asSet(aggregate.getInput().getTraitSet());
+      int numPartitions = -1;
+      if (inputDistributions.size() > 0 && inputDistributions.stream().iterator().next().getType().equals(
+          RelDistribution.Type.HASH_DISTRIBUTED)) {
+        numPartitions = inputDistributions.stream().iterator().next().getNumPartitions();
+      }
+      RelTrait requiredTrait = PinotRelDistributions.hash(aggregate.getGroupSet().asList(), numPartitions);
+      if (aggregate.getInput().getTraitSet().stream().anyMatch(inputTrait -> inputTrait.satisfies(requiredTrait))) {
+        newTraitSet = aggregate.getInput().getTraitSet().apply(mapping.asTargetMapping());
+      } else {
+        newTraitSet = PinotTraitUtils.resetDistribution(aggregate.getInput().getTraitSet(),
+            PinotRelDistributions.hash(aggregate.getGroupSet().asList(), -1).apply(mapping.asTargetMapping()));
+      }
     }
     return (Aggregate) aggregate.copy(newTraitSet, aggregate.getInputs());
   }
@@ -147,8 +161,8 @@ public class PinotRelDistributionTransformer {
   public static Join applyJoin(Join join, PinotPlannerSessionContext context) {
     RelNode leftChild = join.getInput(0);
     RelNode rightChild = join.getInput(1);
-    Set<PinotRelDistribution> leftRelDistributions = PinotTraitUtils.asSet(leftChild.getTraitSet());
-    Set<PinotRelDistribution> rightRelDistributions = PinotTraitUtils.asSet(rightChild.getTraitSet());
+    Set<PinotRelDistribution> leftRelDistributions = asSet(leftChild.getTraitSet());
+    Set<PinotRelDistribution> rightRelDistributions = asSet(rightChild.getTraitSet());
     Optional<PinotRelDistribution> leftHashDistribution =
         leftRelDistributions.stream()
             .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).findFirst();
@@ -218,7 +232,7 @@ public class PinotRelDistributionTransformer {
 
     if (isPartitionByOnly) {
       RelTraitSet baseTraits = PinotTraitUtils.removeCollations(window.getTraitSet());
-      Set<PinotRelDistribution> hashDistributions = PinotTraitUtils.asSet(baseTraits).stream()
+      Set<PinotRelDistribution> hashDistributions = asSet(baseTraits).stream()
           .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).collect(Collectors.toSet());
       if (hashDistributions.size() > 0) {
         int numPartitions = hashDistributions.iterator().next().getNumPartitions();

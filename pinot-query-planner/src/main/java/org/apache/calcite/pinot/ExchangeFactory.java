@@ -76,6 +76,8 @@ public class ExchangeFactory {
       boolean allTraitsSatisfied = true;
       for (PinotRelDistribution rightDistribution : joinDistributions.getRight()) {
         PinotRelDistribution requiredRightDistribution = rightDistribution.apply(joinToRightInput);
+        // Right distribution can never be "any".
+        Preconditions.checkState(!requiredRightDistribution.getType().equals(RelDistribution.Type.ANY));
         boolean isTraitSatisfied = join.getRight().getTraitSet()
             .stream().anyMatch(inputTrait -> inputTrait.satisfies(requiredRightDistribution));
         if (!isTraitSatisfied) {
@@ -101,7 +103,8 @@ public class ExchangeFactory {
   }
 
   public static PinotExchange create(Aggregate aggregate) {
-     PinotRelDistribution distribution = Objects.requireNonNull(aggregate.getTraitSet().getDistribution());
+     Set<PinotRelDistribution> distributions = PinotTraitUtils.asSet(aggregate.getTraitSet());
+     PinotRelDistribution distribution = distributions.iterator().next();
      if (distribution.getType().equals(RelDistribution.Type.SINGLETON)) {
        return PinotExchange.create(aggregate.getInput(), PinotRelDistributions.SINGLETON);
      }
