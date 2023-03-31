@@ -18,36 +18,27 @@
  */
 package org.apache.calcite.rel.rules;
 
-import com.google.common.base.Preconditions;
-import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
+import org.apache.calcite.pinot.PinotJoin;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
-import org.apache.commons.collections.CollectionUtils;
 
 
-public class PinotVerifyRule extends RelOptRule {
-  public static final PinotVerifyRule INSTANCE = new PinotVerifyRule(PinotRuleUtils.PINOT_REL_FACTORY);
+public class LogicalToPinotNodeRule extends RelOptRule {
+  public static final LogicalToPinotNodeRule INSTANCE
+      = new LogicalToPinotNodeRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
-  protected PinotVerifyRule(RelBuilderFactory factory) {
-    super(operand(RelNode.class, any()), factory, null);
-  }
-
-  @Override
-  public boolean matches(RelOptRuleCall call) {
-    if (call.rels.length < 1) {
-      return false;
-    }
-    Preconditions.checkState(call.rels.length == 1);
-    return true;
+  private LogicalToPinotNodeRule(RelBuilderFactory factory) {
+    super(operand(Join.class, any()), factory, null);
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    RelNode relNode = call.rel(0);
-    Preconditions.checkState(
-        CollectionUtils.isNotEmpty(relNode.getTraitSet().getTraits(PinotRelDistributionTraitDef.INSTANCE)),
-        String.format("PinotRelDistribution not set for RelNode: %s", relNode.getClass()));
+    Join join = call.rel(0);
+    if (join instanceof LogicalJoin) {
+      call.transformTo(PinotJoin.of((LogicalJoin) join));
+    }
   }
 }

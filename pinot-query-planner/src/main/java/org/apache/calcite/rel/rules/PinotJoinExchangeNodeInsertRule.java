@@ -21,6 +21,7 @@ package org.apache.calcite.rel.rules;
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.pinot.ExchangeFactory;
 import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.PinotJoin;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.core.Join;
@@ -62,6 +63,6 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
             join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
 
-    call.transformTo(newJoinNode);
+    call.transformTo(PinotJoin.of(newJoinNode));
   }
 }

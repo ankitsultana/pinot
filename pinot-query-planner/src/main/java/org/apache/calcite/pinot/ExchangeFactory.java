@@ -26,7 +26,7 @@ import org.apache.calcite.pinot.mappings.GeneralMapping;
 import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
 import org.apache.calcite.pinot.traits.PinotRelDistributions;
-import org.apache.calcite.pinot.traits.PinotTraitUtils;
+import org.apache.calcite.plan.PinotTraitUtils;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Exchange;
@@ -57,6 +57,9 @@ public class ExchangeFactory {
       }
       if (allTraitsSatisfied) {
         leftExchange = PinotExchange.createIdentity(join.getLeft());
+      } else {
+        Preconditions.checkState(joinDistributions.getLeft().size() == 1);
+        leftExchange = PinotExchange.create(join.getLeft(), joinDistributions.getLeft().iterator().next());
       }
     } else if (leftDistributionType.equals(RelDistribution.Type.RANDOM_DISTRIBUTED)) {
       leftExchange = PinotExchange.create(join.getLeft(), PinotRelDistributions.RANDOM);
@@ -81,7 +84,7 @@ public class ExchangeFactory {
         }
       }
       if (allTraitsSatisfied) {
-        rightExchange = PinotExchange.createIdentity(join.getLeft());
+        rightExchange = PinotExchange.createIdentity(join.getRight());
       } else {
         Preconditions.checkState(joinDistributions.getRight().size() == 1);
         PinotRelDistribution exchangeDistribution =

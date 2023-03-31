@@ -100,7 +100,7 @@ public class GeneralMapping implements Iterable<IntPair> {
     for (Map.Entry<Integer, Set<Integer>> entry : map.entrySet()) {
       int source = entry.getKey();
       for (Integer target : entry.getValue()) {
-        result.add(target, source);
+        result.add(source, target);
       }
     }
     return result;

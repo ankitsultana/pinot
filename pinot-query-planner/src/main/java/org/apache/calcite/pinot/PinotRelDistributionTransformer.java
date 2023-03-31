@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 import org.apache.calcite.pinot.mappings.GeneralMapping;
 import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.pinot.traits.PinotRelDistributions;
-import org.apache.calcite.pinot.traits.PinotTraitUtils;
+import org.apache.calcite.plan.PinotTraitUtils;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
@@ -119,7 +119,7 @@ public class PinotRelDistributionTransformer {
     Preconditions.checkState(aggregate.getGroupSets().size() <= 1, "Grouping sets are not supported at the moment");
     RelTraitSet newTraitSet;
     if (aggregate.getGroupCount() == 0) {
-      newTraitSet = PinotTraitUtils.setDistribution(aggregate.getInput().getTraitSet(),
+      newTraitSet = PinotTraitUtils.resetDistribution(aggregate.getInput().getTraitSet(),
           PinotRelDistributions.SINGLETON);
     } else {
       GeneralMapping mapping = GeneralMapping.infer(aggregate);
@@ -131,13 +131,13 @@ public class PinotRelDistributionTransformer {
   public static Project applyProject(Project project, PinotPlannerSessionContext context) {
     GeneralMapping generalMapping = GeneralMapping.infer(project);
     if (generalMapping == null) {
-      return (Project) project.copy(PinotTraitUtils.setDistribution(project.getInput().getTraitSet(),
+      return (Project) project.copy(PinotTraitUtils.resetDistribution(project.getInput().getTraitSet(),
           PinotRelDistributions.ANY), project.getInputs());
     }
     Mappings.TargetMapping targetMapping = generalMapping.asTargetMapping();
     RelTraitSet relTraitSet;
     if (targetMapping == null) {
-      relTraitSet = PinotTraitUtils.setDistribution(project.getInput().getTraitSet(), PinotRelDistributions.ANY);
+      relTraitSet = PinotTraitUtils.resetDistribution(project.getInput().getTraitSet(), PinotRelDistributions.ANY);
     } else {
       relTraitSet = PinotTraitUtils.apply(project.getInput().getTraitSet(), targetMapping);
     }
@@ -155,18 +155,19 @@ public class PinotRelDistributionTransformer {
     Optional<PinotRelDistribution> rightHashDistribution =
         rightRelDistributions.stream()
             .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).findFirst();
-    RelTraitSet joinTraits = RelTraitSet.createEmpty();
+    RelTraitSet joinTraits;
     GeneralMapping rightMapping = Objects.requireNonNull(GeneralMapping.infer(join).getRight());
     Mappings.TargetMapping rightTargetMapping = Objects.requireNonNull(rightMapping.asTargetMapping());
     JoinInfo joinInfo = join.analyzeCondition();
     if (!joinInfo.isEqui() || joinInfo.leftKeys.isEmpty()) {
       int leftFieldCount = join.getLeft().getRowType().getFieldCount();
       int rightFieldCount = join.getRight().getRowType().getFieldCount();
-      joinTraits = RelTraitSet.createEmpty()
-          .plus(PinotRelDistributions.random(ImmutableIntList.range(0, leftFieldCount)))
-          .plus(PinotRelDistributions.broadcast(
-              ImmutableIntList.range(leftFieldCount, leftFieldCount + rightFieldCount)));
+      joinTraits = PinotTraitUtils.toRelTraitSet(ImmutableSet.of(
+          PinotRelDistributions.random(ImmutableIntList.range(0, leftFieldCount)),
+          PinotRelDistributions.broadcast(
+              ImmutableIntList.range(leftFieldCount, leftFieldCount + rightFieldCount))));
     } else if (join.getJoinType().equals(JoinRelType.INNER)) {
+      Set<RelTrait> traits = new HashSet<>();
       int numPartitions = -1;
       if (leftHashDistribution.isPresent()) {
         numPartitions = leftHashDistribution.get().getNumPartitions();
@@ -180,17 +181,18 @@ public class PinotRelDistributionTransformer {
       boolean leftSatisfied = leftRelDistributions.stream().anyMatch(x -> x.satisfies(joinRequirement.get(0)));
       boolean rightSatisfied = rightRelDistributions.stream().anyMatch(x -> x.satisfies(joinRequirement.get(1)));
       if (leftSatisfied) {
-        joinTraits = joinTraits.plusAll(leftChild.getTraitSet().toArray(new RelTrait[0]));
+        traits.addAll(leftChild.getTraitSet());
       } else {
-        joinTraits = joinTraits.plus(joinRequirement.get(0));
+        traits.add(joinRequirement.get(0));
       }
       if (rightSatisfied) {
         for (RelTrait relTrait : rightChild.getTraitSet()) {
-          joinTraits.plus(relTrait.apply(rightTargetMapping));
+          traits.add(relTrait.apply(rightTargetMapping));
         }
       } else {
-        joinTraits = joinTraits.plus(joinRequirement.get(1).apply(rightTargetMapping));
+        traits.add(joinRequirement.get(1).apply(rightTargetMapping));
       }
+      joinTraits = PinotTraitUtils.toRelTraitSet(traits);
     } else {
       throw new IllegalStateException("Only inner join supported right now");
     }
@@ -231,7 +233,7 @@ public class PinotRelDistributionTransformer {
         }
       }
       PinotRelDistribution desiredDistribution = PinotRelDistributions.hash(windowGroup.keys.asList(), -1);
-      RelTraitSet traitsWithDistribution = PinotTraitUtils.setDistribution(baseTraits, desiredDistribution);
+      RelTraitSet traitsWithDistribution = PinotTraitUtils.resetDistribution(baseTraits, desiredDistribution);
       return logicalWindow.copy(traitsWithDistribution, logicalWindow.getInputs());
     }
     // partition-by with order-by
