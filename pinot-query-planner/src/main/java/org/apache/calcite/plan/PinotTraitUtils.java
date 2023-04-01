@@ -92,6 +92,25 @@ public class PinotTraitUtils {
     return relTraitSet;
   }
 
+  public static Set<RelTrait> unwrapRelCompositeTraits(RelTraitSet relTraitSet) {
+    Set<RelTrait> result = new HashSet<>();
+    for (RelTrait trait : relTraitSet) {
+      result.addAll(unwrapRelCompositeTrait(trait));
+    }
+    return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static Set<RelTrait> unwrapRelCompositeTrait(RelTrait trait) {
+    Set<RelTrait> result =  new HashSet<>();
+    if (trait instanceof RelCompositeTrait) {
+      result.addAll(((RelCompositeTrait<RelMultipleTrait>) trait).traitList());
+    } else {
+      result.add(trait);
+    }
+    return result;
+  }
+
   public static RelTraitSet resetDistribution(RelTraitSet relTraitSet, PinotRelDistribution distribution) {
     RelTraitSet resultTraits = RelTraitSet.createEmpty();
     for (RelTrait trait : relTraitSet) {

@@ -19,6 +19,7 @@
 package org.apache.calcite.pinot.traits;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,6 +36,8 @@ import org.apache.calcite.util.mapping.Mappings;
 public class PinotRelDistribution implements RelDistribution {
   private static final Ordering<Iterable<Integer>> ORDERING =
       Ordering.<Integer>natural().lexicographical();
+  private static final List<Type> VALID_TYPES = ImmutableList.of(Type.HASH_DISTRIBUTED, Type.ANY, Type.SINGLETON,
+      Type.RANDOM_DISTRIBUTED, Type.BROADCAST_DISTRIBUTED);
 
   private final List<Integer> _keys;
   @Nullable
@@ -44,6 +47,7 @@ public class PinotRelDistribution implements RelDistribution {
   private final Type _type;
 
   PinotRelDistribution(List<Integer> keys, Integer numPartitions, String functionName, Type type) {
+    Preconditions.checkState(VALID_TYPES.contains(type));
     _keys = keys;
     _numPartitions = numPartitions;
     _functionName = functionName;
@@ -130,14 +134,9 @@ public class PinotRelDistribution implements RelDistribution {
   public String toString() {
     if (_type.equals(Type.HASH_DISTRIBUTED)) {
       return String.format("hash%s", _keys);
-    } else if (_type.equals(Type.BROADCAST_DISTRIBUTED)) {
-      return "broadcast";
-    } else if (_type.equals(Type.ANY)) {
-      return "any";
-    } else if (_type.equals(Type.RANDOM_DISTRIBUTED)) {
-      return "random";
+    } else {
+      return _type.shortName;
     }
-    return "unknown";
   }
 
   public static PinotRelDistribution create(RelDistribution relDistribution) {

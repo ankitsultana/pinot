@@ -180,7 +180,7 @@ public class PinotRelDistributionTransformer {
           PinotRelDistributions.random(ImmutableIntList.range(0, leftFieldCount)),
           PinotRelDistributions.broadcast(
               ImmutableIntList.range(leftFieldCount, leftFieldCount + rightFieldCount))));
-    } else if (join.getJoinType().equals(JoinRelType.INNER)) {
+    } else if (ImmutableList.of(JoinRelType.INNER, JoinRelType.SEMI, JoinRelType.LEFT).contains(join.getJoinType())) {
       Set<RelTrait> traits = new HashSet<>();
       int numPartitions = -1;
       if (leftHashDistribution.isPresent()) {
@@ -195,13 +195,13 @@ public class PinotRelDistributionTransformer {
       boolean leftSatisfied = leftRelDistributions.stream().anyMatch(x -> x.satisfies(joinRequirement.get(0)));
       boolean rightSatisfied = rightRelDistributions.stream().anyMatch(x -> x.satisfies(joinRequirement.get(1)));
       if (leftSatisfied) {
-        traits.addAll(leftChild.getTraitSet());
+        traits.addAll(PinotTraitUtils.unwrapRelCompositeTraits(leftChild.getTraitSet()));
       } else {
         traits.add(joinRequirement.get(0));
       }
       if (rightSatisfied) {
         for (RelTrait relTrait : rightChild.getTraitSet()) {
-          traits.add(relTrait.apply(rightTargetMapping));
+          traits.addAll(PinotTraitUtils.unwrapRelCompositeTrait(relTrait.apply(rightTargetMapping)));
         }
       } else {
         traits.add(joinRequirement.get(1).apply(rightTargetMapping));

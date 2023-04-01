@@ -72,6 +72,6 @@ public class PinotExchange extends SingleRel {
 
   @Override public RelWriter explainTerms(RelWriter pw) {
     // return super.explainTerms(pw).item("identity", _isIdentity);
-    return super.explainTerms(pw).item("distribution", _distribution == null ? "null" : _distribution);
+    return super.explainTerms(pw).item("distribution", _distribution == null ? "identity" : _distribution);
   }
 }
