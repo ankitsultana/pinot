@@ -21,7 +21,6 @@ package org.apache.pinot.query.planner.logical;
 import java.util.List;
 import java.util.Map;
 import org.apache.calcite.pinot.PinotExchange;
-import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
@@ -110,16 +109,10 @@ public class StagePlanner {
 
   private StageNode createSendReceivePair(StageNode nextStageRoot, PinotExchange exchange, int currentStageId) {
     RelDistribution distribution = exchange.getDistribution();
-    List<Integer> distributionKeys = distribution.getKeys();
-    RelDistribution.Type exchangeType = distribution.getType();
+    List<Integer> distributionKeys = distribution == null ? null : distribution.getKeys();
+    // TODO: Using singleton here is a temp hack
+    RelDistribution.Type exchangeType = distribution == null ? RelDistribution.Type.SINGLETON : distribution.getType();
 
-    // TODO: Using Singleton here is a temporary hack.
-    boolean isIdentityHashExchange = false;
-    PinotRelDistribution pinotRelDistribution = (PinotRelDistribution) distribution;
-    if (pinotRelDistribution.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)) {
-      isIdentityHashExchange = exchange.isIdentity();
-      exchangeType = RelDistribution.Type.SINGLETON;
-    }
     // make an exchange sender and receiver node pair
     // only HASH_DISTRIBUTED requires a partition key selector; so all other types (SINGLETON and BROADCAST)
     // of exchange will not carry a partition key selector.

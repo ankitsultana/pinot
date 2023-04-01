@@ -22,6 +22,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -150,5 +151,23 @@ public class PinotRelDistribution implements RelDistribution {
       return PinotRelDistributions.hash(relDistribution.getKeys(), -1);
     }
     throw new IllegalStateException(String.format("Found dist: %s", relDistribution.getType()));
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    PinotRelDistribution that = (PinotRelDistribution) o;
+    return _keys.equals(that._keys) && Objects.equals(_numPartitions, that._numPartitions) && Objects
+        .equals(_functionName, that._functionName) && _type == that._type;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(_keys, _numPartitions, _functionName, _type);
   }
 }
