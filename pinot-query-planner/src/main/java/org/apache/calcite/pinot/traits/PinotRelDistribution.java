@@ -129,7 +129,7 @@ public class PinotRelDistribution implements RelDistribution {
   @Override
   public String toString() {
     if (_type.equals(Type.HASH_DISTRIBUTED)) {
-      return String.format("hash=(%s)", _keys);
+      return String.format("hash%s", _keys);
     } else if (_type.equals(Type.BROADCAST_DISTRIBUTED)) {
       return "broadcast";
     } else if (_type.equals(Type.ANY)) {

@@ -21,11 +21,11 @@ package org.apache.pinot.query.planner.logical;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
@@ -69,8 +69,8 @@ public final class RelToStageConverter {
   public static StageNode toStageNode(RelNode node, int currentStageId) {
     if (node instanceof LogicalTableScan) {
       return convertLogicalTableScan((LogicalTableScan) node, currentStageId);
-    } else if (node instanceof LogicalJoin) {
-      return convertLogicalJoin((LogicalJoin) node, currentStageId);
+    } else if (node instanceof Join) {
+      return convertLogicalJoin((Join) node, currentStageId);
     } else if (node instanceof LogicalProject) {
       return convertLogicalProject((LogicalProject) node, currentStageId);
     } else if (node instanceof LogicalFilter) {
@@ -123,7 +123,7 @@ public final class RelToStageConverter {
     return new TableScanNode(currentStageId, toDataSchema(node.getRowType()), tableName, columnNames);
   }
 
-  private static StageNode convertLogicalJoin(LogicalJoin node, int currentStageId) {
+  private static StageNode convertLogicalJoin(Join node, int currentStageId) {
     JoinRelType joinType = node.getJoinType();
 
     // Parse out all equality JOIN conditions

@@ -173,7 +173,7 @@ public class PinotRelDistributionTransformer {
     GeneralMapping rightMapping = Objects.requireNonNull(GeneralMapping.infer(join).getRight());
     Mappings.TargetMapping rightTargetMapping = Objects.requireNonNull(rightMapping.asTargetMapping());
     JoinInfo joinInfo = join.analyzeCondition();
-    if (!joinInfo.isEqui() || joinInfo.leftKeys.isEmpty()) {
+    if (joinInfo.leftKeys.isEmpty()) {
       int leftFieldCount = join.getLeft().getRowType().getFieldCount();
       int rightFieldCount = join.getRight().getRowType().getFieldCount();
       joinTraits = PinotTraitUtils.toRelTraitSet(ImmutableSet.of(

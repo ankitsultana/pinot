@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.calcite.linq4j.Ord;
 import org.apache.calcite.pinot.ExchangeFactory;
 import org.apache.calcite.pinot.PinotExchange;
 import org.apache.calcite.pinot.mappings.GeneralMapping;
@@ -35,7 +37,6 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
-import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -45,10 +46,11 @@ import org.apache.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.calcite.rel.hint.PinotHintUtils;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
-import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlKind;
@@ -57,6 +59,8 @@ import org.apache.calcite.sql.fun.SqlSumEmptyIsZeroAggFunction;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.mapping.Mappings;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 /**
@@ -268,34 +272,69 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
 
   private void createPlanWithoutLeafAggregation(RelOptRuleCall call) {
     Aggregate oldAggRel = call.rel(0);
+    ImmutableList<RelHint> orgHints = oldAggRel.getHints();
+    ImmutableList<RelHint> fullAggHints =
+        new ImmutableList.Builder<RelHint>().addAll(orgHints).add(FINAL_STAGE_HINT).build();
     RelNode childRel = ((HepRelVertex) oldAggRel.getInput()).getCurrentRel();
-    LogicalProject project;
 
-    List<Integer> newAggArgColumns = new ArrayList<>();
-    List<Integer> newAggGroupByColumns = new ArrayList<>();
-
-    // 1. Create the LogicalProject node if it does not exist. This is to send only the relevant columns over
-    //    the wire for intermediate aggregation.
     if (childRel instanceof Project) {
-      // Avoid creating a new LogicalProject if the child node of aggregation is already a project node.
-      project = (LogicalProject) childRel;
-      newAggArgColumns = fetchNewAggArgCols(oldAggRel.getAggCallList());
-      newAggGroupByColumns = oldAggRel.getGroupSet().asList();
-    } else {
-      // Create a leaf stage project. This is done so that only the required columns are sent over the wire for
-      // intermediate aggregation. If there are multiple aggregations on the same column, the column is projected
-      // only once.
-      project = createLogicalProjectForAggregate(oldAggRel, newAggArgColumns, newAggGroupByColumns);
+      PinotExchange exchange = ExchangeFactory.create(oldAggRel);
+      Aggregate newAgg = (Aggregate) oldAggRel.copy(exchange.getTraitSet(), Collections.singletonList(exchange));
+      call.transformTo(newAgg.withHints(fullAggHints));
+      return;
     }
+    Pair<LogicalProject, Mappings.TargetMapping> projectMappingPair = createLogicalProject(oldAggRel);
+    Aggregate newTempFullAgg = applyMappingToAggregate(oldAggRel, projectMappingPair.getRight(),
+        projectMappingPair.getLeft());
 
-    // 2. Create an exchange on top of the LogicalProject.
-    LogicalExchange exchange = LogicalExchange.create(project, RelDistributions.hash(newAggGroupByColumns));
+    PinotExchange exchange = ExchangeFactory.create(newTempFullAgg);
+    Aggregate fullAgg = (Aggregate) newTempFullAgg.copy(newTempFullAgg.getTraitSet(), Collections.singletonList(exchange));
 
-    // 3. Create an intermediate stage aggregation.
-    RelNode newAggNode =
-        makeNewIntermediateAgg(call, oldAggRel, exchange, false, newAggArgColumns, newAggGroupByColumns);
+    call.transformTo(fullAgg.withHints(fullAggHints));
+  }
 
-    call.transformTo(newAggNode);
+  private Pair<LogicalProject, Mappings.TargetMapping> createLogicalProject(Aggregate oldAggRel) {
+    GeneralMapping mapping = new GeneralMapping();
+    List<RexNode> projects = new ArrayList<>();
+    List<String> fieldNames = new ArrayList<>();
+    RelDataType inputRowType = oldAggRel.getInput().getRowType();
+    for (Ord<Integer> ord : Ord.zip(oldAggRel.getGroupSet().asList())) {
+      int groupCol = ord.e;
+      projects.add(RexInputRef.of(groupCol, inputRowType));
+      mapping.add(groupCol, ord.i);
+      fieldNames.add(inputRowType.getFieldNames().get(groupCol));
+    }
+    for (AggregateCall aggregateCall : oldAggRel.getAggCallList()) {
+      for (Integer colId : aggregateCall.getArgList()) {
+        if (!mapping.contains(colId)) {
+          mapping.add(colId, mapping.getTargetCount());
+          projects.add(RexInputRef.of(colId, oldAggRel.getInput().getRowType()));
+          fieldNames.add(inputRowType.getFieldNames().get(colId));
+        }
+      }
+    }
+    Mappings.TargetMapping targetMapping = mapping.asTargetMapping();
+    RelTraitSet projectTraits = oldAggRel.getInput().getTraitSet().apply(targetMapping);
+    LogicalProject projectWithoutTraits = LogicalProject.create(oldAggRel.getInput(), Collections.emptyList(),
+        projects, fieldNames);
+    LogicalProject projectWithTraits = (LogicalProject) projectWithoutTraits.copy(projectTraits,
+        Collections.singletonList(oldAggRel.getInput()));
+    return Pair.of(projectWithTraits, targetMapping);
+  }
+
+  private Aggregate applyMappingToAggregate(Aggregate oldAggRel, Mappings.TargetMapping mapping, Project newInput) {
+    List<Integer> newGroupSet = oldAggRel.getGroupSet().asList().stream().map(mapping::getTargetOpt)
+        .collect(Collectors.toList());
+    List<AggregateCall> newCalls = new ArrayList<>(oldAggRel.getAggCallList().size());
+    for (AggregateCall oldAggCall : oldAggRel.getAggCallList()) {
+      List<Integer> newArgList =
+          oldAggCall.getArgList().stream().map(mapping::getTargetOpt).collect(Collectors.toList());
+      AggregateCall newCall = new AggregateCall(oldAggCall.getAggregation(), oldAggCall.isDistinct(), newArgList,
+          oldAggCall.getType(), oldAggCall.getName());
+      newCalls.add(newCall);
+    }
+    return new LogicalAggregate(oldAggRel.getCluster(), oldAggRel.getTraitSet(), Collections.emptyList(),
+        newInput, ImmutableBitSet.of(newGroupSet), null, newCalls);
   }
 
   private LogicalProject createLogicalProjectForAggregate(Aggregate oldAggRel, List<Integer> newAggArgColumns,

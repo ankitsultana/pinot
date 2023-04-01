@@ -95,6 +95,14 @@ public class GeneralMapping implements Iterable<IntPair> {
     return allPairs.iterator();
   }
 
+  public boolean contains(int source) {
+    return _map.containsKey(source);
+  }
+
+  public boolean containsTarget(int target) {
+    return _reverseMap.containsKey(target);
+  }
+
   public static GeneralMapping of(Map<Integer, Set<Integer>> map) {
     GeneralMapping result = new GeneralMapping();
     for (Map.Entry<Integer, Set<Integer>> entry : map.entrySet()) {
