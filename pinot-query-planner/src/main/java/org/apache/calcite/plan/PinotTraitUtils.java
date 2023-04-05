@@ -102,7 +102,7 @@ public class PinotTraitUtils {
 
   @SuppressWarnings("unchecked")
   public static Set<RelTrait> unwrapRelCompositeTrait(RelTrait trait) {
-    Set<RelTrait> result =  new HashSet<>();
+    Set<RelTrait> result = new HashSet<>();
     if (trait instanceof RelCompositeTrait) {
       result.addAll(((RelCompositeTrait<RelMultipleTrait>) trait).traitList());
     } else {

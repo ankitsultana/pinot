@@ -288,7 +288,8 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
         projectMappingPair.getLeft());
 
     PinotExchange exchange = ExchangeFactory.create(newTempFullAgg);
-    Aggregate fullAgg = (Aggregate) newTempFullAgg.copy(newTempFullAgg.getTraitSet(), Collections.singletonList(exchange));
+    Aggregate fullAgg = (Aggregate) newTempFullAgg.copy(
+        newTempFullAgg.getTraitSet(), Collections.singletonList(exchange));
 
     call.transformTo(fullAgg.withHints(fullAggHints));
   }

@@ -57,8 +57,6 @@ import org.apache.calcite.util.ImmutableIntList;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections.MapUtils;
 
-import static org.apache.calcite.plan.PinotTraitUtils.asSet;
-
 
 public class PinotRelDistributionTransformer {
 
@@ -161,8 +159,8 @@ public class PinotRelDistributionTransformer {
   public static Join applyJoin(Join join, PinotPlannerSessionContext context) {
     RelNode leftChild = join.getInput(0);
     RelNode rightChild = join.getInput(1);
-    Set<PinotRelDistribution> leftRelDistributions = asSet(leftChild.getTraitSet());
-    Set<PinotRelDistribution> rightRelDistributions = asSet(rightChild.getTraitSet());
+    Set<PinotRelDistribution> leftRelDistributions = PinotTraitUtils.asSet(leftChild.getTraitSet());
+    Set<PinotRelDistribution> rightRelDistributions = PinotTraitUtils.asSet(rightChild.getTraitSet());
     Optional<PinotRelDistribution> leftHashDistribution =
         leftRelDistributions.stream()
             .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).findFirst();
@@ -232,7 +230,7 @@ public class PinotRelDistributionTransformer {
 
     if (isPartitionByOnly) {
       RelTraitSet baseTraits = PinotTraitUtils.removeCollations(window.getTraitSet());
-      Set<PinotRelDistribution> hashDistributions = asSet(baseTraits).stream()
+      Set<PinotRelDistribution> hashDistributions = PinotTraitUtils.asSet(baseTraits).stream()
           .filter(x -> x.getType().equals(RelDistribution.Type.HASH_DISTRIBUTED)).collect(Collectors.toSet());
       if (hashDistributions.size() > 0) {
         int numPartitions = hashDistributions.iterator().next().getNumPartitions();
