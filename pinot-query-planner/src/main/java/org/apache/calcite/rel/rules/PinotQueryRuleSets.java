@@ -118,8 +118,7 @@ public class PinotQueryRuleSets {
       // add an extra exchange for sort
       PinotSortExchangeNodeInsertRule.INSTANCE,
       // copy exchanges down, this must be done after SortExchangeNodeInsertRule
-      // TODO: Enable this
-      // PinotSortExchangeCopyRule.SORT_EXCHANGE_COPY,
+      PinotSortExchangeCopyRule.SORT_EXCHANGE_COPY,
 
       PinotJoinExchangeNodeInsertRule.INSTANCE,
       PinotAggregateExchangeNodeInsertRule.INSTANCE,

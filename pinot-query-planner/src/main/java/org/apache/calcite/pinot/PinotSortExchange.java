@@ -18,58 +18,61 @@
  */
 package org.apache.calcite.pinot;
 
+import com.google.common.base.Preconditions;
+import java.util.List;
+import javax.annotation.Nullable;
 import org.apache.calcite.pinot.traits.PinotRelDistribution;
+import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
+import org.apache.calcite.plan.PinotTraitUtils;
 import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
-import org.apache.calcite.rel.RelDistribution;
-import org.apache.calcite.rel.RelDistributionTraitDef;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.SortExchange;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.commons.collections.CollectionUtils;
 
 
-public class PinotSortExchange extends SortExchange {
-  private final boolean _isIdentityDistribution;
-  private final boolean _isIdentityCollation;
+public class PinotSortExchange extends PinotExchange {
+  private final RelCollation _collation;
 
-  PinotSortExchange(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, RelDistribution newDistribution,
-      RelCollation collation, boolean isIdentityDistribution, boolean isIdentityCollation) {
-    super(cluster, traitSet, input, newDistribution, collation);
-    _isIdentityCollation = isIdentityCollation;
-    _isIdentityDistribution = isIdentityDistribution;
+  PinotSortExchange(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
+      @Nullable PinotRelDistribution newDistribution, RelCollation collation) {
+    super(cluster, traitSet, input, newDistribution);
+    _collation = collation;
   }
 
-  @Override public SortExchange copy(RelTraitSet traitSet, RelNode newInput,
-      RelDistribution newDistribution, RelCollation newCollation) {
-    return new PinotSortExchange(this.getCluster(), traitSet.plus(newDistribution).plus(newCollation), newInput,
-        newDistribution, newCollation, false, false);
-  }
-
-  public PinotRelDistribution getPinotRelDistribution() {
-    return (PinotRelDistribution) this.distribution;
-  }
-
-  public static PinotSortExchange create(SortExchange sortExchange) {
-    PinotRelDistribution pinotRelDistribution = PinotRelDistribution.create(sortExchange.getDistribution());
-    RelTraitSet newTraitSet = RelTraitSet.createEmpty();
-    for (RelTrait relTrait : sortExchange.getTraitSet()) {
-      if (!relTrait.getTraitDef().equals(RelDistributionTraitDef.INSTANCE)) {
-        newTraitSet = newTraitSet.plus(relTrait);
-      }
+  @Override public PinotSortExchange copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    RelCollation collation = traitSet.getCollation();
+    List<PinotRelDistribution> distributions = traitSet.getTraits(PinotRelDistributionTraitDef.INSTANCE);
+    PinotRelDistribution newDistribution = null;
+    if (CollectionUtils.isNotEmpty(distributions)) {
+      Preconditions.checkState(distributions.size() == 1);
+      newDistribution = distributions.iterator().next();
     }
-    return new PinotSortExchange(sortExchange.getCluster(), newTraitSet.plus(pinotRelDistribution),
-        sortExchange.getInput(), pinotRelDistribution, sortExchange.getCollation(), false, false);
+    return new PinotSortExchange(getCluster(), traitSet, inputs.get(0), newDistribution, collation);
+  }
+
+  public PinotSortExchange copy(RelTraitSet traitSet, RelNode input, PinotRelDistribution distribution) {
+    traitSet = traitSet.plus(_collation);
+    traitSet = PinotTraitUtils.resetDistribution(traitSet, distribution);
+    return new PinotSortExchange(input.getCluster(), traitSet, input, distribution, _collation);
+  }
+
+  public RelCollation getCollation() {
+    return _collation;
+  }
+
+  @Override public RelWriter explainTerms(RelWriter pw) {
+    return super.explainTerms(pw).item("collation", _collation);
   }
 
   public static PinotSortExchange create(RelNode input, PinotRelDistribution relDistribution, RelCollation collation) {
-    return new PinotSortExchange(input.getCluster(), input.getTraitSet().plus(relDistribution), input, relDistribution,
-        collation, false, false);
+    RelTraitSet newTraits = PinotTraitUtils.resetDistribution(input.getTraitSet(), relDistribution);
+    newTraits = newTraits.plus(collation);
+    return new PinotSortExchange(input.getCluster(), newTraits, input, relDistribution, collation);
   }
 
-  public static PinotSortExchange create(RelNode input, PinotRelDistribution relDistribution, RelCollation collation,
-      boolean isIdentityDistribution, boolean isIdentityCollation) {
-    return new PinotSortExchange(input.getCluster(), input.getTraitSet(), input, relDistribution, collation,
-        isIdentityDistribution, isIdentityCollation);
+  public static PinotSortExchange createIdentityDistribution(RelNode input, RelCollation collation) {
+    return new PinotSortExchange(input.getCluster(), input.getTraitSet(), input, null, collation);
   }
 }

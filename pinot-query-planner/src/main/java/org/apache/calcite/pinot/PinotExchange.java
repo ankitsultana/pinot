@@ -31,13 +31,10 @@ import org.apache.commons.collections.CollectionUtils;
 
 
 public class PinotExchange extends SingleRel {
-  private final boolean _isIdentity;
   @Nullable private PinotRelDistribution _distribution;
 
-  PinotExchange(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, @Nullable PinotRelDistribution distribution,
-      boolean isIdentity) {
+  PinotExchange(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, @Nullable PinotRelDistribution distribution) {
     super(cluster, traitSet, input);
-    _isIdentity = isIdentity;
     _distribution = distribution;
   }
 
@@ -49,7 +46,7 @@ public class PinotExchange extends SingleRel {
     if (CollectionUtils.isNotEmpty(pinotRelDistributions) && pinotRelDistributions.size() == 1) {
       pinotRelDistribution = pinotRelDistributions.get(0);
     }
-    return new PinotExchange(getCluster(), traitSet, newInput, pinotRelDistribution, _isIdentity);
+    return new PinotExchange(getCluster(), traitSet, newInput, pinotRelDistribution);
   }
 
   @Nullable
@@ -58,16 +55,15 @@ public class PinotExchange extends SingleRel {
   }
 
   public boolean isIdentity() {
-    return _isIdentity;
+    return _distribution == null;
   }
 
   public static PinotExchange create(RelNode input, PinotRelDistribution relDistribution) {
-    return new PinotExchange(input.getCluster(), input.getTraitSet().plus(relDistribution), input, relDistribution,
-        false);
+    return new PinotExchange(input.getCluster(), input.getTraitSet().plus(relDistribution), input, relDistribution);
   }
 
   public static PinotExchange createIdentity(RelNode input) {
-    return new PinotExchange(input.getCluster(), input.getTraitSet(), input, null, true);
+    return new PinotExchange(input.getCluster(), input.getTraitSet(), input, null);
   }
 
   @Override public RelWriter explainTerms(RelWriter pw) {

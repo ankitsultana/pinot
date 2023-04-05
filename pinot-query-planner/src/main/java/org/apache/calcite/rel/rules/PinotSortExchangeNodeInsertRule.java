@@ -18,13 +18,12 @@
  */
 package org.apache.calcite.rel.rules;
 
-import java.util.Collections;
+import org.apache.calcite.pinot.PinotSortExchange;
+import org.apache.calcite.pinot.traits.PinotRelDistributions;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.logical.LogicalSort;
-import org.apache.calcite.rel.logical.LogicalSortExchange;
 import org.apache.calcite.tools.RelBuilderFactory;
 
 
@@ -62,10 +61,8 @@ public class PinotSortExchangeNodeInsertRule extends RelOptRule {
   @Override
   public void onMatch(RelOptRuleCall call) {
     Sort sort = call.rel(0);
-    LogicalSortExchange exchange = LogicalSortExchange.create(
-        sort.getInput(),
-        RelDistributions.hash(Collections.emptyList()),
-        sort.getCollation());
-    call.transformTo(LogicalSort.create(exchange, sort.getCollation(), sort.offset, sort.fetch));
+    PinotSortExchange pinotExchange = PinotSortExchange.create(
+        sort.getInput(), PinotRelDistributions.SINGLETON, sort.getCollation());
+    call.transformTo(LogicalSort.create(pinotExchange, sort.getCollation(), sort.offset, sort.fetch));
   }
 }

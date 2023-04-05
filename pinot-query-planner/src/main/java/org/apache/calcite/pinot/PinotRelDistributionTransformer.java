@@ -265,7 +265,9 @@ public class PinotRelDistributionTransformer {
   }
 
   public static Sort applySort(Sort sort, PinotPlannerSessionContext context) {
-    RelTraitSet newTraitSet = sort.getTraitSet().plus(sort.getCollation());
+    // TODO: This is always setting distribution to singleton.
+    RelTraitSet newTraitSet = PinotTraitUtils.resetDistribution(sort.getTraitSet(), PinotRelDistributions.SINGLETON)
+        .plus(sort.getCollation());
     return sort.copy(newTraitSet, sort.getInputs());
   }
 

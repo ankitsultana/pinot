@@ -27,12 +27,15 @@ import org.apache.calcite.pinot.traits.PinotRelDistribution;
 import org.apache.calcite.pinot.traits.PinotRelDistributionTraitDef;
 import org.apache.calcite.pinot.traits.PinotRelDistributions;
 import org.apache.calcite.plan.PinotTraitUtils;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
-import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.util.mapping.Mappings;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.tuple.Pair;
 
 
@@ -129,7 +132,31 @@ public class ExchangeFactory {
      return PinotExchange.create(aggregate.getInput(), distributionTraits.get(0).apply(aggToInput));
   }
 
-  public static Exchange create(Window window) {
-    throw new UnsupportedOperationException("TODO");
+  public static RelNode create(Window window) {
+    boolean hasCollation = CollectionUtils.isNotEmpty(window.getTraitSet().getTraits(RelCollationTraitDef.INSTANCE));
+    Set<PinotRelDistribution> distributions = PinotTraitUtils.asSet(window.getTraitSet());
+    Preconditions.checkState(distributions.size() > 0);
+    boolean isPartitioned = distributions.iterator().next().getType().equals(RelDistribution.Type.HASH_DISTRIBUTED);
+    if (isPartitioned) {
+      Preconditions.checkState(distributions.size() == 1,
+          "We don't support multiple distributions for sort-exchange at the moment");
+    }
+    if (hasCollation) {
+      RelCollation collation = window.groups.get(0).orderKeys;
+      if (isPartitioned) {
+        return PinotSortExchange.create(window.getInput(), distributions.iterator().next(), collation);
+      } else {
+        return PinotSortExchange.create(window.getInput(), PinotRelDistributions.SINGLETON, collation);
+      }
+    } else {
+      if (isPartitioned) {
+        for (PinotRelDistribution distribution : distributions) {
+          if (window.getInput().getTraitSet().stream().noneMatch(inputTrait -> inputTrait.satisfies(distribution))) {
+            return PinotExchange.create(window.getInput(), distributions.iterator().next());
+          }
+        }
+      }
+      return PinotExchange.createIdentity(window.getInput());
+    }
   }
 }

@@ -20,7 +20,7 @@ package org.apache.pinot.query.planner.logical;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.plan.PinotTraitUtils;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
@@ -96,7 +96,7 @@ public class StagePlanner {
   private StageNode walkRelPlan(RelNode node, int currentStageId) {
     if (PinotRuleUtils.isExchange(node)) {
       StageNode nextStageRoot = walkRelPlan(node.getInput(0), getNewStageId());
-      return createSendReceivePair(nextStageRoot, (PinotExchange) node, currentStageId);
+      return createSendReceivePair(nextStageRoot, node, currentStageId);
     } else {
       StageNode stageNode = RelToStageConverter.toStageNode(node, currentStageId);
       List<RelNode> inputs = node.getInputs();
@@ -107,8 +107,8 @@ public class StagePlanner {
     }
   }
 
-  private StageNode createSendReceivePair(StageNode nextStageRoot, PinotExchange exchange, int currentStageId) {
-    RelDistribution distribution = exchange.getDistribution();
+  private StageNode createSendReceivePair(StageNode nextStageRoot, RelNode exchange, int currentStageId) {
+    RelDistribution distribution = PinotTraitUtils.asSet(exchange.getTraitSet()).iterator().next();
     List<Integer> distributionKeys = distribution == null ? null : distribution.getKeys();
     // TODO: Using singleton here is a temp hack
     RelDistribution.Type exchangeType = distribution == null ? RelDistribution.Type.SINGLETON : distribution.getType();
