@@ -50,7 +50,7 @@ public class JoinNode extends AbstractStageNode {
 
   public JoinNode(int stageId, DataSchema dataSchema, DataSchema leftSchema, DataSchema rightSchema,
       JoinRelType joinRelType, JoinKeys joinKeys, List<RexExpression> joinClause) {
-    super(stageId, dataSchema);
+    super(stageId, dataSchema, false);
     _leftColumnNames = Arrays.asList(leftSchema.getColumnNames());
     _rightColumnNames = Arrays.asList(rightSchema.getColumnNames());
     _joinRelType = joinRelType;

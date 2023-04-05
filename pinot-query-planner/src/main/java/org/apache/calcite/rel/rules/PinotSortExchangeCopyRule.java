@@ -19,14 +19,13 @@
 package org.apache.calcite.rel.rules;
 
 import com.google.common.base.Preconditions;
+import org.apache.calcite.pinot.PinotSortExchange;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelRule;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Sort;
-import org.apache.calcite.rel.core.SortExchange;
 import org.apache.calcite.rel.logical.LogicalSort;
-import org.apache.calcite.rel.logical.LogicalSortExchange;
 import org.apache.calcite.rel.metadata.RelMdUtil;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexBuilder;
@@ -57,7 +56,13 @@ public class PinotSortExchangeCopyRule extends RelRule<RelRule.Config> {
   @Override
   public void onMatch(RelOptRuleCall call) {
     final Sort sort = call.rel(0);
-    final SortExchange exchange = call.rel(1);
+    final PinotSortExchange exchange = call.rel(1);
+    if (PinotRuleUtils.unwrapHepRelVertex(exchange.getInput()) instanceof Sort) {
+      return;
+    }
+    if (!PinotRuleUtils.noExchangeInSubtree(exchange.getInput())) {
+      return;
+    }
     final RelMetadataQuery metadataQuery = call.getMetadataQuery();
 
     if (RelMdUtil.checkInputForCollationAndLimit(
@@ -88,6 +93,9 @@ public class PinotSortExchangeCopyRule extends RelRule<RelRule.Config> {
       fetch = REX_BUILDER.makeLiteral(total, TYPE_FACTORY.createSqlType(SqlTypeName.INTEGER));
     }
 
+    // Note: We are setting the collation trait in the input of the exchange node, even though that trait will not be
+    // enforced using an Exchange. That is because we expect to do this only in the leaf stage in which case the leaf
+    // stage itself will take care of sorting. We should use a custom Sort node here (something like LocalSortNode).
     final RelNode newExchangeInput = sort.copy(sort.getTraitSet(), exchange.getInput(), collation, null, fetch);
     final RelNode exchangeCopy = exchange.copy(exchange.getTraitSet(), newExchangeInput, exchange.getDistribution());
     final RelNode sortCopy = sort.copy(sort.getTraitSet(), exchangeCopy, collation,
@@ -99,7 +107,7 @@ public class PinotSortExchangeCopyRule extends RelRule<RelRule.Config> {
   public interface Config extends RelRule.Config {
 
     Config DEFAULT = ImmutableSortExchangeCopyRule.Config.of()
-        .withOperandFor(LogicalSort.class, LogicalSortExchange.class);
+        .withOperandFor(LogicalSort.class, PinotSortExchange.class);
 
     @Override default PinotSortExchangeCopyRule toRule() {
       return new PinotSortExchangeCopyRule(this);
@@ -108,7 +116,7 @@ public class PinotSortExchangeCopyRule extends RelRule<RelRule.Config> {
     /** Defines an operand tree for the given classes. */
 
     default Config withOperandFor(Class<? extends Sort> sortClass,
-        Class<? extends SortExchange> exchangeClass) {
+        Class<? extends PinotSortExchange> exchangeClass) {
       return withOperandSupplier(b0 ->
           b0.operand(sortClass).oneInput(b1 ->
               b1.operand(exchangeClass).anyInputs()))

@@ -18,18 +18,21 @@
  */
 package org.apache.pinot.query.planner.partitioning;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.pinot.query.planner.serde.ProtoProperties;
+import org.apache.pinot.segment.spi.partition.MurmurPartitionFunction;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 
 /**
  * The {@code FieldSelectionKeySelector} simply extract a column value out from a row array {@link Object[]}.
  */
 public class FieldSelectionKeySelector implements KeySelector<Object[], Object[]> {
-  private static final String HASH_ALGORITHM = "absHashCode";
-
   @ProtoProperties
   private List<Integer> _columnIndices;
 
@@ -67,33 +70,20 @@ public class FieldSelectionKeySelector implements KeySelector<Object[], Object[]
 
   @Override
   public int computeHash(Object[] input) {
-    // use a hashing algorithm that is agnostic to the ordering of the columns.
-    // For example, computeHash(input) will be identical for both of the following
-    // values of _columnIndices:
-    // - [1, 2, 4]
-    // - [4, 1, 2]
-    // this is necessary because calcite always sorts _columnIndices for a hash
-    // broadcast, which may reorder the columns differently for different sides
-    // of a join
-    //
-    // the result of hashcode sums will follow the Irwin-Hall distribution, which
-    // is notably not a normal distribution although likely acceptable in the case
-    // when there are either many inputs or not many partitions
-    // also see: https://en.wikipedia.org/wiki/Irwin–Hall_distribution
-    // also see: https://github.com/apache/pinot/issues/9998
-    //
-    // TODO: consider better hashing algorithms than hashCode sum, such as XOR'ing
-    int hashCode = 0;
+    ByteArrayOutputStream hashable = new ByteArrayOutputStream();
     for (int columnIndex : _columnIndices) {
-      hashCode += input[columnIndex].hashCode();
+      try {
+        hashable.write(input[columnIndex].toString().getBytes(UTF_8));
+      } catch (IOException ioException) {
+        throw new RuntimeException(ioException);
+      }
     }
-
     // return a positive number because this is used directly to modulo-index
-    return Math.abs(hashCode);
+    return Math.abs(MurmurPartitionFunction.murmur2(hashable.toByteArray()));
   }
 
   @Override
   public String hashAlgorithm() {
-    return HASH_ALGORITHM;
+    return MurmurPartitionFunction.NAME;
   }
 }

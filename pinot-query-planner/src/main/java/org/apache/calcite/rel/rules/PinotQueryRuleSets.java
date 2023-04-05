@@ -109,7 +109,8 @@ public class PinotQueryRuleSets {
       CoreRules.SORT_REMOVE,
       PruneEmptyRules.AGGREGATE_INSTANCE, PruneEmptyRules.FILTER_INSTANCE, PruneEmptyRules.JOIN_LEFT_INSTANCE,
       PruneEmptyRules.JOIN_RIGHT_INSTANCE, PruneEmptyRules.PROJECT_INSTANCE, PruneEmptyRules.SORT_INSTANCE,
-      PruneEmptyRules.UNION_INSTANCE
+      PruneEmptyRules.UNION_INSTANCE,
+      LogicalToPinotNodeRule.INSTANCE
   );
 
   // Pinot specific rules that should be run after all other rules
@@ -122,6 +123,7 @@ public class PinotQueryRuleSets {
       PinotJoinExchangeNodeInsertRule.INSTANCE,
       PinotAggregateExchangeNodeInsertRule.INSTANCE,
       PinotWindowExchangeNodeInsertRule.INSTANCE,
-      PinotJoinToDynamicBroadcastRule.INSTANCE
+      PinotJoinToDynamicBroadcastRule.INSTANCE,
+      PinotVerifyRule.INSTANCE
   );
 }

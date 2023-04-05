@@ -20,12 +20,14 @@ package org.apache.pinot.query.planner.logical;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.calcite.plan.PinotTraitUtils;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
@@ -67,22 +69,25 @@ public final class RelToStageConverter {
    * @return stage node.
    */
   public static StageNode toStageNode(RelNode node, int currentStageId) {
+    boolean requiresSingletonInstance  =
+        PinotTraitUtils.asSet(node.getTraitSet()).stream()
+            .anyMatch(trait -> trait.getType().equals(RelDistribution.Type.SINGLETON));
     if (node instanceof LogicalTableScan) {
       return convertLogicalTableScan((LogicalTableScan) node, currentStageId);
-    } else if (node instanceof LogicalJoin) {
-      return convertLogicalJoin((LogicalJoin) node, currentStageId);
+    } else if (node instanceof Join) {
+      return convertLogicalJoin((Join) node, currentStageId);
     } else if (node instanceof LogicalProject) {
       return convertLogicalProject((LogicalProject) node, currentStageId);
     } else if (node instanceof LogicalFilter) {
       return convertLogicalFilter((LogicalFilter) node, currentStageId);
     } else if (node instanceof LogicalAggregate) {
-      return convertLogicalAggregate((LogicalAggregate) node, currentStageId);
+      return convertLogicalAggregate((LogicalAggregate) node, currentStageId, requiresSingletonInstance);
     } else if (node instanceof LogicalSort) {
-      return convertLogicalSort((LogicalSort) node, currentStageId);
+      return convertLogicalSort((LogicalSort) node, currentStageId, requiresSingletonInstance);
     } else if (node instanceof LogicalValues) {
       return convertLogicalValues((LogicalValues) node, currentStageId);
     } else if (node instanceof LogicalWindow) {
-      return convertLogicalWindow((LogicalWindow) node, currentStageId);
+      return convertLogicalWindow((LogicalWindow) node, currentStageId, requiresSingletonInstance);
     } else {
       throw new UnsupportedOperationException("Unsupported logical plan node: " + node);
     }
@@ -92,20 +97,20 @@ public final class RelToStageConverter {
     return new ValueNode(currentStageId, toDataSchema(node.getRowType()), node.tuples);
   }
 
-  private static StageNode convertLogicalWindow(LogicalWindow node, int currentStageId) {
-    return new WindowNode(currentStageId, node.groups, node.constants, toDataSchema(node.getRowType()));
+  private static StageNode convertLogicalWindow(LogicalWindow node, int currentStageId, boolean singleton) {
+    return new WindowNode(currentStageId, node.groups, node.constants, toDataSchema(node.getRowType()), singleton);
   }
 
-  private static StageNode convertLogicalSort(LogicalSort node, int currentStageId) {
+  private static StageNode convertLogicalSort(LogicalSort node, int currentStageId, boolean singleton) {
     int fetch = RexExpressionUtils.getValueAsInt(node.fetch);
     int offset = RexExpressionUtils.getValueAsInt(node.offset);
     return new SortNode(currentStageId, node.getCollation().getFieldCollations(), fetch, offset,
-        toDataSchema(node.getRowType()));
+        toDataSchema(node.getRowType()), singleton);
   }
 
-  private static StageNode convertLogicalAggregate(LogicalAggregate node, int currentStageId) {
+  private static StageNode convertLogicalAggregate(LogicalAggregate node, int currentStageId, boolean singleton) {
     return new AggregateNode(currentStageId, toDataSchema(node.getRowType()), node.getAggCallList(),
-        RexExpression.toRexInputRefs(node.getGroupSet()), node.getHints());
+        RexExpression.toRexInputRefs(node.getGroupSet()), node.getHints(), singleton);
   }
 
   private static StageNode convertLogicalProject(LogicalProject node, int currentStageId) {
@@ -123,7 +128,7 @@ public final class RelToStageConverter {
     return new TableScanNode(currentStageId, toDataSchema(node.getRowType()), tableName, columnNames);
   }
 
-  private static StageNode convertLogicalJoin(LogicalJoin node, int currentStageId) {
+  private static StageNode convertLogicalJoin(Join node, int currentStageId) {
     JoinRelType joinType = node.getJoinType();
 
     // Parse out all equality JOIN conditions

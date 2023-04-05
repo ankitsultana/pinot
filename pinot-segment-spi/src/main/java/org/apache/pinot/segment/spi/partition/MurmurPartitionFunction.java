@@ -18,7 +18,6 @@
  */
 package org.apache.pinot.segment.spi.partition;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -28,7 +27,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Implementation of {@link PartitionFunction} which partitions based on 32 bit murmur hash
  */
 public class MurmurPartitionFunction implements PartitionFunction {
-  private static final String NAME = "Murmur";
+  public static final String NAME = "Murmur";
   private final int _numPartitions;
 
   /**
@@ -68,8 +67,7 @@ public class MurmurPartitionFunction implements PartitionFunction {
    * @param data byte array to hash
    * @return 32 bit hash of the given array
    */
-  @VisibleForTesting
-  int murmur2(final byte[] data) {
+  public static int murmur2(final byte[] data) {
     int length = data.length;
     int seed = 0x9747b28c;
     // 'm' and 'r' are mixing constants generated offline.

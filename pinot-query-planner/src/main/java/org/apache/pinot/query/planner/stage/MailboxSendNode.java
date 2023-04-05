@@ -39,7 +39,7 @@ public class MailboxSendNode extends AbstractStageNode {
 
   public MailboxSendNode(int stageId, DataSchema dataSchema, int receiverStageId,
       RelDistribution.Type exchangeType, @Nullable KeySelector<Object[], Object[]> partitionKeySelector) {
-    super(stageId, dataSchema);
+    super(stageId, dataSchema, false);
     _receiverStageId = receiverStageId;
     _exchangeType = exchangeType;
     _partitionKeySelector = partitionKeySelector;

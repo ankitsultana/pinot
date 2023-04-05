@@ -19,15 +19,15 @@
 package org.apache.calcite.rel.rules;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.calcite.pinot.ExchangeFactory;
+import org.apache.calcite.pinot.PinotExchange;
+import org.apache.calcite.pinot.PinotJoin;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.rel.RelDistributions;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Join;
-import org.apache.calcite.rel.core.JoinInfo;
-import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 /**
@@ -38,7 +38,7 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
       new PinotJoinExchangeNodeInsertRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
   public PinotJoinExchangeNodeInsertRule(RelBuilderFactory factory) {
-    super(operand(LogicalJoin.class, any()), factory, null);
+    super(operand(Join.class, any()), factory, null);
   }
 
   @Override
@@ -56,28 +56,13 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
   @Override
   public void onMatch(RelOptRuleCall call) {
     Join join = call.rel(0);
-    RelNode leftInput = join.getInput(0);
-    RelNode rightInput = join.getInput(1);
+    Pair<PinotExchange, PinotExchange> exchanges = ExchangeFactory.create(join);
 
-    RelNode leftExchange;
-    RelNode rightExchange;
-    JoinInfo joinInfo = join.analyzeCondition();
-
-    if (joinInfo.leftKeys.isEmpty()) {
-      // when there's no JOIN key, use broadcast.
-      leftExchange = LogicalExchange.create(leftInput, RelDistributions.RANDOM_DISTRIBUTED);
-      rightExchange = LogicalExchange.create(rightInput, RelDistributions.BROADCAST_DISTRIBUTED);
-    } else {
-      // when join key exists, use hash distribution.
-      leftExchange = LogicalExchange.create(leftInput, RelDistributions.hash(joinInfo.leftKeys));
-      rightExchange = LogicalExchange.create(rightInput, RelDistributions.hash(joinInfo.rightKeys));
-    }
-
-    RelNode newJoinNode =
-        new LogicalJoin(join.getCluster(), join.getTraitSet(), leftExchange, rightExchange, join.getCondition(),
-            join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
+    LogicalJoin newJoinNode =
+        new LogicalJoin(join.getCluster(), join.getTraitSet(), exchanges.getLeft(), exchanges.getRight(),
+            join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
 
-    call.transformTo(newJoinNode);
+    call.transformTo(PinotJoin.of(newJoinNode));
   }
 }

@@ -31,6 +31,7 @@ import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.routing.WorkerInstance;
+import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
@@ -111,6 +112,9 @@ public class MockRoutingManagerFactory {
     when(mock.getSchema(anyString())).thenAnswer(invocationOnMock -> {
       String schemaName = invocationOnMock.getArgument(0);
       return _schemaMap.get(schemaName);
+    });
+    when(mock.getTableConfig(anyString())).thenAnswer(invocationOnMock -> {
+      return mock(TableConfig.class);
     });
     return mock;
   }

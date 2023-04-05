@@ -34,7 +34,7 @@ public class TableScanNode extends AbstractStageNode {
   }
 
   public TableScanNode(int stageId, DataSchema dataSchema, String tableName, List<String> tableScanColumns) {
-    super(stageId, dataSchema);
+    super(stageId, dataSchema, false);
     _tableName = tableName;
     _tableScanColumns = tableScanColumns;
   }

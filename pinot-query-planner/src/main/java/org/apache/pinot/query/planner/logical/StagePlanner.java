@@ -20,17 +20,17 @@ package org.apache.pinot.query.planner.logical;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.calcite.plan.PinotTraitUtils;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
-import org.apache.calcite.rel.core.Exchange;
+import org.apache.calcite.rel.rules.PinotRuleUtils;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.StageMetadata;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
 import org.apache.pinot.query.planner.partitioning.KeySelector;
-import org.apache.pinot.query.planner.physical.colocated.GreedyShuffleRewriteVisitor;
 import org.apache.pinot.query.planner.stage.MailboxReceiveNode;
 import org.apache.pinot.query.planner.stage.MailboxSendNode;
 import org.apache.pinot.query.planner.stage.StageNode;
@@ -88,19 +88,15 @@ public class StagePlanner {
       _workerManager.assignWorkerToStage(e.getKey(), e.getValue(), _requestId, _plannerContext.getOptions());
     }
 
-    // Run physical optimizations
-    runPhysicalOptimizers(queryPlan);
-
     return queryPlan;
   }
 
   // non-threadsafe
   // TODO: add dataSchema (extracted from RelNode schema) to the StageNode.
   private StageNode walkRelPlan(RelNode node, int currentStageId) {
-    if (isExchangeNode(node)) {
+    if (PinotRuleUtils.isExchange(node)) {
       StageNode nextStageRoot = walkRelPlan(node.getInput(0), getNewStageId());
-      RelDistribution distribution = ((Exchange) node).getDistribution();
-      return createSendReceivePair(nextStageRoot, distribution, currentStageId);
+      return createSendReceivePair(nextStageRoot, node, currentStageId);
     } else {
       StageNode stageNode = RelToStageConverter.toStageNode(node, currentStageId);
       List<RelNode> inputs = node.getInputs();
@@ -111,16 +107,13 @@ public class StagePlanner {
     }
   }
 
-  // TODO: Switch to Worker SPI to avoid multiple-places where workers are assigned.
-  private void runPhysicalOptimizers(QueryPlan queryPlan) {
-    if (_plannerContext.getOptions().getOrDefault("useColocatedJoin", "false").equals("true")) {
-      GreedyShuffleRewriteVisitor.optimizeShuffles(queryPlan, _tableCache);
-    }
-  }
-
-  private StageNode createSendReceivePair(StageNode nextStageRoot, RelDistribution distribution, int currentStageId) {
-    List<Integer> distributionKeys = distribution.getKeys();
-    RelDistribution.Type exchangeType = distribution.getType();
+  private StageNode createSendReceivePair(StageNode nextStageRoot, RelNode exchange, int currentStageId) {
+    RelDistribution distribution = PinotTraitUtils.asSet(exchange.getTraitSet()).iterator().next();
+    List<Integer> distributionKeys = distribution == null ? null : distribution.getKeys();
+    // TODO: Using singleton here is a temp hack
+    RelDistribution.Type exchangeType = distribution == null ? RelDistribution.Type.SINGLETON
+        : (distribution.getType().equals(RelDistribution.Type.SINGLETON) ? RelDistribution.Type.HASH_DISTRIBUTED :
+            distribution.getType());
 
     // make an exchange sender and receiver node pair
     // only HASH_DISTRIBUTED requires a partition key selector; so all other types (SINGLETON and BROADCAST)
@@ -135,10 +128,6 @@ public class StagePlanner {
     mailboxSender.addInput(nextStageRoot);
 
     return mailboxReceiver;
-  }
-
-  private boolean isExchangeNode(RelNode node) {
-    return (node instanceof Exchange);
   }
 
   private int getNewStageId() {

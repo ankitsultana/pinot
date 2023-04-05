@@ -33,7 +33,7 @@ public class FilterNode extends AbstractStageNode {
   }
 
   public FilterNode(int currentStageId, DataSchema dataSchema, RexNode condition) {
-    super(currentStageId, dataSchema);
+    super(currentStageId, dataSchema, false);
     _condition = RexExpression.toRexExpression(condition);
   }
 

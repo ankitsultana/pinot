@@ -34,7 +34,7 @@ public class ProjectNode extends AbstractStageNode {
     super(stageId);
   }
   public ProjectNode(int currentStageId, DataSchema dataSchema, List<RexNode> projects) {
-    super(currentStageId, dataSchema);
+    super(currentStageId, dataSchema, false);
     _projects = projects.stream().map(RexExpression::toRexExpression).collect(Collectors.toList());
   }
 

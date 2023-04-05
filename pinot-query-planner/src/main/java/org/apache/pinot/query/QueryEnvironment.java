@@ -20,10 +20,12 @@ package org.apache.pinot.query;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Properties;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.config.CalciteConnectionProperty;
 import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.pinot.PinotPlannerSessionContext;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptUtil;
@@ -37,6 +39,7 @@ import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.hint.HintStrategyTable;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.calcite.rel.rules.PinotQueryRuleSets;
+import org.apache.calcite.rel.rules.PinotTraitAssignmentRule;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.runtime.CalciteContextException;
@@ -68,8 +71,6 @@ import org.apache.pinot.sql.parsers.SqlNodeAndOptions;
  * <p>It provide the higher level entry interface to convert a SQL string into a {@link QueryPlan}.
  */
 public class QueryEnvironment {
-  // Calcite configurations
-  private final FrameworkConfig _config;
 
   // Calcite extension/plugins
   private final CalciteSchema _rootSchema;
@@ -95,20 +96,6 @@ public class QueryEnvironment {
     _catalogReader = new PinotCalciteCatalogReader(_rootSchema, _rootSchema.path(null), _typeFactory,
         new CalciteConnectionConfigImpl(catalogReaderConfigProperties));
 
-    _config = Frameworks.newConfigBuilder().traitDefs()
-        .operatorTable(new PinotChainedSqlOperatorTable(Arrays.asList(
-            PinotOperatorTable.instance(),
-            _catalogReader)))
-        .defaultSchema(_rootSchema.plus())
-        .sqlToRelConverterConfig(SqlToRelConverter.config()
-            .withHintStrategyTable(getHintStrategyTable())
-            .withTrimUnusedFields(true)
-            // SUB-QUERY Threshold is useless as we are encoding all IN clause in-line anyway
-            .withInSubQueryThreshold(Integer.MAX_VALUE)
-            .addRelBuilderConfigTransform(c -> c.withPushJoinCondition(true))
-            .addRelBuilderConfigTransform(c -> c.withAggregateUnique(true)))
-        .build();
-
     HepProgramBuilder hepProgramBuilder = new HepProgramBuilder();
     // Set the match order as DEPTH_FIRST. The default is arbitrary which works the same as DEPTH_FIRST, but it's
     // best to be explicit.
@@ -125,6 +112,9 @@ public class QueryEnvironment {
     // TODO: We can consider using HepMatchOrder.TOP_DOWN if we find cases where it would help.
     hepProgramBuilder.addRuleCollection(PinotQueryRuleSets.PRUNE_RULES);
 
+    hepProgramBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+    hepProgramBuilder.addRuleInstance(PinotTraitAssignmentRule.INSTANCE);
+    hepProgramBuilder.addMatchOrder(HepMatchOrder.DEPTH_FIRST);
     // Run pinot specific rules that should run after all other rules, using 1 HepInstruction per rule.
     for (RelOptRule relOptRule : PinotQueryRuleSets.PINOT_POST_RULES) {
       hepProgramBuilder.addRuleInstance(relOptRule);
@@ -145,7 +135,8 @@ public class QueryEnvironment {
    * @return a dispatchable query plan
    */
   public QueryPlan planQuery(String sqlQuery, SqlNodeAndOptions sqlNodeAndOptions, long requestId) {
-    try (PlannerContext plannerContext = new PlannerContext(_config, _catalogReader, _typeFactory, _hepProgram)) {
+    try (PlannerContext plannerContext = new PlannerContext(
+        createConfig(sqlNodeAndOptions.getOptions()), _catalogReader, _typeFactory, _hepProgram)) {
       plannerContext.setOptions(sqlNodeAndOptions.getOptions());
       RelRoot relRoot = compileQuery(sqlNodeAndOptions.getSqlNode(), plannerContext);
       return toDispatchablePlan(relRoot, plannerContext, requestId);
@@ -169,7 +160,8 @@ public class QueryEnvironment {
    * @return the explained query plan.
    */
   public String explainQuery(String sqlQuery, SqlNodeAndOptions sqlNodeAndOptions) {
-    try (PlannerContext plannerContext = new PlannerContext(_config, _catalogReader, _typeFactory, _hepProgram)) {
+    try (PlannerContext plannerContext = new PlannerContext(
+        createConfig(sqlNodeAndOptions.getOptions()), _catalogReader, _typeFactory, _hepProgram)) {
       SqlExplain explain = (SqlExplain) sqlNodeAndOptions.getSqlNode();
       plannerContext.setOptions(sqlNodeAndOptions.getOptions());
       RelRoot relRoot = compileQuery(explain.getExplicandum(), plannerContext);
@@ -202,6 +194,11 @@ public class QueryEnvironment {
     SqlNode validated = validate(sqlNode, plannerContext);
     RelRoot relation = toRelation(validated, plannerContext);
     RelNode optimized = optimize(relation, plannerContext);
+    /*
+    if (plannerContext.getOptions().getOrDefault("useColocatedJoin", "false").equals("true")) {
+      optimized = optimized.accept(new PinotExchangeShuttle());
+      optimized = optimized.accept(new PinotRelIdentityHashOptShuttle(_tableCache, plannerContext.getOptions()));
+    } */
     return relation.withRel(optimized);
   }
 
@@ -222,7 +219,7 @@ public class QueryEnvironment {
     RelOptCluster cluster = RelOptCluster.create(plannerContext.getRelOptPlanner(), rexBuilder);
     SqlToRelConverter sqlToRelConverter =
         new SqlToRelConverter(plannerContext.getPlanner(), plannerContext.getValidator(), _catalogReader, cluster,
-            StandardConvertletTable.INSTANCE, _config.getSqlToRelConverterConfig());
+            StandardConvertletTable.INSTANCE, plannerContext.getConfig().getSqlToRelConverterConfig());
     RelRoot relRoot = sqlToRelConverter.convertQuery(parsed, false, true);
     return relRoot.withRel(sqlToRelConverter.trimUnusedFields(false, relRoot.rel));
   }
@@ -248,6 +245,23 @@ public class QueryEnvironment {
   // --------------------------------------------------------------------------
   // utils
   // --------------------------------------------------------------------------
+
+  private FrameworkConfig createConfig(Map<String, String> options) {
+    return Frameworks.newConfigBuilder().traitDefs()
+        .context(PinotPlannerSessionContext.of(options, _tableCache))
+        .operatorTable(new PinotChainedSqlOperatorTable(Arrays.asList(
+            PinotOperatorTable.instance(),
+            _catalogReader)))
+        .defaultSchema(_rootSchema.plus())
+        .sqlToRelConverterConfig(SqlToRelConverter.config()
+            .withHintStrategyTable(getHintStrategyTable())
+            .withTrimUnusedFields(true)
+            // SUB-QUERY Threshold is useless as we are encoding all IN clause in-line anyway
+            .withInSubQueryThreshold(Integer.MAX_VALUE)
+            .addRelBuilderConfigTransform(c -> c.withPushJoinCondition(true))
+            .addRelBuilderConfigTransform(c -> c.withAggregateUnique(true)))
+        .build();
+  }
 
   private HintStrategyTable getHintStrategyTable() {
     return PinotHintStrategyTable.PINOT_HINT_STRATEGY_TABLE;

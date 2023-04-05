@@ -40,8 +40,9 @@ public class SortNode extends AbstractStageNode {
     super(stageId);
   }
 
-  public SortNode(int stageId, List<RelFieldCollation> fieldCollations, int fetch, int offset, DataSchema dataSchema) {
-    super(stageId, dataSchema);
+  public SortNode(int stageId, List<RelFieldCollation> fieldCollations, int fetch, int offset, DataSchema dataSchema,
+      boolean singleton) {
+    super(stageId, dataSchema, singleton);
     _collationDirections = new ArrayList<>(fieldCollations.size());
     _collationKeys = new ArrayList<>(fieldCollations.size());
     _fetch = fetch;
