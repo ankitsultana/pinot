@@ -42,8 +42,8 @@ public class AggregateNode extends AbstractStageNode {
   }
 
   public AggregateNode(int stageId, DataSchema dataSchema, List<AggregateCall> aggCalls, List<RexExpression> groupSet,
-      List<RelHint> relHints) {
-    super(stageId, dataSchema);
+      List<RelHint> relHints, boolean singleton) {
+    super(stageId, dataSchema, singleton);
     _aggCalls = aggCalls.stream().map(RexExpression::toRexExpression).collect(Collectors.toList());
     _groupSet = groupSet;
     _relHints = relHints;

@@ -65,8 +65,9 @@ public class WindowNode extends AbstractStageNode {
     super(stageId);
   }
 
-  public WindowNode(int stageId, List<Window.Group> windowGroups, List<RexLiteral> constants, DataSchema dataSchema) {
-    super(stageId, dataSchema);
+  public WindowNode(int stageId, List<Window.Group> windowGroups, List<RexLiteral> constants, DataSchema dataSchema,
+      boolean singleton) {
+    super(stageId, dataSchema, singleton);
     // Only a single Window Group should exist per WindowNode.
     Preconditions.checkState(windowGroups.size() == 1,
         String.format("Only a single window group is allowed! Number of window groups: %d", windowGroups.size()));

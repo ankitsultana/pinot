@@ -44,7 +44,7 @@ public class MailboxReceiveNode extends AbstractStageNode {
   public MailboxReceiveNode(int stageId, DataSchema dataSchema, int senderStageId,
       RelDistribution.Type exchangeType, @Nullable KeySelector<Object[], Object[]> partitionKeySelector,
       StageNode sender) {
-    super(stageId, dataSchema);
+    super(stageId, dataSchema, false);
     _senderStageId = senderStageId;
     _exchangeType = exchangeType;
     _partitionKeySelector = partitionKeySelector;

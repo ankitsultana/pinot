@@ -43,6 +43,8 @@ public interface StageNode extends Serializable {
 
   void setDataSchema(DataSchema dataSchema);
 
+  boolean requiresSingletonInstance();
+
   String explain();
 
   <T, C> T visit(StageNodeVisitor<T, C> visitor, C context);

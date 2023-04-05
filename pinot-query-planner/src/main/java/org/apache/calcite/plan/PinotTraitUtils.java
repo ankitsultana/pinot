@@ -83,6 +83,7 @@ public class PinotTraitUtils {
     if (!added) {
       newDistributions.add(PinotRelDistributions.ANY);
     }
+    Collections.sort(newDistributions);
     relTraitSet = relTraitSet.plus(RelCompositeTrait.of(PinotRelDistributionTraitDef.INSTANCE, newDistributions));
     for (RelTrait trait : inputTraits) {
       if (!trait.getTraitDef().equals(PinotRelDistributionTraitDef.INSTANCE)) {

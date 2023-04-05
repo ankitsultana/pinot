@@ -31,15 +31,17 @@ public abstract class AbstractStageNode implements StageNode, ProtoSerializable 
   protected final int _stageId;
   protected final List<StageNode> _inputs;
   protected DataSchema _dataSchema;
+  protected final boolean _requiresSingletonInstance;
 
   public AbstractStageNode(int stageId) {
-    this(stageId, null);
+    this(stageId, null, false);
   }
 
-  public AbstractStageNode(int stageId, DataSchema dataSchema) {
+  public AbstractStageNode(int stageId, DataSchema dataSchema, boolean requiresSingletonInstance) {
     _stageId = stageId;
     _dataSchema = dataSchema;
     _inputs = new ArrayList<>();
+    _requiresSingletonInstance = requiresSingletonInstance;
   }
 
   @Override
@@ -65,6 +67,11 @@ public abstract class AbstractStageNode implements StageNode, ProtoSerializable 
   @Override
   public void setDataSchema(DataSchema dataSchema) {
     _dataSchema = dataSchema;
+  }
+
+  @Override
+  public boolean requiresSingletonInstance() {
+    return _requiresSingletonInstance;
   }
 
   @Override

@@ -41,7 +41,6 @@ import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
-import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableScan;
@@ -178,7 +177,7 @@ public class PinotRelDistributionTransformer {
           PinotRelDistributions.random(ImmutableIntList.range(0, leftFieldCount)),
           PinotRelDistributions.broadcast(
               ImmutableIntList.range(leftFieldCount, leftFieldCount + rightFieldCount))));
-    } else if (ImmutableList.of(JoinRelType.INNER, JoinRelType.SEMI, JoinRelType.LEFT).contains(join.getJoinType())) {
+    } else {
       Set<RelTrait> traits = new HashSet<>();
       int numPartitions = -1;
       if (leftHashDistribution.isPresent()) {
@@ -205,8 +204,6 @@ public class PinotRelDistributionTransformer {
         traits.add(joinRequirement.get(1).apply(rightTargetMapping));
       }
       joinTraits = PinotTraitUtils.toRelTraitSet(traits);
-    } else {
-      throw new IllegalStateException("Only inner join supported right now");
     }
     return new LogicalJoin(join.getCluster(), joinTraits, join.getHints(), leftChild, rightChild, join.getCondition(),
         join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),

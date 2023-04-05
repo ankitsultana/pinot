@@ -37,7 +37,7 @@ public class ValueNode extends AbstractStageNode {
 
   public ValueNode(int currentStageId, DataSchema dataSchema,
       ImmutableList<ImmutableList<RexLiteral>> literalTuples) {
-    super(currentStageId, dataSchema);
+    super(currentStageId, dataSchema, false);
     _literalRows = new ArrayList<>();
     for (List<RexLiteral> literalTuple : literalTuples) {
       List<RexExpression> literalRow = new ArrayList<>();

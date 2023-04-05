@@ -111,7 +111,9 @@ public class StagePlanner {
     RelDistribution distribution = PinotTraitUtils.asSet(exchange.getTraitSet()).iterator().next();
     List<Integer> distributionKeys = distribution == null ? null : distribution.getKeys();
     // TODO: Using singleton here is a temp hack
-    RelDistribution.Type exchangeType = distribution == null ? RelDistribution.Type.SINGLETON : distribution.getType();
+    RelDistribution.Type exchangeType = distribution == null ? RelDistribution.Type.SINGLETON
+        : (distribution.getType().equals(RelDistribution.Type.SINGLETON) ? RelDistribution.Type.HASH_DISTRIBUTED :
+            distribution.getType());
 
     // make an exchange sender and receiver node pair
     // only HASH_DISTRIBUTED requires a partition key selector; so all other types (SINGLETON and BROADCAST)

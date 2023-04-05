@@ -33,7 +33,8 @@ import org.apache.commons.collections.CollectionUtils;
 public class PinotExchange extends SingleRel {
   @Nullable private PinotRelDistribution _distribution;
 
-  PinotExchange(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, @Nullable PinotRelDistribution distribution) {
+  PinotExchange(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
+      @Nullable PinotRelDistribution distribution) {
     super(cluster, traitSet, input);
     _distribution = distribution;
   }

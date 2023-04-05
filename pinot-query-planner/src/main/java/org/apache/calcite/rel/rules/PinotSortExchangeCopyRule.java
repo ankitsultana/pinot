@@ -57,6 +57,12 @@ public class PinotSortExchangeCopyRule extends RelRule<RelRule.Config> {
   public void onMatch(RelOptRuleCall call) {
     final Sort sort = call.rel(0);
     final PinotSortExchange exchange = call.rel(1);
+    if (PinotRuleUtils.unwrapHepRelVertex(exchange.getInput()) instanceof Sort) {
+      return;
+    }
+    if (!PinotRuleUtils.noExchangeInSubtree(exchange.getInput())) {
+      return;
+    }
     final RelMetadataQuery metadataQuery = call.getMetadataQuery();
 
     if (RelMdUtil.checkInputForCollationAndLimit(
@@ -87,6 +93,9 @@ public class PinotSortExchangeCopyRule extends RelRule<RelRule.Config> {
       fetch = REX_BUILDER.makeLiteral(total, TYPE_FACTORY.createSqlType(SqlTypeName.INTEGER));
     }
 
+    // Note: We are setting the collation trait in the input of the exchange node, even though that trait will not be
+    // enforced using an Exchange. That is because we expect to do this only in the leaf stage in which case the leaf
+    // stage itself will take care of sorting. We should use a custom Sort node here (something like LocalSortNode).
     final RelNode newExchangeInput = sort.copy(sort.getTraitSet(), exchange.getInput(), collation, null, fetch);
     final RelNode exchangeCopy = exchange.copy(exchange.getTraitSet(), newExchangeInput, exchange.getDistribution());
     final RelNode sortCopy = sort.copy(sort.getTraitSet(), exchangeCopy, collation,
