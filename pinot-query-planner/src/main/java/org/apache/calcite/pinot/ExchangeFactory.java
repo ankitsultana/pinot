@@ -30,7 +30,6 @@ import org.apache.calcite.plan.PinotTraitUtils;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelDistribution;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.Window;
@@ -132,7 +131,7 @@ public class ExchangeFactory {
      return PinotExchange.create(aggregate.getInput(), distributionTraits.get(0).apply(aggToInput));
   }
 
-  public static RelNode create(Window window) {
+  public static PinotExchange create(Window window) {
     boolean hasCollation = CollectionUtils.isNotEmpty(window.getTraitSet().getTraits(RelCollationTraitDef.INSTANCE));
     Set<PinotRelDistribution> distributions = PinotTraitUtils.asSet(window.getTraitSet());
     Preconditions.checkState(distributions.size() > 0);
@@ -155,8 +154,9 @@ public class ExchangeFactory {
             return PinotExchange.create(window.getInput(), distributions.iterator().next());
           }
         }
+        return PinotExchange.createIdentity(window.getInput());
       }
-      return PinotExchange.createIdentity(window.getInput());
+      return PinotExchange.create(window.getInput(), PinotRelDistributions.SINGLETON);
     }
   }
 }

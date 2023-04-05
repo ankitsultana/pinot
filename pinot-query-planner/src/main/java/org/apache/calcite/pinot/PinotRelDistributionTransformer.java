@@ -224,7 +224,8 @@ public class PinotRelDistributionTransformer {
       return logicalWindow.copy(RelTraitSet.createEmpty().plus(PinotRelDistributions.SINGLETON),
           logicalWindow.getInputs());
     } else if (windowGroup.keys.isEmpty() && !windowGroup.orderKeys.getKeys().isEmpty()) {
-      return logicalWindow.copy(RelTraitSet.createEmpty().plus(windowGroup.orderKeys), logicalWindow.getInputs());
+      return logicalWindow.copy(RelTraitSet.createEmpty().plus(windowGroup.orderKeys).plus(PinotRelDistributions.ANY),
+          logicalWindow.getInputs());
     }
     boolean isPartitionByOnly = isPartitionByOnlyQuery(windowGroup);
 
