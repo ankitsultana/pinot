@@ -79,5 +79,10 @@
       <artifactId>h2</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.pinot</groupId>
+      <artifactId>pinot-timeseries-planner</artifactId>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 </project>

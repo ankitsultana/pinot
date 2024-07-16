@@ -18,10 +18,12 @@
  */
 package org.apache.pinot.query.service.dispatch;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import io.grpc.Deadline;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,9 +38,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import org.apache.calcite.runtime.PairList;
 import org.apache.pinot.common.datablock.DataBlock;
 import org.apache.pinot.common.proto.Worker;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
@@ -60,8 +64,14 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.MultiStageQueryStats;
 import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
+import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerdeUtils;
+import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerialized;
+import org.apache.pinot.query.service.dispatch.tsdb.AsyncQueryTimeSeriesDispatchResponse;
+import org.apache.pinot.query.service.dispatch.tsdb.TimeSeriesDispatchClient;
 import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.spi.utils.CommonConstants;
+import org.apache.pinot.tsdb.planner.physical.TimeSeriesDispatchablePlan;
+import org.apache.pinot.tsdb.planner.physical.TimeSeriesQueryServerInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,10 +82,12 @@ import org.slf4j.LoggerFactory;
 public class QueryDispatcher {
   private static final Logger LOGGER = LoggerFactory.getLogger(QueryDispatcher.class);
   private static final String PINOT_BROKER_QUERY_DISPATCHER_FORMAT = "multistage-query-dispatch-%d";
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final MailboxService _mailboxService;
   private final ExecutorService _executorService;
   private final Map<String, DispatchClient> _dispatchClientMap = new ConcurrentHashMap<>();
+  private final Map<String, TimeSeriesDispatchClient> _timeSeriesDispatchClientMap = new ConcurrentHashMap<>();
 
   public QueryDispatcher(MailboxService mailboxService) {
     _mailboxService = mailboxService;
@@ -98,6 +110,38 @@ public class QueryDispatcher {
       // TODO: Consider always cancel when it returns (early terminate)
       cancel(requestId, dispatchableSubPlan);
       throw e;
+    }
+  }
+
+  public PrometheusResponse submitAndGet(RequestContext context, TimeSeriesDispatchablePlan plan, long timeoutMs,
+      Map<String, String> queryOptions) {
+    long requestId = context.getRequestId();
+    BlockingQueue<AsyncQueryTimeSeriesDispatchResponse> receiver = new ArrayBlockingQueue<>(10);
+    try {
+      submit(requestId, plan, timeoutMs, queryOptions, receiver::offer);
+      AsyncQueryTimeSeriesDispatchResponse received = receiver.poll(timeoutMs, TimeUnit.MILLISECONDS);
+      if (received == null) {
+        new PrometheusResponse("error", null, "TimeoutException", "Timed out waiting for response");
+      }
+      if (received.getThrowable() != null) {
+        Throwable t = received.getThrowable();
+        return new PrometheusResponse("error", null, t.getClass().getSimpleName(), t.getMessage());
+      }
+      if (received.getQueryResponse() == null) {
+        return new PrometheusResponse("error", null, "NullResponse", "Received null response from server");
+      }
+      if (received.getQueryResponse().containsMetadata("error")) {
+        return new PrometheusResponse("error", null,
+            received.getQueryResponse().getMetadataOrDefault("errorType", "unknown error-type"),
+            received.getQueryResponse().getMetadataOrDefault("error", "unknown error"));
+      }
+      Worker.TimeSeriesResponse timeSeriesResponse = received.getQueryResponse();
+      Preconditions.checkNotNull(timeSeriesResponse, "time series response is null");
+      SeriesBlockSerialized serializedSeriesBlock = OBJECT_MAPPER.readValue(
+          timeSeriesResponse.getPayload().toStringUtf8(), SeriesBlockSerialized.class);
+      return SeriesBlockSerdeUtils.convertToPrometheusResponse(serializedSeriesBlock);
+    } catch (Throwable t) {
+      return new PrometheusResponse("error", null, t.getClass().getSimpleName(), t.getMessage());
     }
   }
 
@@ -209,6 +253,34 @@ public class QueryDispatcher {
     }
   }
 
+  void submit(long requestId, TimeSeriesDispatchablePlan plan, long timeoutMs, Map<String, String> queryOptions,
+      Consumer<AsyncQueryTimeSeriesDispatchResponse> receiver)
+      throws Exception {
+    Deadline deadline = Deadline.after(timeoutMs, TimeUnit.MILLISECONDS);
+    String serializedPlan = plan.getSerializedPlan();
+    Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
+        .setDispatchPlan(ByteString.copyFrom(serializedPlan, StandardCharsets.UTF_8))
+        .putAllMetadata(initializeTimeSeriesMetadataMap(plan))
+        .putMetadata("requestId", Long.toString(requestId))
+        .build();
+    getOrCreateTimeSeriesDispatchClient(plan.getQueryServerInstance()).submit(request,
+        new QueryServerInstance(plan.getQueryServerInstance().getHostname(),
+            plan.getQueryServerInstance().getQueryServicePort(), plan.getQueryServerInstance().getQueryMailboxPort()),
+        deadline, receiver::accept);
+  };
+
+  Map<String, String> initializeTimeSeriesMetadataMap(TimeSeriesDispatchablePlan dispatchablePlan) {
+    Map<String, String> result = new HashMap<>();
+    result.put("engine", dispatchablePlan.getEngine());
+    result.put("startTimeSeconds", Long.toString(dispatchablePlan.getTimeBuckets().getStartTime()));
+    result.put("windowSeconds", Long.toString(dispatchablePlan.getTimeBuckets().getBucketSize().getSeconds()));
+    result.put("numElements", Long.toString(dispatchablePlan.getTimeBuckets().getTimeBuckets().length));
+    for (Map.Entry<String, List<String>> entry : dispatchablePlan.getPlanIdToSegments().entrySet()) {
+      result.put("$segmentMapEntry#" + entry.getKey(), String.join(",", entry.getValue()));
+    }
+    return result;
+  }
+
   private static class StageInfo {
     final ByteString _rootNode;
     final ByteString _customProperty;
@@ -241,6 +313,14 @@ public class QueryDispatcher {
     int port = queryServerInstance.getQueryServicePort();
     String key = String.format("%s_%d", hostname, port);
     return _dispatchClientMap.computeIfAbsent(key, k -> new DispatchClient(hostname, port));
+  }
+
+  private TimeSeriesDispatchClient getOrCreateTimeSeriesDispatchClient(
+      TimeSeriesQueryServerInstance queryServerInstance) {
+    String hostname = queryServerInstance.getHostname();
+    int port = queryServerInstance.getQueryServicePort();
+    String key = String.format("%s_%d", hostname, port);
+    return _timeSeriesDispatchClientMap.computeIfAbsent(key, k -> new TimeSeriesDispatchClient(hostname, port));
   }
 
   @VisibleForTesting

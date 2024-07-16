@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.query.service.server;
 
+import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -172,6 +173,13 @@ public class QueryServer extends PinotQueryWorkerGrpc.PinotQueryWorkerImplBase {
         Worker.QueryResponse.newBuilder().putMetadata(CommonConstants.Query.Response.ServerResponseStatus.STATUS_OK, "")
             .build());
     responseObserver.onCompleted();
+  }
+
+  @Override
+  public void submitTimeSeries(Worker.TimeSeriesQueryRequest request,
+      StreamObserver<Worker.TimeSeriesResponse> responseObserver) {
+    ByteString bytes = request.getDispatchPlan();
+    _queryRunner.processTimeSeriesQuery(bytes.toStringUtf8(), request.getMetadataMap(), responseObserver);
   }
 
   @Override

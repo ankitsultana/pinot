@@ -29,6 +29,7 @@ import javax.ws.rs.core.HttpHeaders;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.pinot.broker.api.RequesterIdentity;
 import org.apache.pinot.common.response.BrokerResponse;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.spi.trace.RequestScope;
 import org.apache.pinot.spi.trace.Tracing;
@@ -47,6 +48,8 @@ public interface BrokerRequestHandler {
   BrokerResponse handleRequest(JsonNode request, @Nullable SqlNodeAndOptions sqlNodeAndOptions,
       @Nullable RequesterIdentity requesterIdentity, RequestContext requestContext, @Nullable HttpHeaders httpHeaders)
       throws Exception;
+
+  PrometheusResponse handleTimeSeriesRequest(String engine, String rawQueryParamString, RequestContext requestContext);
 
   @VisibleForTesting
   default BrokerResponse handleRequest(String sql)

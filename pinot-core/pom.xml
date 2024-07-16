@@ -162,6 +162,17 @@
       <artifactId>annotations</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Pinot Timeseries Engine Deps -->
+    <dependency>
+      <groupId>org.apache.pinot</groupId>
+      <artifactId>pinot-timeseries-spi</artifactId>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pinot</groupId>
+      <artifactId>pinot-timeseries-spql</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <profiles>

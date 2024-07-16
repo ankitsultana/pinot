@@ -21,6 +21,7 @@ package org.apache.pinot.core.common;
 /**
  * A {@code Block} represents the data block returned by the {@link Operator}. Each operator can return multiple blocks.
  * It can contain document ids, column values or result rows depending on the operator.
+ * // TODO: Can we move this to SPI?
  */
 public interface Block {
 }

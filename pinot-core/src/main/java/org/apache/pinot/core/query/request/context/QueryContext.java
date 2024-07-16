@@ -35,6 +35,7 @@ import org.apache.pinot.common.request.context.FilterContext;
 import org.apache.pinot.common.request.context.FunctionContext;
 import org.apache.pinot.common.request.context.OrderByExpressionContext;
 import org.apache.pinot.common.request.context.RequestContextUtils;
+import org.apache.pinot.common.request.context.TimeSeriesContext;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.core.plan.maker.InstancePlanMakerImplV2;
 import org.apache.pinot.core.query.aggregation.function.AggregationFunction;
@@ -81,6 +82,7 @@ public class QueryContext {
   private final List<ExpressionContext> _groupByExpressions;
   private final FilterContext _havingFilter;
   private final List<OrderByExpressionContext> _orderByExpressions;
+  private final TimeSeriesContext _timeSeriesContext;
   private final int _limit;
   private final int _offset;
   private final Map<String, String> _queryOptions;
@@ -134,7 +136,8 @@ public class QueryContext {
       @Nullable FilterContext filter, @Nullable List<ExpressionContext> groupByExpressions,
       @Nullable FilterContext havingFilter, @Nullable List<OrderByExpressionContext> orderByExpressions, int limit,
       int offset, Map<String, String> queryOptions,
-      @Nullable Map<ExpressionContext, ExpressionContext> expressionOverrideHints, boolean explain) {
+      @Nullable Map<ExpressionContext, ExpressionContext> expressionOverrideHints, boolean explain,
+      @Nullable TimeSeriesContext timeSeries) {
     _tableName = tableName;
     _subquery = subquery;
     _selectExpressions = selectExpressions;
@@ -143,6 +146,7 @@ public class QueryContext {
     _filter = filter;
     _groupByExpressions = groupByExpressions;
     _havingFilter = havingFilter;
+    _timeSeriesContext = timeSeries;
     _orderByExpressions = orderByExpressions;
     _limit = limit;
     _offset = offset;
@@ -218,6 +222,11 @@ public class QueryContext {
   @Nullable
   public List<OrderByExpressionContext> getOrderByExpressions() {
     return _orderByExpressions;
+  }
+
+  @Nullable
+  public TimeSeriesContext getTimeSeriesContext() {
+    return _timeSeriesContext;
   }
 
   /**
@@ -456,6 +465,7 @@ public class QueryContext {
     private FilterContext _filter;
     private List<ExpressionContext> _groupByExpressions;
     private FilterContext _havingFilter;
+    private TimeSeriesContext _timeSeriesContext;
     private List<OrderByExpressionContext> _orderByExpressions;
     private int _limit;
     private int _offset;
@@ -503,6 +513,11 @@ public class QueryContext {
       return this;
     }
 
+    public Builder setTimeSeriesContext(TimeSeriesContext timeSeriesContext) {
+      _timeSeriesContext = timeSeriesContext;
+      return this;
+    }
+
     public Builder setOrderByExpressions(List<OrderByExpressionContext> orderByExpressions) {
       _orderByExpressions = orderByExpressions;
       return this;
@@ -542,7 +557,7 @@ public class QueryContext {
       QueryContext queryContext =
           new QueryContext(_tableName, _subquery, _selectExpressions, _distinct, _aliasList, _filter,
               _groupByExpressions, _havingFilter, _orderByExpressions, _limit, _offset, _queryOptions,
-              _expressionOverrideHints, _explain);
+              _expressionOverrideHints, _explain, _timeSeriesContext);
       queryContext.setNullHandlingEnabled(QueryOptionsUtils.isNullHandlingEnabled(_queryOptions));
       queryContext.setServerReturnFinalResult(QueryOptionsUtils.isServerReturnFinalResult(_queryOptions));
       queryContext.setServerReturnFinalResultKeyUnpartitioned(

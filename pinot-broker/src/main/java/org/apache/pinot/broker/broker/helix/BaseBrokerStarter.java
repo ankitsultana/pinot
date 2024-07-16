@@ -48,6 +48,7 @@ import org.apache.pinot.broker.requesthandler.BrokerRequestHandlerDelegate;
 import org.apache.pinot.broker.requesthandler.GrpcBrokerRequestHandler;
 import org.apache.pinot.broker.requesthandler.MultiStageBrokerRequestHandler;
 import org.apache.pinot.broker.requesthandler.SingleConnectionBrokerRequestHandler;
+import org.apache.pinot.broker.requesthandler.TimeSeriesRequestHandler;
 import org.apache.pinot.broker.routing.BrokerRoutingManager;
 import org.apache.pinot.common.Utils;
 import org.apache.pinot.common.config.NettyConfig;
@@ -71,6 +72,8 @@ import org.apache.pinot.core.query.utils.rewriter.ResultRewriterFactory;
 import org.apache.pinot.core.transport.ListenerConfig;
 import org.apache.pinot.core.transport.server.routing.stats.ServerRoutingStatsManager;
 import org.apache.pinot.core.util.ListenerConfigUtil;
+import org.apache.pinot.query.mailbox.MailboxService;
+import org.apache.pinot.query.service.dispatch.QueryDispatcher;
 import org.apache.pinot.spi.accounting.ThreadResourceUsageProvider;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.eventlistener.query.BrokerQueryEventListenerFactory;
@@ -130,6 +133,7 @@ public abstract class BaseBrokerStarter implements ServiceStartable {
   protected HelixManager _participantHelixManager;
   // Handles the server routing stats.
   protected ServerRoutingStatsManager _serverRoutingStatsManager;
+  private QueryDispatcher _queryDispatcher = null;
 
   @Override
   public void init(PinotConfiguration brokerConf)
@@ -327,16 +331,26 @@ public abstract class BaseBrokerStarter implements ServiceStartable {
               queryQuotaManager, tableCache, nettyDefaults, tlsDefaults, _serverRoutingStatsManager);
     }
     MultiStageBrokerRequestHandler multiStageBrokerRequestHandler = null;
+    MailboxService mailboxService = null;
     if (_brokerConf.getProperty(Helix.CONFIG_OF_MULTI_STAGE_ENGINE_ENABLED, Helix.DEFAULT_MULTI_STAGE_ENGINE_ENABLED)) {
       // multi-stage request handler uses both Netty and GRPC ports.
       // worker requires both the "Netty port" for protocol transport; and "GRPC port" for mailbox transport.
       // TODO: decouple protocol and engine selection.
+      QueryDispatcher queryDispatcher = initializeQueryDispatcher(_brokerConf);
       multiStageBrokerRequestHandler =
           new MultiStageBrokerRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory,
-              queryQuotaManager, tableCache);
+              queryQuotaManager, tableCache, queryDispatcher);
+    }
+    TimeSeriesRequestHandler timeSeriesRequestHandler = null;
+    if (_brokerConf.getProperty(Helix.CONFIG_OF_TIME_SERIES_ENGINE_ENABLED, Helix.DEFAULT_TIME_SERIES_ENGINE_ENABLED)) {
+      QueryDispatcher queryDispatcher = initializeQueryDispatcher(_brokerConf);
+      timeSeriesRequestHandler =
+          new TimeSeriesRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory, queryQuotaManager,
+              tableCache, queryDispatcher);
     }
     _brokerRequestHandler =
-        new BrokerRequestHandlerDelegate(singleStageBrokerRequestHandler, multiStageBrokerRequestHandler);
+        new BrokerRequestHandlerDelegate(singleStageBrokerRequestHandler, multiStageBrokerRequestHandler,
+            timeSeriesRequestHandler);
     _brokerRequestHandler.start();
 
     // Enable/disable thread CPU time measurement through instance config.
@@ -434,6 +448,16 @@ public abstract class BaseBrokerStarter implements ServiceStartable {
    * @param brokerAdminApplication is the application
    */
   protected void registerExtraComponents(BrokerAdminApiApplication brokerAdminApplication) {
+  }
+
+  private QueryDispatcher initializeQueryDispatcher(PinotConfiguration config) {
+    if (_queryDispatcher != null) {
+      return _queryDispatcher;
+    }
+    String hostname = config.getProperty(CommonConstants.MultiStageQueryRunner.KEY_OF_QUERY_RUNNER_HOSTNAME);
+    int port = Integer.parseInt(config.getProperty(CommonConstants.MultiStageQueryRunner.KEY_OF_QUERY_RUNNER_PORT));
+    MailboxService mailboxService = new MailboxService(hostname, port, config);
+    return new QueryDispatcher(mailboxService);
   }
 
   private void updateInstanceConfigAndBrokerResourceIfNeeded() {

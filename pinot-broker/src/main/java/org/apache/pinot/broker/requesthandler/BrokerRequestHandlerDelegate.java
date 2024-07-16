@@ -27,6 +27,7 @@ import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.pinot.broker.api.RequesterIdentity;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.response.BrokerResponse;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.common.utils.request.RequestUtils;
@@ -44,11 +45,14 @@ import org.apache.pinot.sql.parsers.SqlNodeAndOptions;
 public class BrokerRequestHandlerDelegate implements BrokerRequestHandler {
   private final BaseSingleStageBrokerRequestHandler _singleStageBrokerRequestHandler;
   private final MultiStageBrokerRequestHandler _multiStageBrokerRequestHandler;
+  private final TimeSeriesRequestHandler _timeSeriesRequestHandler;
 
   public BrokerRequestHandlerDelegate(BaseSingleStageBrokerRequestHandler singleStageBrokerRequestHandler,
-      @Nullable MultiStageBrokerRequestHandler multiStageBrokerRequestHandler) {
+      @Nullable MultiStageBrokerRequestHandler multiStageBrokerRequestHandler,
+      @Nullable TimeSeriesRequestHandler timeSeriesRequestHandler) {
     _singleStageBrokerRequestHandler = singleStageBrokerRequestHandler;
     _multiStageBrokerRequestHandler = multiStageBrokerRequestHandler;
+    _timeSeriesRequestHandler = timeSeriesRequestHandler;
   }
 
   @Override
@@ -101,6 +105,16 @@ public class BrokerRequestHandlerDelegate implements BrokerRequestHandler {
       return _singleStageBrokerRequestHandler.handleRequest(request, sqlNodeAndOptions, requesterIdentity,
           requestContext, httpHeaders);
     }
+  }
+
+  @Override
+  public PrometheusResponse handleTimeSeriesRequest(String engine, String rawQueryParamString,
+      RequestContext requestContext) {
+    if (_timeSeriesRequestHandler == null) {
+      return new PrometheusResponse("error", null,
+          "NOT_ENABLED", "Time series engine is not enabled");
+    }
+    return _timeSeriesRequestHandler.handleTimeSeriesRequest(engine, rawQueryParamString, requestContext);
   }
 
   @Override

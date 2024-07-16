@@ -19,15 +19,22 @@
 package org.apache.pinot.query.runtime;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.ByteString;
+import io.grpc.stub.StreamObserver;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.helix.HelixManager;
 import org.apache.pinot.common.datatable.StatMap;
 import org.apache.pinot.common.metrics.ServerMetrics;
+import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.query.executor.QueryExecutor;
@@ -50,10 +57,19 @@ import org.apache.pinot.query.runtime.plan.PhysicalPlanVisitor;
 import org.apache.pinot.query.runtime.plan.pipeline.PipelineBreakerExecutor;
 import org.apache.pinot.query.runtime.plan.pipeline.PipelineBreakerResult;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestUtils;
+import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesPlanVisitor;
+import org.apache.pinot.query.runtime.timeseries.TimeSeriesExecutionContext;
+import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerdeUtils;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.utils.CommonConstants;
 import org.apache.pinot.spi.utils.CommonConstants.Broker.Request.QueryOptionKey;
 import org.apache.pinot.spi.utils.CommonConstants.MultiStageQueryRunner.JoinOverFlowMode;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
+import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
+import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
+import org.apache.pinot.tsdb.spi.plan.serde.TimeSeriesPlanSerde;
+import org.apache.pinot.tsdb.spi.series.SeriesBlock;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,6 +142,9 @@ public class QueryRunner {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+    // TODO: Only do this when time-series engine is enabled
+    PhysicalTimeSeriesPlanVisitor.INSTANCE.init(_leafQueryExecutor, _executorService, serverMetrics);
+    SeriesBuilderFactoryProvider.init(config);
 
     LOGGER.info("Initialized QueryRunner with hostname: {}, port: {}", hostname, port);
   }
@@ -205,6 +224,49 @@ public class QueryRunner {
       opChain = PhysicalPlanVisitor.walkPlanNode(stagePlan.getRootNode(), executionContext);
     }
     _opChainScheduler.register(opChain);
+  }
+
+  public void processTimeSeriesQuery(String serializedPlan, Map<String, String> metadata,
+      StreamObserver<Worker.TimeSeriesResponse> responseObserver) {
+    try {
+      BaseTimeSeriesPlanNode rootNode = TimeSeriesPlanSerde.deserialize(serializedPlan);
+      TimeSeriesExecutionContext context = new TimeSeriesExecutionContext(metadata.get("engine"),
+          extractTimeBuckets(metadata), extractPlanToSegmentMap(metadata));
+      BaseTimeSeriesOperator operator = PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(rootNode, context);
+      SeriesBlock seriesBlock = operator.nextBlock();
+      Worker.TimeSeriesResponse response = Worker.TimeSeriesResponse.newBuilder()
+          .setPayload(ByteString.copyFrom(SeriesBlockSerdeUtils.serialize(seriesBlock), StandardCharsets.UTF_8))
+          .build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
+    } catch (Throwable t) {
+      Map<String, String> errorMetadata = new HashMap<>();
+      errorMetadata.put("errorType", t.getClass().getSimpleName());
+      errorMetadata.put("error", t.getMessage());
+      responseObserver.onNext(Worker.TimeSeriesResponse.newBuilder().putAllMetadata(errorMetadata).build());
+      responseObserver.onCompleted();
+    }
+  }
+
+  public TimeBuckets extractTimeBuckets(Map<String, String> metadataMap) {
+    long startTimeSeconds = Long.parseLong(metadataMap.get("startTimeSeconds"));
+    long windowSeconds = Long.parseLong(metadataMap.get("windowSeconds"));
+    int numElements = Integer.parseInt(metadataMap.get("numElements"));
+    return TimeBuckets.ofSeconds(startTimeSeconds, Duration.ofSeconds(windowSeconds), numElements);
+  }
+
+  public Map<String, List<String>> extractPlanToSegmentMap(Map<String, String> metadataMap) {
+    // TODO: Segment deserialization here is hacky.
+    Map<String, List<String>> result = new HashMap<>();
+    for (var entry : metadataMap.entrySet()) {
+      if (entry.getKey().startsWith("$segmentMapEntry#")) {
+        String planId = entry.getKey().substring("$segmentMapEntry#".length());
+        String[] segments = entry.getValue().split(",");
+        result.put(planId,
+            Stream.of(segments).map(String::strip).collect(Collectors.toList()));
+      }
+    }
+    return result;
   }
 
   private Map<String, String> consolidateMetadata(Map<String, String> customProperties,
