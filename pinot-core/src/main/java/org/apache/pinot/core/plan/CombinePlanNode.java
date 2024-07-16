@@ -32,6 +32,8 @@ import org.apache.pinot.core.operator.combine.GroupByCombineOperator;
 import org.apache.pinot.core.operator.combine.MinMaxValueBasedSelectionOrderByCombineOperator;
 import org.apache.pinot.core.operator.combine.SelectionOnlyCombineOperator;
 import org.apache.pinot.core.operator.combine.SelectionOrderByCombineOperator;
+import org.apache.pinot.core.operator.combine.TimeSeriesCombineOperator;
+import org.apache.pinot.core.operator.combine.merger.TimeSeriesAggResultsBlockMerger;
 import org.apache.pinot.core.operator.streaming.StreamingSelectionOnlyCombineOperator;
 import org.apache.pinot.core.query.executor.ResultsBlockStreamer;
 import org.apache.pinot.core.query.request.context.QueryContext;
@@ -122,7 +124,11 @@ public class CombinePlanNode implements PlanNode {
       }, _executorService, _queryContext.getEndTimeMs());
     }
 
-    if (_streamer != null && QueryContextUtils.isSelectionOnlyQuery(_queryContext) && _queryContext.getLimit() != 0) {
+    if (QueryContextUtils.isTimeSeriesQuery(_queryContext)) {
+      return new TimeSeriesCombineOperator(new TimeSeriesAggResultsBlockMerger(
+          null, _queryContext.getTimeSeriesContext().getAggType()),
+          operators, _queryContext, _executorService);
+    } else if (_streamer != null && QueryContextUtils.isSelectionOnlyQuery(_queryContext) && _queryContext.getLimit() != 0) {
       // Use streaming operator only for non-empty selection-only query
       return new StreamingSelectionOnlyCombineOperator(operators, _queryContext, _executorService);
     } else {

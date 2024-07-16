@@ -48,6 +48,7 @@ import org.apache.pinot.broker.requesthandler.BrokerRequestHandlerDelegate;
 import org.apache.pinot.broker.requesthandler.GrpcBrokerRequestHandler;
 import org.apache.pinot.broker.requesthandler.MultiStageBrokerRequestHandler;
 import org.apache.pinot.broker.requesthandler.SingleConnectionBrokerRequestHandler;
+import org.apache.pinot.broker.requesthandler.TimeSeriesRequestHandler;
 import org.apache.pinot.broker.routing.BrokerRoutingManager;
 import org.apache.pinot.common.Utils;
 import org.apache.pinot.common.config.NettyConfig;
@@ -324,8 +325,15 @@ public abstract class BaseBrokerStarter implements ServiceStartable {
           new MultiStageBrokerRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory,
               queryQuotaManager, tableCache);
     }
+    TimeSeriesRequestHandler timeSeriesRequestHandler = null;
+    if (_brokerConf.getProperty(Helix.CONFIG_OF_TIME_SERIES_ENGINE_ENABLED, Helix.DEFAULT_TIME_SERIES_ENGINE_ENABLED)) {
+      timeSeriesRequestHandler =
+          new TimeSeriesRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory, queryQuotaManager,
+              tableCache);
+    }
     _brokerRequestHandler =
-        new BrokerRequestHandlerDelegate(singleStageBrokerRequestHandler, multiStageBrokerRequestHandler);
+        new BrokerRequestHandlerDelegate(singleStageBrokerRequestHandler, multiStageBrokerRequestHandler,
+            timeSeriesRequestHandler);
     _brokerRequestHandler.start();
 
     // Enable/disable thread CPU time measurement through instance config.

@@ -42,6 +42,7 @@ import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
 import org.apache.pinot.common.response.BrokerResponse;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.response.broker.QueryProcessingException;
 import org.apache.pinot.spi.auth.AuthorizationResult;
 import org.apache.pinot.spi.env.PinotConfiguration;
@@ -143,6 +144,10 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
       @Nullable SqlNodeAndOptions sqlNodeAndOptions, JsonNode request, @Nullable RequesterIdentity requesterIdentity,
       RequestContext requestContext, @Nullable HttpHeaders httpHeaders, AccessControl accessControl)
       throws Exception;
+
+  public PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString) {
+    throw new UnsupportedOperationException("Handler does not support Time Series requests");
+  }
 
   protected static void augmentStatistics(RequestContext statistics, BrokerResponse response) {
     statistics.setNumRowsResultSet(response.getNumRowsResultSet());

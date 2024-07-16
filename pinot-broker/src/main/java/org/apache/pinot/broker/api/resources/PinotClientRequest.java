@@ -61,6 +61,7 @@ import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
 import org.apache.pinot.common.response.BrokerResponse;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.response.broker.QueryProcessingException;
 import org.apache.pinot.common.utils.request.RequestUtils;
@@ -236,6 +237,33 @@ public class PinotClientRequest {
     }
   }
 
+  @POST
+  @ManagedAsync
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("api/v1/query_range")
+  @ApiOperation(value = "Prometheus Compatible API for Pinot's Time Series Engine")
+  @ManualAuthorization
+  public void processTimeSeriesQueryEnginePost(String request, @Suspended AsyncResponse asyncResponse,
+      @Context org.glassfish.grizzly.http.server.Request requestContext,
+      @Context HttpHeaders httpHeaders) {
+    try {
+      JsonNode requestJson = JsonUtils.stringToJsonNode(request);
+      PrometheusResponse response = executeTimeSeriesQuery(requestJson, request);
+      asyncResponse.resume(response);
+    } catch (WebApplicationException wae) {
+      asyncResponse.resume(wae);
+    } catch (Exception e) {
+      LOGGER.error("Caught exception while processing POST request", e);
+      _brokerMetrics.addMeteredGlobalValue(BrokerMeter.UNCAUGHT_POST_EXCEPTIONS, 1L);
+      asyncResponse.resume(
+          new WebApplicationException(e,
+              Response
+                  .status(Response.Status.INTERNAL_SERVER_ERROR)
+                  .entity(e.getMessage())
+                  .build()));
+    }
+  }
+
   @DELETE
   @Path("query/{queryId}")
   @Authorize(targetType = TargetType.CLUSTER, action = Actions.Cluster.CANCEL_QUERY)
@@ -340,6 +368,10 @@ public class PinotClientRequest {
         return new BrokerResponseNative(QueryException.getException(QueryException.SQL_PARSING_ERROR,
             new UnsupportedOperationException("Unsupported SQL type - " + sqlType)));
     }
+  }
+
+  private PrometheusResponse executeTimeSeriesQuery(JsonNode request, String queryString) {
+    return _requestHandler.handleTimeSeriesRequest(request, queryString);
   }
 
   private static HttpRequesterIdentity makeHttpIdentity(org.glassfish.grizzly.http.server.Request context) {
