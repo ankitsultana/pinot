@@ -1,0 +1,64 @@
+package org.apache.pinot.tsdb.planner.physical.serde;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
+
+
+public class TimeSeriesPlanSerde {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  static {
+    OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+  }
+
+  private TimeSeriesPlanSerde() {
+  }
+
+  public static String serialize(BaseTimeSeriesPlanNode planNode) {
+    try {
+      return OBJECT_MAPPER.writeValueAsString(planNode);
+    } catch (Exception e) {
+      throw new RuntimeException("Caught exception while serializing plan", e);
+    }
+  }
+
+  public static BaseTimeSeriesPlanNode deserialize(String planString) {
+    try {
+      JsonNode jsonNode = OBJECT_MAPPER.readTree(planString);
+      return create(jsonNode);
+    } catch (Exception e) {
+      throw new RuntimeException("Caught exception while deserializing plan", e);
+    }
+  }
+
+  public static BaseTimeSeriesPlanNode create(JsonNode jsonNode)
+      throws JsonProcessingException, ClassNotFoundException {
+    JsonNode children = null;
+    if (jsonNode instanceof ObjectNode) {
+      ObjectNode objectNode = (ObjectNode) jsonNode;
+      if (objectNode.has("children")) {
+        children = objectNode.get("children");
+        objectNode.remove("children");
+      }
+    }
+    BaseTimeSeriesPlanNode planNode = null;
+    try {
+      String klassName = jsonNode.get("klass").asText();
+      Class<BaseTimeSeriesPlanNode> klass = (Class<BaseTimeSeriesPlanNode>) Class.forName(klassName);
+      planNode = OBJECT_MAPPER.readValue(jsonNode.toString(), klass);
+    } finally {
+      if (planNode != null && children instanceof ArrayNode) {
+        ArrayNode childArray = (ArrayNode) children;
+        for (JsonNode childJsonNode : childArray) {
+          planNode.addChildNode(create(childJsonNode));
+        }
+      }
+    }
+    return planNode;
+  }
+}
