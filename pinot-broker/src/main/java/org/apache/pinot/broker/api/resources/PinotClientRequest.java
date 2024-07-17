@@ -70,6 +70,7 @@ import org.apache.pinot.core.auth.Authorize;
 import org.apache.pinot.core.auth.ManualAuthorization;
 import org.apache.pinot.core.auth.TargetType;
 import org.apache.pinot.core.query.executor.sql.SqlQueryExecutor;
+import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.spi.trace.RequestScope;
 import org.apache.pinot.spi.trace.Tracing;
 import org.apache.pinot.spi.utils.CommonConstants.Broker.Request;
@@ -244,12 +245,14 @@ public class PinotClientRequest {
   @ApiOperation(value = "Prometheus Compatible API for Pinot's Time Series Engine")
   @ManualAuthorization
   public void processTimeSeriesQueryEnginePost(String request, @Suspended AsyncResponse asyncResponse,
-      @Context org.glassfish.grizzly.http.server.Request requestContext,
+      @Context org.glassfish.grizzly.http.server.Request requestCtx,
       @Context HttpHeaders httpHeaders) {
     try {
       JsonNode requestJson = JsonUtils.stringToJsonNode(request);
-      PrometheusResponse response = executeTimeSeriesQuery(requestJson, request);
-      asyncResponse.resume(response);
+      try (RequestScope requestContext = Tracing.getTracer().createRequestScope()) {
+        PrometheusResponse response = executeTimeSeriesQuery(requestJson, request, requestContext);
+        asyncResponse.resume(response);
+      }
     } catch (WebApplicationException wae) {
       asyncResponse.resume(wae);
     } catch (Exception e) {
@@ -370,8 +373,9 @@ public class PinotClientRequest {
     }
   }
 
-  private PrometheusResponse executeTimeSeriesQuery(JsonNode request, String queryString) {
-    return _requestHandler.handleTimeSeriesRequest(request, queryString);
+  private PrometheusResponse executeTimeSeriesQuery(JsonNode request, String queryString,
+      RequestContext requestContext) {
+    return _requestHandler.handleTimeSeriesRequest(request, queryString, requestContext);
   }
 
   private static HttpRequesterIdentity makeHttpIdentity(org.glassfish.grizzly.http.server.Request context) {

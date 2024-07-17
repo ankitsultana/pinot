@@ -14,6 +14,7 @@
   <artifactId>pinot-tsdb</artifactId>
 
   <properties>
+    <pinot.root>${basedir}/..</pinot.root>
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -22,7 +23,6 @@
   <modules>
     <module>pinot-tsdb-spi</module>
     <module>pinot-tsdb-planner</module>
-    <module>pinot-tsdb-runtime</module>
   </modules>
 
 </project>

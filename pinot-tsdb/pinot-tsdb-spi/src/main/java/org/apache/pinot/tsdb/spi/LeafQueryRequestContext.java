@@ -11,7 +11,13 @@ public class LeafQueryRequestContext {
   private final List<String> _segmentsToQuery;
   private final List<String> _optionalSegments;
 
-  public LeafQueryRequestContext(long requestId, String brokerId, boolean enableTrace, boolean enableStreaming, List<String> segmentsToQuery, List<String> optionalSegments) {
+  public LeafQueryRequestContext(
+      long requestId,
+      String brokerId,
+      boolean enableTrace,
+      boolean enableStreaming,
+      List<String> segmentsToQuery,
+      List<String> optionalSegments) {
     _requestId = requestId;
     _brokerId = brokerId;
     _enableTrace = enableTrace;

@@ -14,11 +14,9 @@ import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.operator.BaseProjectOperator;
-import org.apache.pinot.core.operator.blocks.TransformBlock;
 import org.apache.pinot.core.operator.blocks.ValueBlock;
 import org.apache.pinot.core.operator.blocks.results.TimeSeriesResultsBlock;
-import org.apache.pinot.core.operator.transform.TransformOperator;
-import org.apache.pinot.tsdb.spi.AggType;
+import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
 import org.apache.pinot.tsdb.spi.series.BaseSeriesBuilder;
 import org.apache.pinot.tsdb.spi.series.Series;
@@ -34,7 +32,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
   private static final String EXPLAIN_NAME = "TIME_SERIES_AGGREGATION";
   private final String _timeColumn;
   private final Long _timeOffset;
-  private final AggType _aggType;
+  private final AggInfo _aggInfo;
   private final ExpressionContext _valueExpression;
   private final List<String> _groupByExpressions;
   private final BaseProjectOperator<? extends ValueBlock> _projectOperator;
@@ -44,7 +42,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
   public TimeSeriesAggregationOperator(
       String timeColumn,
       Long timeOffset,
-      AggType aggType,
+      AggInfo aggInfo,
       ExpressionContext valueExpression,
       List<String> groupByExpressions,
       TimeBuckets timeBuckets,
@@ -52,7 +50,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
       SeriesBuilderFactory seriesBuilderFactory) {
     _timeColumn = timeColumn;
     _timeOffset = timeOffset;
-    _aggType = aggType;
+    _aggInfo = aggInfo;
     _valueExpression = valueExpression;
     _groupByExpressions = groupByExpressions;
     _projectOperator = projectOperator;
@@ -152,7 +150,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
       }
       long hash = Series.hash(tagValuesForDoc);
       seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newSeriesBuilder(_aggType, Long.toString(hash), _timeBuckets,
+              k -> _seriesBuilderFactory.newSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
                   _groupByExpressions,
                   tagValuesForDoc))
           .addValueAtIndex(timeValueIndexes[docIdIndex], (double) valueColumnValues[docIdIndex]);
@@ -169,7 +167,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
       }
       long hash = Series.hash(tagValuesForDoc);
       seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newSeriesBuilder(_aggType, Long.toString(hash), _timeBuckets,
+              k -> _seriesBuilderFactory.newSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
                   _groupByExpressions,
                   tagValuesForDoc))
           .addValueAtIndex(timeValueIndexes[docIdIndex], (double) valueColumnValues[docIdIndex]);
@@ -186,7 +184,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
       }
       long hash = Series.hash(tagValuesForDoc);
       seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newSeriesBuilder(_aggType, Long.toString(hash), _timeBuckets,
+              k -> _seriesBuilderFactory.newSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
                   _groupByExpressions,
                   tagValuesForDoc))
           .addValueAtIndex(timeValueIndexes[docIdIndex], valueColumnValues[docIdIndex]);
@@ -203,7 +201,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
       }
       long hash = Series.hash(tagValuesForDoc);
       seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newSeriesBuilder(_aggType, Long.toString(hash), _timeBuckets,
+              k -> _seriesBuilderFactory.newSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
                   _groupByExpressions, tagValuesForDoc))
           .addValueAtIndex(timeValueIndexes[docIdIndex], valueColumnValues[docIdIndex]);
     }

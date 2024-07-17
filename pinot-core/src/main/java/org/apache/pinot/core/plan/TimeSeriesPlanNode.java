@@ -40,7 +40,7 @@ public class TimeSeriesPlanNode implements PlanNode {
     return new TimeSeriesAggregationOperator(
         _timeSeriesContext.getTimeColumn(),
         _timeSeriesContext.getOffsetSeconds(),
-        _timeSeriesContext.getAggType(),
+        _timeSeriesContext.getAggInfo(),
         _timeSeriesContext.getValueExpression(),
         getGroupByColumns(),
         null /* TODO: Need to pass this */,

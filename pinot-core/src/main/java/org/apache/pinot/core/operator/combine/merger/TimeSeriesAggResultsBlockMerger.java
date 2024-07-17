@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.pinot.core.operator.blocks.results.TimeSeriesResultsBlock;
-import org.apache.pinot.tsdb.spi.AggType;
+import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.series.BaseSeriesBuilder;
 import org.apache.pinot.tsdb.spi.series.Series;
 import org.apache.pinot.tsdb.spi.series.SeriesBlock;
@@ -13,11 +13,11 @@ import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactory;
 
 public class TimeSeriesAggResultsBlockMerger implements ResultsBlockMerger<TimeSeriesResultsBlock> {
   private final SeriesBuilderFactory _seriesBuilderFactory;
-  private final AggType _aggType;
+  private final AggInfo _aggInfo;
 
-  public TimeSeriesAggResultsBlockMerger(SeriesBuilderFactory seriesBuilderFactory, AggType aggType) {
+  public TimeSeriesAggResultsBlockMerger(SeriesBuilderFactory seriesBuilderFactory, AggInfo aggInfo) {
     _seriesBuilderFactory = seriesBuilderFactory;
-    _aggType = aggType;
+    _aggInfo = aggInfo;
   }
 
   @Override
@@ -37,7 +37,7 @@ public class TimeSeriesAggResultsBlockMerger implements ResultsBlockMerger<TimeS
         newSeriesList.add(newSeriesToMerge);
         currentSeriesBlock.getSeriesMap().put(seriesHash, newSeriesList);
       } else {
-        BaseSeriesBuilder mergedSeriesBuilder = _seriesBuilderFactory.newSeriesBuilder(_aggType, currentSeries);
+        BaseSeriesBuilder mergedSeriesBuilder = _seriesBuilderFactory.newSeriesBuilder(_aggInfo, currentSeries);
         mergedSeriesBuilder.mergeAlignedSeries(newSeriesToMerge);
         currentSeriesBlock.getSeriesMap().put(seriesHash, ImmutableList.of(mergedSeriesBuilder.build()));
       }

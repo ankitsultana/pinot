@@ -60,9 +60,6 @@
     <module>pinot-query-planner</module>
     <module>pinot-query-runtime</module>
     <module>pinot-tsdb</module>
-    <module>pinot-tsdb/pinot-tsdb-spi</module>
-    <module>pinot-tsdb/pinot-tsdb-planner</module>
-    <module>pinot-tsdb/pinot-tsdb-runtime</module>
   </modules>
 
   <licenses>

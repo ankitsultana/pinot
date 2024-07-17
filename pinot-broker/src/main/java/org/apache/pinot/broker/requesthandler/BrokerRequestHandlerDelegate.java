@@ -96,7 +96,8 @@ public class BrokerRequestHandlerDelegate implements BrokerRequestHandler {
   }
 
   @Override
-  public PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString) {
+  public PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString,
+      RequestContext requestContext) {
     return null;
   }
 

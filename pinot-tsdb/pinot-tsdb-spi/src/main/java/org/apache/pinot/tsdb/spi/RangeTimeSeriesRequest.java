@@ -1,18 +1,28 @@
 package org.apache.pinot.tsdb.spi;
 
+import java.time.Duration;
+
+
 public class RangeTimeSeriesRequest {
+  private final String _engine;
   private final String _query;
   private final long _startTs;
   private final long _endTs;
-  private final String _step;
-  private final String _timeout;
+  private final long _stepSeconds;
+  private final Duration _timeout;
 
-  public RangeTimeSeriesRequest(String query, long startTs, long endTs, String step, String timeout) {
+  public RangeTimeSeriesRequest(String engine, String query, long startTs, long endTs, long stepSeconds,
+      Duration timeout) {
+    _engine = engine;
     _query = query;
     _startTs = startTs;
     _endTs = endTs;
-    _step = step;
+    _stepSeconds = stepSeconds;
     _timeout = timeout;
+  }
+
+  public String getEngine() {
+    return _engine;
   }
 
   public String getQuery() {
@@ -27,11 +37,11 @@ public class RangeTimeSeriesRequest {
     return _endTs;
   }
 
-  public String getStep() {
-    return _step;
+  public long getStepSeconds() {
+    return _stepSeconds;
   }
 
-  public String getTimeout() {
+  public Duration getTimeout() {
     return _timeout;
   }
 }

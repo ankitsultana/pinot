@@ -49,7 +49,8 @@ public interface BrokerRequestHandler {
       @Nullable RequesterIdentity requesterIdentity, RequestContext requestContext, @Nullable HttpHeaders httpHeaders)
       throws Exception;
 
-  PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString);
+  PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString,
+      RequestContext requestContext);
 
   @VisibleForTesting
   default BrokerResponse handleRequest(String sql)
