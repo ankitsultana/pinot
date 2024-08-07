@@ -2,12 +2,12 @@ package org.apache.pinot.core.operator.timeseries;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import javax.annotation.Nullable;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.operator.blocks.results.TimeSeriesResultsBlock;
 import org.apache.pinot.core.operator.transform.TransformOperator;
 import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactory;
-import org.jetbrains.annotations.Nullable;
 
 
 public class TimeSeriesSelectionOperator extends BaseOperator<TimeSeriesResultsBlock> {
