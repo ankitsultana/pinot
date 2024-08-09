@@ -53,6 +53,8 @@ public class TimeSeriesPlanNode implements PlanNode {
     if (CollectionUtils.isNotEmpty(_queryContext.getGroupByExpressions())) {
       result.addAll(_queryContext.getGroupByExpressions());
     }
+    result.add(_queryContext.getTimeSeriesContext().getValueExpression());
+    result.add(ExpressionContext.forIdentifier(_queryContext.getTimeSeriesContext().getTimeColumn()));
     return result;
   }
 

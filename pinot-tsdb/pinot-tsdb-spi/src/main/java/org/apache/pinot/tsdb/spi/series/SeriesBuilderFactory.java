@@ -14,6 +14,4 @@ public abstract class SeriesBuilderFactory {
       Object[] tagValues);
 
   public abstract BaseSeriesBuilder newSeriesBuilder(AggInfo aggInfo, Series series);
-
-  public abstract BaseSeriesBuilder newInstantSeriesBuilder(String id, List<String> tagNames, List<String> tagValues);
 }

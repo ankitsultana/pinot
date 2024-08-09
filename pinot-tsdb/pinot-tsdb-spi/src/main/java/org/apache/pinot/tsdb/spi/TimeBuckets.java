@@ -3,8 +3,17 @@ package org.apache.pinot.tsdb.spi;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
+import org.apache.pinot.tsdb.spi.time.QueryTimeBoundaryConstraints;
+import org.apache.pinot.tsdb.spi.time.TimeBucketComputer;
 
 
+/**
+ * Time buckets used for query execution. Each element (say x) in the {@link #getTimeBuckets()} array represents a
+ * time-range which is half open on the right side: [x, x + bucketSize.getSeconds()). Some query languages allow some
+ * operators to mutate the time-buckets on the fly, so it is not guaranteed that you will have a single time-bucket
+ * across the entire query execution.
+ * Also, see: {@link TimeBucketComputer} and {@link QueryTimeBoundaryConstraints}.
+ */
 public class TimeBuckets {
   private final Long[] _timeBuckets;
   private final Duration _bucketSize;
@@ -58,44 +67,12 @@ public class TimeBuckets {
     return result;
   }
 
-  public static TimeBuckets of(long startTime, long endTime, Duration bucketSize) {
-    if (isTimestampMillis(startTime)) {
-      startTime /= 1000;
-      endTime /= 1000;
-    }
-    return ofSeconds(startTime, endTime, bucketSize);
-  }
-
-  public static TimeBuckets ofSeconds(long startTimeSeconds, long endTimeSeconds, Duration bucketSize) {
-    long stepSizeConverted = 60 * bucketSize.toMinutes();
-    if ((endTimeSeconds - startTimeSeconds) % stepSizeConverted != 0) {
-      throw new IllegalArgumentException("Time range is not divisible by step size");
-    }
-    Long[] timeBuckets = new Long[1 + (int) ((endTimeSeconds - startTimeSeconds) / stepSizeConverted)];
-    for (int i = 0; i < timeBuckets.length; i++) {
-      timeBuckets[i] = startTimeSeconds + i * stepSizeConverted;
-    }
-    if (timeBuckets[timeBuckets.length - 1] != endTimeSeconds) {
-      throw new IllegalArgumentException("Bug in creating time buckets");
+  public static TimeBuckets ofSeconds(long startTimeSeconds, Duration bucketSize, int numElements) {
+    long stepSize = bucketSize.getSeconds();
+    Long[] timeBuckets = new Long[numElements];
+    for (int i = 0; i < numElements; i++) {
+      timeBuckets[i] = startTimeSeconds + i * stepSize;
     }
     return new TimeBuckets(timeBuckets, bucketSize);
-  }
-
-  public static boolean isTimestampMillis(long timestamp) {
-    // 946684800000 is 01 Jan 2000 00:00:00 GMT in Epoch Millis.
-    // 946684800000 in epoch seconds is ~30k years in the future.
-    // As long as the timestamp is after year 2000 and less than year ~30_000,
-    // this function will return the correct result
-    return timestamp >= 946684800000L;
-  }
-
-  public static long roundStartTime(long startTime, long stepSizeConverted) {
-    startTime -= startTime % stepSizeConverted;
-    return startTime;
-  }
-
-  public static long roundEndTime(long endTime, long stepSizeConverted) {
-    endTime += (stepSizeConverted - (endTime % stepSizeConverted)) % stepSizeConverted;
-    return endTime;
   }
 }
