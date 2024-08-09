@@ -3,7 +3,6 @@ package org.apache.pinot.tsdb.spi.plan;
 import java.util.List;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
 import org.apache.pinot.tsdb.spi.plan.visitor.PlanVisitor;
-import org.apache.pinot.tsdb.spi.time.QueryTimeBoundaryConstraints;
 
 
 public abstract class BaseTimeSeriesPlanNode {
@@ -25,10 +24,6 @@ public abstract class BaseTimeSeriesPlanNode {
 
   public void addChildNode(BaseTimeSeriesPlanNode planNode) {
     _children.add(planNode);
-  }
-
-  public QueryTimeBoundaryConstraints process(QueryTimeBoundaryConstraints timeBoundary) {
-    return timeBoundary;
   }
 
   public abstract String getKlass();

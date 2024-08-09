@@ -3,8 +3,6 @@ package org.apache.pinot.tsdb.spi;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
-import org.apache.pinot.tsdb.spi.time.QueryTimeBoundaryConstraints;
-import org.apache.pinot.tsdb.spi.time.TimeBucketComputer;
 
 
 /**
@@ -12,7 +10,6 @@ import org.apache.pinot.tsdb.spi.time.TimeBucketComputer;
  * time-range which is half open on the right side: [x, x + bucketSize.getSeconds()). Some query languages allow some
  * operators to mutate the time-buckets on the fly, so it is not guaranteed that you will have a single time-bucket
  * across the entire query execution.
- * Also, see: {@link TimeBucketComputer} and {@link QueryTimeBoundaryConstraints}.
  */
 public class TimeBuckets {
   private final Long[] _timeBuckets;
