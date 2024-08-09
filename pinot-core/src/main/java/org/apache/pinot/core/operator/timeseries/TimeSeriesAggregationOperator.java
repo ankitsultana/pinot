@@ -132,7 +132,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
     }
     int[] timeIndexes = new int[actualTimeValues.length];
     for (int index = 0; index < actualTimeValues.length; index++) {
-      timeIndexes[index] = (int) ((actualTimeValues[index] - _timeBuckets.getStartTime()) / _timeBuckets.getRangeSeconds());
+      timeIndexes[index] = (int) ((actualTimeValues[index] - _timeBuckets.getStartTime()) / _timeBuckets.getBucketSize().getSeconds());
     }
     return timeIndexes;
   }

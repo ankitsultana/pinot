@@ -50,6 +50,8 @@ import org.apache.pinot.tsdb.example.series.ExampleSeriesBuilderFactory;
 import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.PinotTimeSeriesConfigs;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
+import org.apache.pinot.tsdb.spi.series.Series;
+import org.apache.pinot.tsdb.spi.series.SeriesBlock;
 import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -57,6 +59,8 @@ import org.testng.annotations.Test;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 
@@ -156,6 +160,16 @@ public class QueryExecutorTimeSeriesTest {
         queryContext, _segmentNames, new HashMap<>(), ServerMetrics.get());
     InstanceResponseBlock instanceResponse = _queryExecutor.execute(serverQueryRequest, QUERY_RUNNERS);
     assertTrue(instanceResponse.getResultsBlock() instanceof TimeSeriesResultsBlock);
+    SeriesBlock seriesBlock = ((TimeSeriesResultsBlock) instanceResponse.getResultsBlock()).getSeriesBlock();
+    assertEquals(seriesBlock.getSeriesMap().size(), 1L);
+    assertEquals(seriesBlock.getSeriesMap().values().iterator().next().size(), 1L);
+    Series series = seriesBlock.getSeriesMap().values().iterator().next().get(0);
+    assertEquals(series.getValues()[0], 3000L);
+    assertEquals(series.getValues()[1], 3000L);
+    assertEquals(series.getValues()[2], 1000L);
+    for (int index = 3; index < 10; index++) {
+      assertNull(series.getValues()[index]);
+    }
   }
 
   private QueryContext getQueryContextForTimeSeries(TimeSeriesContext context) {
