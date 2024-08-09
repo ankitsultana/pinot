@@ -14,6 +14,7 @@ import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.operator.BaseProjectOperator;
+import org.apache.pinot.core.operator.ExecutionStatistics;
 import org.apache.pinot.core.operator.blocks.ValueBlock;
 import org.apache.pinot.core.operator.blocks.results.TimeSeriesResultsBlock;
 import org.apache.pinot.tsdb.spi.AggInfo;
@@ -118,6 +119,11 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
   @Override
   public String toExplainString() {
     return EXPLAIN_NAME;
+  }
+
+  @Override
+  public ExecutionStatistics getExecutionStatistics() {
+    return new ExecutionStatistics(0, 0, 0, 0);
   }
 
   private int[] getTimeValueIndex(long[] actualTimeValues, TimeUnit timeUnit) {

@@ -4,6 +4,8 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import javax.annotation.Nullable;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
 
 
 /**
@@ -19,31 +21,33 @@ import java.util.Objects;
 public class Series {
   private final String _id;
   private final Long[] _timeValues;
-  private final Duration _stepSize;
+  private final TimeBuckets _timeBuckets;
   private final Double[] _values;
   private final List<String> _tagNames;
-  private final List<String> _tagValues;
+  private final Object[] _tagValues;
 
-  public Series(String id, Long[] timeValues, Duration stepSize, Double[] values, List<String> tagNames,
-      List<String> tagValues) {
+  public Series(String id, @Nullable Long[] timeValues, @Nullable TimeBuckets timeBuckets, Double[] values,
+      List<String> tagNames, Object[] tagValues) {
     _id = id;
     _timeValues = timeValues;
-    _stepSize = stepSize;
+    _timeBuckets = timeBuckets;
     _values = values;
     _tagNames = Collections.unmodifiableList(tagNames);
-    _tagValues = Collections.unmodifiableList(tagValues);
+    _tagValues = tagValues;
   }
 
   public String getId() {
     return _id;
   }
 
+  @Nullable
   public Long[] getTimeValues() {
     return _timeValues;
   }
 
-  public Duration getStepSize() {
-    return _stepSize;
+  @Nullable
+  public TimeBuckets getTimeBuckets() {
+    return _timeBuckets;
   }
 
   public Double[] getValues() {
@@ -54,7 +58,7 @@ public class Series {
     return _tagNames;
   }
 
-  public List<String> getTagValues() {
+  public Object[] getTagValues() {
     return _tagValues;
   }
 
@@ -67,7 +71,7 @@ public class Series {
       if (i > 0) {
         sb.append(",");
       }
-      sb.append(String.format("%s=%s", _tagNames.get(i), _tagValues.get(i)));
+      sb.append(String.format("%s=%s", _tagNames.get(i), _tagValues[i]));
     }
     return sb.toString();
   }

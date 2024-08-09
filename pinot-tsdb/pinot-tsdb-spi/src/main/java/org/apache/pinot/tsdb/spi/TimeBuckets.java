@@ -16,9 +16,6 @@ public class TimeBuckets {
   private final Duration _bucketSize;
 
   private TimeBuckets(Long[] timeBuckets, Duration bucketSize) {
-    if (bucketSize.toMinutes() < 1) {
-      throw new IllegalArgumentException("Only allow processing data at a minimum of 1 minute granularity");
-    }
     _timeBuckets = timeBuckets;
     _bucketSize = bucketSize;
   }
@@ -45,6 +42,19 @@ public class TimeBuckets {
 
   public int getNumBuckets() {
     return _timeBuckets.length;
+  }
+
+  public int resolveIndex(long timeValue) {
+    if (_timeBuckets.length == 0) {
+      return -1;
+    }
+    if (timeValue < _timeBuckets[0]) {
+      return -1;
+    }
+    if (timeValue >= _timeBuckets[_timeBuckets.length - 1] + _bucketSize.getSeconds()) {
+      return -1;
+    }
+    return (int) ((timeValue - _timeBuckets[0]) / _bucketSize.getSeconds());
   }
 
   @Override

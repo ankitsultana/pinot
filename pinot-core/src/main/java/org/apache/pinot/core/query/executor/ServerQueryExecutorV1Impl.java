@@ -79,6 +79,7 @@ import org.apache.pinot.spi.exception.QueryCancelledException;
 import org.apache.pinot.spi.plugin.PluginManager;
 import org.apache.pinot.spi.trace.Tracing;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

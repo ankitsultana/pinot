@@ -183,6 +183,12 @@
       <version>1.2.0-SNAPSHOT</version>
       <scope>compile</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.pinot</groupId>
+      <artifactId>pinot-tsdb-example</artifactId>
+      <version>1.2.0-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
     <!-- Lucene dependencies end -->
   </dependencies>
   <profiles>

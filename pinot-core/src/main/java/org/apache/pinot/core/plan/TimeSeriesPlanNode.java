@@ -3,6 +3,7 @@ package org.apache.pinot.core.plan;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.common.request.context.TimeSeriesContext;
@@ -14,6 +15,7 @@ import org.apache.pinot.core.operator.timeseries.TimeSeriesAggregationOperator;
 import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.segment.spi.SegmentContext;
 import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactory;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 
 
 public class TimeSeriesPlanNode implements PlanNode {
@@ -22,12 +24,12 @@ public class TimeSeriesPlanNode implements PlanNode {
   private final TimeSeriesContext _timeSeriesContext;
   private final SeriesBuilderFactory _seriesBuilderFactory;
 
-  public TimeSeriesPlanNode(SegmentContext segmentContext, QueryContext queryContext,
-      SeriesBuilderFactory seriesBuilderFactory) {
+  public TimeSeriesPlanNode(SegmentContext segmentContext, QueryContext queryContext) {
     _segmentContext = segmentContext;
     _queryContext = queryContext;
-    _timeSeriesContext = queryContext.getTimeSeriesContext();
-    _seriesBuilderFactory = seriesBuilderFactory;
+    _timeSeriesContext = Objects.requireNonNull(queryContext.getTimeSeriesContext(),
+        "Missing time-series context in TimeSeriesPlanNode");
+    _seriesBuilderFactory = SeriesBuilderFactoryProvider.getSeriesBuilderFactory(_timeSeriesContext.getEngine());
   }
 
   @Override
@@ -43,7 +45,7 @@ public class TimeSeriesPlanNode implements PlanNode {
         _timeSeriesContext.getAggInfo(),
         _timeSeriesContext.getValueExpression(),
         getGroupByColumns(),
-        null /* TODO: Need to pass this */,
+        _timeSeriesContext.getTimeBuckets(),
         projectionOperator,
         _seriesBuilderFactory);
   }

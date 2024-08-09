@@ -3,6 +3,7 @@ package org.apache.pinot.core.query.executor;
 import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.net.URL;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,7 +46,11 @@ import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.utils.ReadMode;
 import org.apache.pinot.spi.utils.builder.TableConfigBuilder;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
+import org.apache.pinot.tsdb.example.series.ExampleSeriesBuilderFactory;
 import org.apache.pinot.tsdb.spi.AggInfo;
+import org.apache.pinot.tsdb.spi.PinotTimeSeriesConfigs;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -125,13 +130,27 @@ public class QueryExecutorTimeSeriesTest {
     PropertiesConfiguration queryExecutorConfig = CommonsConfigurationUtils.fromFile(new File(resourceUrl.getFile()));
     _queryExecutor = new ServerQueryExecutorV1Impl();
     _queryExecutor.init(new PinotConfiguration(queryExecutorConfig), instanceDataManager, ServerMetrics.get());
+
+    setUpTimeSeriesEngine();
+  }
+
+  public void setUpTimeSeriesEngine() {
+    SeriesBuilderFactoryProvider sbfProvider = SeriesBuilderFactoryProvider.INSTANCE;
+    PinotConfiguration pinotConfiguration = new PinotConfiguration(ImmutableMap.of(
+        PinotTimeSeriesConfigs.CommonConfigs.TIME_SERIES_ENGINES, "example",
+        PinotTimeSeriesConfigs.TIME_SERIES_ENGINE_CONFIG_PREFIX + ".example.series.builder.class",
+       ExampleSeriesBuilderFactory.class.getName()
+    ));
+    sbfProvider.init(pinotConfiguration);
   }
 
   @Test
   public void testTimeSeriesQuery() {
+    TimeBuckets timeBuckets = TimeBuckets.ofSeconds(100L, Duration.ofSeconds(2), 10);
     TimeSeriesContext timeSeriesContext = new TimeSeriesContext(
-        TIME_COLUMN_NAME, TimeUnit.MILLISECONDS, 0L, 10_000L, null, null,
-        ExpressionContext.forIdentifier(METRIC_COLUMN_NAME), new AggInfo("SUM", true));
+        "example", TIME_COLUMN_NAME, TimeUnit.MILLISECONDS, timeBuckets, 0L,
+        ExpressionContext.forIdentifier(METRIC_COLUMN_NAME),
+        new AggInfo("SUM", true));
     QueryContext queryContext = getQueryContextForTimeSeries(timeSeriesContext);
     ServerQueryRequest serverQueryRequest = new ServerQueryRequest(
         queryContext, _segmentNames, new HashMap<>(), ServerMetrics.get());

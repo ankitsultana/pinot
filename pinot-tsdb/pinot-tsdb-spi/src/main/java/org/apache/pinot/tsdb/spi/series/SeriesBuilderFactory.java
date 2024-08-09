@@ -1,6 +1,7 @@
 package org.apache.pinot.tsdb.spi.series;
 
 import java.util.List;
+import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
 
@@ -13,5 +14,5 @@ public abstract class SeriesBuilderFactory {
       List<String> tagNames,
       Object[] tagValues);
 
-  public abstract BaseSeriesBuilder newSeriesBuilder(AggInfo aggInfo, Series series);
+  public abstract void init(PinotConfiguration pinotConfiguration);
 }

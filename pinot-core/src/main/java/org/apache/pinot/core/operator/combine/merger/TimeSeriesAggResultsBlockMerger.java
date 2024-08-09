@@ -37,7 +37,9 @@ public class TimeSeriesAggResultsBlockMerger implements ResultsBlockMerger<TimeS
         newSeriesList.add(newSeriesToMerge);
         currentSeriesBlock.getSeriesMap().put(seriesHash, newSeriesList);
       } else {
-        BaseSeriesBuilder mergedSeriesBuilder = _seriesBuilderFactory.newSeriesBuilder(_aggInfo, currentSeries);
+        BaseSeriesBuilder mergedSeriesBuilder = _seriesBuilderFactory.newSeriesBuilder(
+            _aggInfo, currentSeries.getId(), currentSeries.getTimeBuckets(), currentSeries.getTagNames(),
+            currentSeries.getTagValues());
         mergedSeriesBuilder.mergeAlignedSeries(newSeriesToMerge);
         currentSeriesBlock.getSeriesMap().put(seriesHash, ImmutableList.of(mergedSeriesBuilder.build()));
       }

@@ -8,9 +8,9 @@ public abstract class BaseSeriesBuilder {
   protected final String _id;
   protected final TimeBuckets _timeBuckets;
   protected final List<String> _tagNames;
-  protected final List<String> _tagValues;
+  protected final Object[] _tagValues;
 
-  public BaseSeriesBuilder(String id, TimeBuckets timeBuckets, List<String> tagNames, List<String> tagValues) {
+  public BaseSeriesBuilder(String id, TimeBuckets timeBuckets, List<String> tagNames, Object[] tagValues) {
     _id = id;
     _timeBuckets = timeBuckets;
     _tagNames = tagNames;

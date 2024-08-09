@@ -56,6 +56,7 @@ import org.apache.pinot.segment.spi.FetchContext;
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.SegmentContext;
 import org.apache.pinot.spi.env.PinotConfiguration;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -235,7 +236,7 @@ public class InstancePlanMakerImplV2 implements PlanMaker {
   public PlanNode makeSegmentPlanNode(SegmentContext segmentContext, QueryContext queryContext) {
     rewriteQueryContextWithHints(queryContext, segmentContext.getIndexSegment());
     if (QueryContextUtils.isTimeSeriesQuery(queryContext)) {
-      return new TimeSeriesPlanNode(segmentContext, queryContext, null /* pass series builder factory */);
+      return new TimeSeriesPlanNode(segmentContext, queryContext);
     } else if (QueryContextUtils.isAggregationQuery(queryContext)) {
       List<ExpressionContext> groupByExpressions = queryContext.getGroupByExpressions();
       if (groupByExpressions != null) {

@@ -2,26 +2,31 @@ package org.apache.pinot.common.request.context;
 
 import java.util.concurrent.TimeUnit;
 import org.apache.pinot.tsdb.spi.AggInfo;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
+
 
 public class TimeSeriesContext {
+  private final String _engine;
   private final String _timeColumn;
   private final TimeUnit _timeUnit;
-  private final Long _startTs;
-  private final Long _endTs;
+  private final TimeBuckets _timeBuckets;
   private final Long _offsetSeconds;
-  private final Long _evaluationTimestamp;
   private final ExpressionContext _valueExpression;
   private final AggInfo _aggInfo;
 
-  public TimeSeriesContext(String timeColumn, TimeUnit timeUnit, Long startTs, Long endTs, Long offsetSeconds, Long evaluationTimestamp, ExpressionContext valueExpression, AggInfo aggInfo) {
+  public TimeSeriesContext(String engine, String timeColumn, TimeUnit timeUnit, TimeBuckets timeBuckets,
+      Long offsetSeconds, ExpressionContext valueExpression, AggInfo aggInfo) {
+    _engine = engine;
     _timeColumn = timeColumn;
     _timeUnit = timeUnit;
-    _startTs = startTs;
-    _endTs = endTs;
+    _timeBuckets = timeBuckets;
     _offsetSeconds = offsetSeconds;
-    _evaluationTimestamp = evaluationTimestamp;
     _valueExpression = valueExpression;
     _aggInfo = aggInfo;
+  }
+
+  public String getEngine() {
+    return _engine;
   }
 
   public String getTimeColumn() {
@@ -32,20 +37,12 @@ public class TimeSeriesContext {
     return _timeUnit;
   }
 
-  public Long getStartTs() {
-    return _startTs;
-  }
-
-  public Long getEndTs() {
-    return _endTs;
+  public TimeBuckets getTimeBuckets() {
+    return _timeBuckets;
   }
 
   public Long getOffsetSeconds() {
     return _offsetSeconds;
-  }
-
-  public Long getEvaluationTimestamp() {
-    return _evaluationTimestamp;
   }
 
   public ExpressionContext getValueExpression() {
