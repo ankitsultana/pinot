@@ -21,8 +21,8 @@ import org.apache.pinot.broker.queryquota.QueryQuotaManager;
 import org.apache.pinot.broker.routing.BrokerRoutingManager;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.common.response.BrokerResponse;
-import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.utils.HumanReadableDuration;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.query.service.dispatch.QueryDispatcher;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.trace.RequestContext;
@@ -72,7 +72,8 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
       throw new RuntimeException(e);
     }
     TimeSeriesLogicalPlanResult logicalPlanResult = _queryEnvironment.buildLogicalPlan(timeSeriesRequest);
-    TimeSeriesDispatchablePlan dispatchablePlan = _queryEnvironment.buildPhysicalPlan(requestContext, logicalPlanResult);
+    TimeSeriesDispatchablePlan dispatchablePlan = _queryEnvironment.buildPhysicalPlan(timeSeriesRequest, requestContext,
+        logicalPlanResult);
     return _queryDispatcher.submitAndGet(requestContext, dispatchablePlan, 15_000L,
         new HashMap<>());
   }

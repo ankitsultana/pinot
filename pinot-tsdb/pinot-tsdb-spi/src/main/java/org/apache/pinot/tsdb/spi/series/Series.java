@@ -2,7 +2,9 @@ package org.apache.pinot.tsdb.spi.series;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
@@ -60,6 +62,15 @@ public class Series {
 
   public Object[] getTagValues() {
     return _tagValues;
+  }
+
+  public Map<String, String> getTagKeyValuesAsMap() {
+    Map<String, String> result = new HashMap<>();
+    for (int index = 0; index < _tagNames.size(); index++) {
+      String tagValue = _tagValues[index] == null ? "null" : _tagValues[index].toString();
+      result.put(_tagNames.get(index), tagValue);
+    }
+    return result;
   }
 
   public String getTagsSerialized() {

@@ -52,6 +52,7 @@ message QueryResponse {
 }
 
 message TimeSeriesQueryRequest {
+  // TODO: Right now dispatch plan is tree of plan nodes. Ideally it should wrap some metadata within itself.
   bytes dispatchPlan = 1;
   map<string, string> metadata = 2;
 }

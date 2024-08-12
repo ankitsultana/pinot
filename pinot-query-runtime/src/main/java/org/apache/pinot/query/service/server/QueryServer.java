@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.query.service.server;
 
+import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -31,6 +32,7 @@ import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.proto.PinotQueryWorkerGrpc;
 import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.common.utils.NamedThreadFactory;
+import org.apache.pinot.core.operator.timeseries.TimeSeriesAggregationOperator;
 import org.apache.pinot.query.routing.QueryPlanSerDeUtils;
 import org.apache.pinot.query.routing.StageMetadata;
 import org.apache.pinot.query.routing.StagePlan;
@@ -177,7 +179,8 @@ public class QueryServer extends PinotQueryWorkerGrpc.PinotQueryWorkerImplBase {
   @Override
   public void submitTimeSeries(Worker.TimeSeriesQueryRequest request,
       StreamObserver<Worker.TimeSeriesResponse> responseObserver) {
-    // Submit query to query runner
+    ByteString bytes = request.getDispatchPlan();
+    _queryRunner.processTimeSeriesQuery(bytes.toString(), request.getMetadataMap(), responseObserver);
   }
 
   @Override

@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -18,6 +17,7 @@ import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.trace.RequestContext;
+import org.apache.pinot.tsdb.planner.physical.TableScanVisitor;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesDispatchablePlan;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesQueryServerInstance;
 import org.apache.pinot.tsdb.planner.physical.serde.TimeSeriesPlanSerde;
@@ -62,10 +62,10 @@ public class TimeSeriesQueryEnvironment {
         throw new RuntimeException("Failed to instantiate logical planner for engine: " + engine, e);
       }
     }
+    TableScanVisitor.INSTANCE.init(_routingManager);
   }
 
   public TimeSeriesLogicalPlanResult buildLogicalPlan(RangeTimeSeriesRequest request) {
-    // TODO: Add validation and some other steps here.
     Preconditions.checkState(_plannerMap.containsKey(request.getEngine()),
         "No logical planner found for engine: %s. Available: %s", request.getEngine(),
         _plannerMap.keySet());
@@ -73,25 +73,33 @@ public class TimeSeriesQueryEnvironment {
   }
 
   public TimeSeriesDispatchablePlan buildPhysicalPlan(
-      RequestContext requestContext, TimeSeriesLogicalPlanResult logicalPlan) {
+      RangeTimeSeriesRequest timeSeriesRequest, RequestContext requestContext, TimeSeriesLogicalPlanResult logicalPlan) {
+    // Step-1: Find tables in the query.
     final Set<String> tableNames = new HashSet<>();
     findTableNames(logicalPlan.getPlanNode(), tableNames::add);
     Preconditions.checkState(tableNames.size() == 1,
         "Expected exactly one table name in the logical plan, got: %s",
         tableNames);
     String tableName = tableNames.iterator().next();
+    // Step-2: Compute routing table assuming all segments are selected. This is to perform the check to reject tables
+    //         that span across multiple servers.
     RoutingTable routingTable = _routingManager.getRoutingTable(compileBrokerRequest(tableName),
         requestContext.getRequestId());
     Preconditions.checkState(routingTable != null,
         "Failed to get routing table for table: %s", tableName);
     Preconditions.checkState(routingTable.getServerInstanceToSegmentsMap().size() == 1,
-        "Expected exactly one server instance in the routing table, got: %s",
+        "Only support routing to a single server. Computed: %s",
         routingTable.getServerInstanceToSegmentsMap().size());
     var entry = routingTable.getServerInstanceToSegmentsMap().entrySet().iterator().next();
     ServerInstance serverInstance = entry.getKey();
-    List<String> segments =  entry.getValue().getLeft();
-    return new TimeSeriesDispatchablePlan(new TimeSeriesQueryServerInstance(serverInstance),
-        TimeSeriesPlanSerde.serialize(logicalPlan.getPlanNode()), segments);
+    // Step-3: Assign segments to the leaf plan nodes.
+    TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
+    TableScanVisitor.INSTANCE.assignSegmentsToPlan(logicalPlan.getPlanNode(),
+        TableScanVisitor.createContext(requestContext.getRequestId()));
+    return new TimeSeriesDispatchablePlan(timeSeriesRequest.getEngine(),
+        new TimeSeriesQueryServerInstance(serverInstance),
+        TimeSeriesPlanSerde.serialize(logicalPlan.getPlanNode()), logicalPlan.getTimeBuckets(),
+        scanVisitorContext.getPlanIdToSegmentMap());
   }
 
   public static void findTableNames(BaseTimeSeriesPlanNode planNode, Consumer<String> tableNameConsumer) {

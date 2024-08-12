@@ -1,25 +1,40 @@
 package org.apache.pinot.tsdb.spi.plan;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
-import org.apache.pinot.tsdb.spi.plan.visitor.PlanVisitor;
 
 
 public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
   private static final String EXPLAIN_NAME = "SCAN_FILTER_AND_PROJECT";
   private final String _tableName;
+  private final String _timeColumn;
+  private final TimeUnit _timeUnit;
+  private final Long _offset;
   private final String _filterExpression;
   private final String _valueExpression;
-  private final List<String> _projects;
+  private final AggInfo _aggInfo;
+  private final List<String> _groupByColumns;
 
+  @JsonCreator
   public ScanFilterAndProjectPlanNode(
-      String id, List<BaseTimeSeriesPlanNode> children,
-      String tableName, String filterExpression, String valueExpression, List<String> projects) {
+      @JsonProperty("id") String id, @JsonProperty("children") List<BaseTimeSeriesPlanNode> children,
+      @JsonProperty("tableName") String tableName, @JsonProperty("timeColumn") String timeColumn,
+      @JsonProperty("timeUnit") TimeUnit timeUnit, @JsonProperty("offset") Long offset,
+      @JsonProperty("filterExpression") String filterExpression, @JsonProperty("valueExpression") String valueExpression,
+      @JsonProperty("aggInfo") AggInfo aggInfo, @JsonProperty("groupByColumns") List<String> groupByColumns) {
     super(id, children);
     _tableName = tableName;
+    _timeColumn = timeColumn;
+    _timeUnit = timeUnit;
+    _offset = offset;
     _filterExpression = filterExpression;
     _valueExpression = valueExpression;
-    _projects = projects;
+    _aggInfo = aggInfo;
+    _groupByColumns = groupByColumns;
   }
 
   @Override
@@ -33,17 +48,24 @@ public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
   }
 
   @Override
-  public <T> T accept(PlanVisitor<T> visitor) {
-    return visitor.visit(this);
-  }
-
-  @Override
   public BaseTimeSeriesOperator run() {
     throw new UnsupportedOperationException("");
   }
 
   public String getTableName() {
     return _tableName;
+  }
+
+  public String getTimeColumn() {
+    return _timeColumn;
+  }
+
+  public TimeUnit getTimeUnit() {
+    return _timeUnit;
+  }
+
+  public Long getOffset() {
+    return _offset;
   }
 
   public String getFilterExpression() {
@@ -54,7 +76,11 @@ public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
     return _valueExpression;
   }
 
-  public List<String> getProjects() {
-    return _projects;
+  public AggInfo getAggInfo() {
+    return _aggInfo;
+  }
+
+  public List<String> getGroupByColumns() {
+    return _groupByColumns;
   }
 }

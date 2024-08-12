@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.query.service.dispatch;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
@@ -41,7 +42,6 @@ import java.util.function.Consumer;
 import org.apache.calcite.runtime.PairList;
 import org.apache.pinot.common.datablock.DataBlock;
 import org.apache.pinot.common.proto.Worker;
-import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
@@ -63,6 +63,9 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.MultiStageQueryStats;
 import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
+import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerdeUtils;
+import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerialized;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.query.service.dispatch.tsdb.AsyncQueryTimeSeriesDispatchResponse;
 import org.apache.pinot.query.service.dispatch.tsdb.TimeSeriesDispatchClient;
 import org.apache.pinot.spi.trace.RequestContext;
@@ -79,6 +82,7 @@ import org.slf4j.LoggerFactory;
 public class QueryDispatcher {
   private static final Logger LOGGER = LoggerFactory.getLogger(QueryDispatcher.class);
   private static final String PINOT_BROKER_QUERY_DISPATCHER_FORMAT = "multistage-query-dispatch-%d";
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final MailboxService _mailboxService;
   private final ExecutorService _executorService;
@@ -123,8 +127,10 @@ public class QueryDispatcher {
         throw received.getThrowable();
       }
       Worker.TimeSeriesResponse timeSeriesResponse = received.getQueryResponse();
-      // TODO: Translate time series response to prom.
-      return null;
+      Preconditions.checkNotNull(timeSeriesResponse, "time series response is null");
+      SeriesBlockSerialized serializedSeriesBlock = OBJECT_MAPPER.readValue(timeSeriesResponse.getPayload().toString(),
+          SeriesBlockSerialized.class);
+      return SeriesBlockSerdeUtils.convertToPrometheusResponse(serializedSeriesBlock);
     } catch (Throwable t) {
       throw new RuntimeException(t);
     }
@@ -243,15 +249,26 @@ public class QueryDispatcher {
       throws Exception {
     Deadline deadline = Deadline.after(timeoutMs, TimeUnit.MILLISECONDS);
     String serializedPlan = plan.getSerializedPlan();
-    // TODO: pass segments
     Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
         .setDispatchPlan(ByteString.copyFrom(serializedPlan, StandardCharsets.UTF_8))
+        .putAllMetadata(initializeTimeSeriesMetadataMap(plan))
         .build();
     getOrCreateTimeSeriesDispatchClient(plan.getQueryServerInstance()).submit(request,
         new QueryServerInstance(plan.getQueryServerInstance().getHostname(),
             plan.getQueryServerInstance().getQueryServicePort(), plan.getQueryServerInstance().getQueryMailboxPort()),
         deadline, receiver::accept);
   };
+
+  Map<String, String> initializeTimeSeriesMetadataMap(TimeSeriesDispatchablePlan dispatchablePlan) {
+    Map<String, String> result = new HashMap<>();
+    result.put("startTimeSeconds", Long.toString(dispatchablePlan.getTimeBuckets().getStartTime()));
+    result.put("windowSeconds", Long.toString(dispatchablePlan.getTimeBuckets().getBucketSize().getSeconds()));
+    result.put("numElements", Long.toString(dispatchablePlan.getTimeBuckets().getTimeBuckets().length));
+    for (Map.Entry<String, List<String>> entry : dispatchablePlan.getPlanIdToSegments().entrySet()) {
+      result.put("$segmentMapEntry#" + entry.getKey(), String.join(",", entry.getValue()));
+    }
+    return result;
+  }
 
   private static class StageInfo {
     final ByteString _rootNode;
