@@ -96,9 +96,13 @@ public class BrokerRequestHandlerDelegate implements BrokerRequestHandler {
   }
 
   @Override
-  public PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString,
+  public PrometheusResponse handleTimeSeriesRequest(String engine, String rawQueryParamString,
       RequestContext requestContext) {
-    return null;
+    if (_timeSeriesRequestHandler == null) {
+      return new PrometheusResponse("error", PrometheusResponse.Data.EMPTY,
+          "NOT_ENABLED", "Time series engine is not enabled");
+    }
+    return _timeSeriesRequestHandler.handleTimeSeriesRequest(engine, rawQueryParamString, requestContext);
   }
 
   @Override

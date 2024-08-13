@@ -80,11 +80,11 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
   }
 
   @Override
-  public PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString,
+  public PrometheusResponse handleTimeSeriesRequest(String engine, String rawQueryParamString,
       RequestContext requestContext) {
     RangeTimeSeriesRequest timeSeriesRequest = null;
     try {
-      timeSeriesRequest = buildRangeTimeSeriesRequest(request, rawQueryParamString);
+      timeSeriesRequest = buildRangeTimeSeriesRequest(engine, rawQueryParamString);
     } catch (URISyntaxException e) {
       throw new RuntimeException(e);
     }
@@ -107,7 +107,7 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
     return false;
   }
 
-  public static RangeTimeSeriesRequest buildRangeTimeSeriesRequest(JsonNode request, String rawQueryParamString)
+  public static RangeTimeSeriesRequest buildRangeTimeSeriesRequest(String engine, String rawQueryParamString)
       throws URISyntaxException {
     List<NameValuePair> pairs = URLEncodedUtils.parse(
         new URI("http://localhost?" + rawQueryParamString), "UTF-8");
@@ -116,7 +116,6 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
     Long endTs = null;
     String step = null;
     String timeout = null;
-    String engine = null;
     for (NameValuePair nameValuePair : pairs) {
       switch (nameValuePair.getName()) {
         case "query":
@@ -133,9 +132,6 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
           break;
         case "timeout":
           timeout = nameValuePair.getValue();
-          break;
-        case "engine":
-          engine = nameValuePair.getValue();
           break;
         default:
           throw new IllegalArgumentException("Unknown query parameter: " + nameValuePair.getName());

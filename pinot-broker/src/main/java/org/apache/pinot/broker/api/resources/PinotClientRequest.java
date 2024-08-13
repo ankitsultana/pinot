@@ -241,30 +241,42 @@ public class PinotClientRequest {
   @POST
   @ManagedAsync
   @Produces(MediaType.APPLICATION_JSON)
-  @Path("api/v1/query_range")
+  @Path("timeseries/api/v1/query_range")
   @ApiOperation(value = "Prometheus Compatible API for Pinot's Time Series Engine")
   @ManualAuthorization
   public void processTimeSeriesQueryEnginePost(String request, @Suspended AsyncResponse asyncResponse,
+      @QueryParam("engine") String engine,
       @Context org.glassfish.grizzly.http.server.Request requestCtx,
       @Context HttpHeaders httpHeaders) {
     try {
-      JsonNode requestJson = JsonUtils.stringToJsonNode(request);
       try (RequestScope requestContext = Tracing.getTracer().createRequestScope()) {
-        PrometheusResponse response = executeTimeSeriesQuery(requestJson, request, requestContext);
+        PrometheusResponse response = executeTimeSeriesQuery(engine, request, requestContext);
+        if (response.getErrorType() != null && !response.getErrorType().isEmpty()) {
+          asyncResponse.resume(Response.serverError().entity(response).build());
+          return;
+        }
         asyncResponse.resume(response);
       }
-    } catch (WebApplicationException wae) {
-      asyncResponse.resume(wae);
     } catch (Exception e) {
       LOGGER.error("Caught exception while processing POST request", e);
       _brokerMetrics.addMeteredGlobalValue(BrokerMeter.UNCAUGHT_POST_EXCEPTIONS, 1L);
-      asyncResponse.resume(
-          new WebApplicationException(e,
-              Response
-                  .status(Response.Status.INTERNAL_SERVER_ERROR)
-                  .entity(e.getMessage())
-                  .build()));
+      asyncResponse.resume(Response.serverError().entity(
+          new PrometheusResponse("error", PrometheusResponse.Data.EMPTY, e.getClass().getSimpleName(),
+              e.getMessage()))
+          .build());
     }
+  }
+
+  @POST
+  @ManagedAsync
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("timeseries/api/v1/query")
+  @ApiOperation(value = "Prometheus Compatible API for Instant Queries")
+  @ManualAuthorization
+  public void processTimeSeriesInstantQueryPost(String request, @Suspended AsyncResponse asyncResponse,
+      @Context org.glassfish.grizzly.http.server.Request requestCtx,
+      @Context HttpHeaders httpHeaders) {
+    asyncResponse.resume(Response.ok().entity("{}").build());
   }
 
   @DELETE
@@ -373,9 +385,8 @@ public class PinotClientRequest {
     }
   }
 
-  private PrometheusResponse executeTimeSeriesQuery(JsonNode request, String queryString,
-      RequestContext requestContext) {
-    return _requestHandler.handleTimeSeriesRequest(request, queryString, requestContext);
+  private PrometheusResponse executeTimeSeriesQuery(String engine, String queryString, RequestContext requestContext) {
+    return _requestHandler.handleTimeSeriesRequest(engine, queryString, requestContext);
   }
 
   private static HttpRequesterIdentity makeHttpIdentity(org.glassfish.grizzly.http.server.Request context) {

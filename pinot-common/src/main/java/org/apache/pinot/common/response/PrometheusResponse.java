@@ -20,6 +20,7 @@ package org.apache.pinot.common.response;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +57,7 @@ public class PrometheusResponse {
   }
 
   public static class Data {
+    public static final Data EMPTY = new Data("", new ArrayList<>());
     private String _resultType;
     private List<Value> _result;
 

@@ -145,7 +145,7 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
       RequestContext requestContext, @Nullable HttpHeaders httpHeaders, AccessControl accessControl)
       throws Exception;
 
-  public PrometheusResponse handleTimeSeriesRequest(JsonNode request, String rawQueryParamString,
+  public PrometheusResponse handleTimeSeriesRequest(String engine, String rawQueryParamString,
       RequestContext requestContext) {
     throw new UnsupportedOperationException("Handler does not support Time Series requests");
   }

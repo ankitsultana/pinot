@@ -24,6 +24,7 @@ public class PinotTimeSeriesConfigs {
 
   public static final String TIME_SERIES_ENGINE_CONFIG_PREFIX = "pinot.time.series";
 
+  // TODO: Remove CommonConfigs, BrokerConfigs and consolidate in top-level class.
   public static class CommonConfigs {
     public static final String TIME_SERIES_ENGINES = TIME_SERIES_ENGINE_CONFIG_PREFIX + ".engines";
 
@@ -38,5 +39,9 @@ public class PinotTimeSeriesConfigs {
 
   public static class BrokerConfigs {
     public static final String LOGICAL_PLANNER_CLASS_SUFFIX = "logical.planner.class";
+
+    public static String getLogicalPlannerClassConfig(String engine) {
+      return TIME_SERIES_ENGINE_CONFIG_PREFIX + "." + engine + ".logical.planner.class";
+    }
   }
 }

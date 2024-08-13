@@ -18,10 +18,15 @@
  */
 package org.apache.pinot.tools;
 
+import com.google.common.base.Preconditions;
+import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.io.FileUtils;
+import org.apache.pinot.spi.utils.CommonConstants;
+import org.apache.pinot.tools.admin.command.QuickstartRunner;
 import org.apache.pinot.tsdb.spi.PinotTimeSeriesConfigs;
 
 
@@ -55,14 +60,50 @@ public class TimeSeriesEngineQuickStart extends Quickstart {
   @Override
   protected Map<String, Object> getConfigOverrides() {
     Map<String, Object> configs = new HashMap<>();
+    configs.put(CommonConstants.Helix.CONFIG_OF_TIME_SERIES_ENGINE_ENABLED, "true");
     configs.put(PinotTimeSeriesConfigs.CommonConfigs.getEnableEngines(), "example");
     configs.put(PinotTimeSeriesConfigs.CommonConfigs.getSeriesBuilderClass("example"),
         "org.apache.pinot.tsdb.example.series.ExampleSeriesBuilderFactory");
+    configs.put(PinotTimeSeriesConfigs.BrokerConfigs.getLogicalPlannerClassConfig("example"),
+        "org.apache.pinot.tsdb.example.ExampleTimeSeriesPlanner");
     return configs;
   }
 
   @Override
-  protected int getNumQuickstartRunnerServers() {
-    return 2;
+  public void execute()
+      throws Exception {
+    File quickstartTmpDir =
+        _setCustomDataDir ? _dataDir : new File(_dataDir, String.valueOf(System.currentTimeMillis()));
+    File quickstartRunnerDir = new File(quickstartTmpDir, "quickstart");
+    Preconditions.checkState(quickstartRunnerDir.mkdirs());
+    List<QuickstartTableRequest> quickstartTableRequests = bootstrapStreamTableDirectories(quickstartTmpDir);
+    final QuickstartRunner runner =
+        new QuickstartRunner(quickstartTableRequests, 1, 1, 1, 1, quickstartRunnerDir, getConfigOverrides());
+
+    startKafka();
+    startAllDataStreams(_kafkaStarter, quickstartTmpDir);
+
+    printStatus(Color.CYAN, "***** Starting Zookeeper, controller, broker, server and minion *****");
+    runner.startAll();
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      try {
+        printStatus(Color.GREEN, "***** Shutting down realtime quick start *****");
+        runner.stop();
+        FileUtils.deleteDirectory(quickstartTmpDir);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }));
+
+    printStatus(Color.CYAN, "***** Bootstrap all tables *****");
+    runner.bootstrapTable();
+
+    printStatus(Color.CYAN, "***** Waiting for 5 seconds for a few events to get populated *****");
+    Thread.sleep(5000);
+
+    printStatus(Color.YELLOW, "***** Realtime quickstart setup complete *****");
+    runSampleQueries(runner);
+
+    printStatus(Color.GREEN, "You can always go to http://localhost:9000 to play around in the query console");
   }
 }

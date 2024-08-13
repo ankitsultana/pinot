@@ -66,12 +66,11 @@ public class TimeSeriesQueryEnvironment {
     LOGGER.info("Found {} configured time series engines. List: {}", engines.length, engines);
     for (String engine : engines) {
       String configPrefix = PinotTimeSeriesConfigs.TIME_SERIES_ENGINE_CONFIG_PREFIX + "." + engine;
-      String klassName = config.getProperty(
-          configPrefix + "." + PinotTimeSeriesConfigs.BrokerConfigs.LOGICAL_PLANNER_CLASS_SUFFIX);
+      String klassName = config.getProperty(PinotTimeSeriesConfigs.BrokerConfigs.getLogicalPlannerClassConfig(engine));
       Preconditions.checkNotNull(klassName, "Logical planner class not found for engine: " + engine);
       // Create the planner with empty constructor
       try {
-        Class<?> klass = Class.forName(klassName);
+        Class<?> klass = TimeSeriesQueryEnvironment.class.getClassLoader().loadClass(klassName);
         Constructor<?> constructor = klass.getConstructor();
         TimeSeriesLogicalPlanner planner = (TimeSeriesLogicalPlanner) constructor.newInstance();
         planner.init(config.subset(configPrefix).toMap());
