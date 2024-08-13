@@ -76,8 +76,8 @@ public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
       }
       switch (command) {
         case "fetch":
-          lastNode = handleFetchNode(planIdGenerator.generateId(), commands.get(commandId), children, aggInfo,
-              groupByColumns);
+          List<String> tokens = commands.get(commandId).subList(1, commands.get(commandId).size());
+          lastNode = handleFetchNode(planIdGenerator.generateId(), tokens, children, aggInfo, groupByColumns);
           break;
         case "sum":
         case "min":
@@ -123,11 +123,11 @@ public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
         case "table":
           tableName = value.replaceAll("\"", "");
           break;
-        case "timeColumn":
+        case "ts_column":
           timeColumn = value.replaceAll("\"", "");
           break;
-        case "timeUnit":
-          timeUnit = TimeUnit.valueOf(value.replaceAll("\"", ""));
+        case "ts_unit":
+          timeUnit = TimeUnit.valueOf(value.replaceAll("\"", "").toUpperCase(Locale.ENGLISH));
           break;
         case "filter":
           filter = value.replaceAll("\"", "");

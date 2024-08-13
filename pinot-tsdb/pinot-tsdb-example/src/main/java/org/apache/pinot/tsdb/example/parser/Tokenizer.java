@@ -56,14 +56,18 @@ public class Tokenizer {
     result.add("fetch");
     int indexOfEquals = args.indexOf("=");
     while (indexOfEquals != -1) {
-      String arg = args.substring(0, indexOfEquals).trim();
-      result.add(arg);
-      args = args.substring(indexOfEquals + 1).trim();
+      args = args.strip();
+      int equalIndex = args.indexOf("=");
       int indexOfQuotes = args.indexOf("\"");
-      args = args.substring(indexOfQuotes + 1).trim();
-      indexOfQuotes = args.indexOf("\"");
-      result.add(args.substring(0, indexOfQuotes));
-      args = args.substring(indexOfQuotes + 1).trim();
+      int lastQuote = indexOfQuotes + 1 + args.substring(indexOfQuotes + 1).indexOf("\"");
+      String key = args.substring(0, equalIndex);
+      String value = args.substring(indexOfQuotes + 1, lastQuote);
+      args = args.substring(lastQuote + 1);
+      result.add(key);
+      result.add(value);
+      if (args.strip().startsWith(",")) {
+        args = args.strip().substring(1);
+      }
       indexOfEquals = args.indexOf("=");
     }
     return result;
