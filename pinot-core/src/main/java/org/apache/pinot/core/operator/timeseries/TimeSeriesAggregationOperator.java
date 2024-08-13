@@ -150,7 +150,8 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
     }
     int[] timeIndexes = new int[actualTimeValues.length];
     for (int index = 0; index < actualTimeValues.length; index++) {
-      timeIndexes[index] = (int) ((actualTimeValues[index] - _timeBuckets.getStartTime()) / _timeBuckets.getBucketSize().getSeconds());
+      timeIndexes[index] = (int) ((actualTimeValues[index] - _timeBuckets.getStartTime())
+          / _timeBuckets.getBucketSize().getSeconds());
     }
     return timeIndexes;
   }
@@ -257,7 +258,8 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
   public static boolean isTimestampMillis(long timestamp) {
     // 946684800000 is 01 Jan 2000 00:00:00 GMT in Epoch Millis.
     // 946684800000 in epoch seconds is ~30k years in the future.
-    // As long as the timestamp is after year 2000 and less than year ~30_000, this function will return the correct result
+    // As long as the timestamp is after year 2000 and less than year ~30_000,
+    // this function will return the correct result
     return timestamp >= 946684800000L;
   }
 }

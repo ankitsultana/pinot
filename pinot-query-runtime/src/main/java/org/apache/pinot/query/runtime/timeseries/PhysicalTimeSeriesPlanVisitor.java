@@ -83,7 +83,8 @@ public class PhysicalTimeSeriesPlanVisitor {
 
   public QueryContext compileQueryContext(ScanFilterAndProjectPlanNode sfpNode, TimeSeriesExecutionContext context) {
     FilterContext filterContext =
-        RequestContextUtils.getFilter(CalciteSqlParser.compileToExpression(sfpNode.getFilterExpression()));
+        RequestContextUtils.getFilter(CalciteSqlParser.compileToExpression(
+            sfpNode.getEffectiveFilter(context.getInitialTimeBuckets())));
     List<ExpressionContext> groupByExpressions = sfpNode.getGroupByColumns().stream()
         .map(ExpressionContext::forIdentifier).collect(Collectors.toList());
     ExpressionContext valueExpression = RequestContextUtils.getExpression(sfpNode.getValueExpression());

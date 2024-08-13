@@ -18,8 +18,12 @@
  */
 package org.apache.pinot.tsdb.example;
 
+import java.time.Duration;
+
+
 public class Constants {
   public static final String ENGINE_ID = "example";
+  public static final Duration DEFAULT_RESOLUTION = Duration.ofMinutes(1);
 
   private Constants() {
   }

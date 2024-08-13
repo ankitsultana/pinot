@@ -30,6 +30,7 @@ import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.sql.parsers.CalciteSqlParser;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 import org.apache.pinot.tsdb.spi.plan.ScanFilterAndProjectPlanNode;
 
@@ -45,10 +46,10 @@ public class TableScanVisitor {
     _routingManager = routingManager;
   }
 
-  public void assignSegmentsToPlan(BaseTimeSeriesPlanNode planNode, Context context) {
+  public void assignSegmentsToPlan(BaseTimeSeriesPlanNode planNode, TimeBuckets timeBuckets, Context context) {
     if (planNode instanceof ScanFilterAndProjectPlanNode) {
       ScanFilterAndProjectPlanNode sfpNode = (ScanFilterAndProjectPlanNode) planNode;
-      Expression filterExpression = CalciteSqlParser.compileToExpression(sfpNode.getFilterExpression());
+      Expression filterExpression = CalciteSqlParser.compileToExpression(sfpNode.getEffectiveFilter(timeBuckets));
       RoutingTable routingTable = _routingManager.getRoutingTable(
           compileBrokerRequest(sfpNode.getTableName(), filterExpression),
           context._requestId);
@@ -57,11 +58,11 @@ public class TableScanVisitor {
           "Only support routing to a single server. Computed: %s",
           routingTable.getServerInstanceToSegmentsMap().size());
       var entry = routingTable.getServerInstanceToSegmentsMap().entrySet().iterator().next();
-      List<String> segments =  entry.getValue().getLeft();
+      List<String> segments = entry.getValue().getLeft();
       context.getPlanIdToSegmentMap().put(sfpNode.getId(), segments);
     }
     for (BaseTimeSeriesPlanNode childNode : planNode.getChildren()) {
-      assignSegmentsToPlan(childNode, context);
+      assignSegmentsToPlan(childNode, timeBuckets, context);
     }
   }
 

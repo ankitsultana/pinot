@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 import org.apache.calcite.runtime.PairList;
 import org.apache.pinot.common.datablock.DataBlock;
 import org.apache.pinot.common.proto.Worker;
+import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
@@ -65,7 +66,6 @@ import org.apache.pinot.query.runtime.plan.MultiStageQueryStats;
 import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
 import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerdeUtils;
 import org.apache.pinot.query.runtime.timeseries.serde.SeriesBlockSerialized;
-import org.apache.pinot.common.response.PrometheusResponse;
 import org.apache.pinot.query.service.dispatch.tsdb.AsyncQueryTimeSeriesDispatchResponse;
 import org.apache.pinot.query.service.dispatch.tsdb.TimeSeriesDispatchClient;
 import org.apache.pinot.spi.trace.RequestContext;
@@ -121,10 +121,11 @@ public class QueryDispatcher {
       submit(requestId, plan, timeoutMs, queryOptions, receiver::offer);
       AsyncQueryTimeSeriesDispatchResponse received = receiver.poll(timeoutMs, TimeUnit.MILLISECONDS);
       if (received == null) {
-        throw new RuntimeException("Timeout");
+        return new PrometheusResponse("error", null, "TimeoutException", "Timed out waiting for response");
       }
       if (received.getThrowable() != null) {
-        throw received.getThrowable();
+        Throwable t = received.getThrowable();
+        return new PrometheusResponse("error", null, t.getClass().getSimpleName(), t.getMessage());
       }
       Worker.TimeSeriesResponse timeSeriesResponse = received.getQueryResponse();
       Preconditions.checkNotNull(timeSeriesResponse, "time series response is null");
@@ -132,7 +133,7 @@ public class QueryDispatcher {
           SeriesBlockSerialized.class);
       return SeriesBlockSerdeUtils.convertToPrometheusResponse(serializedSeriesBlock);
     } catch (Throwable t) {
-      throw new RuntimeException(t);
+      return new PrometheusResponse("error", null, t.getClass().getSimpleName(), t.getMessage());
     }
   }
 
@@ -252,6 +253,7 @@ public class QueryDispatcher {
     Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
         .setDispatchPlan(ByteString.copyFrom(serializedPlan, StandardCharsets.UTF_8))
         .putAllMetadata(initializeTimeSeriesMetadataMap(plan))
+        .putMetadata("requestId", Long.toString(requestId))
         .build();
     getOrCreateTimeSeriesDispatchClient(plan.getQueryServerInstance()).submit(request,
         new QueryServerInstance(plan.getQueryServerInstance().getHostname(),

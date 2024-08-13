@@ -18,10 +18,26 @@
  */
 package org.apache.pinot.tsdb.example;
 
+import com.google.common.base.Preconditions;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.pinot.tsdb.example.parser.Tokenizer;
+import org.apache.pinot.tsdb.example.plan.KeepLastValuePlanNode;
+import org.apache.pinot.tsdb.example.plan.TransformNullPlanNode;
+import org.apache.pinot.tsdb.example.time.TimeBucketComputer;
+import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.RangeTimeSeriesRequest;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanResult;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanner;
+import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
+import org.apache.pinot.tsdb.spi.plan.ScanFilterAndProjectPlanNode;
 
 
 public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
@@ -35,6 +51,99 @@ public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
       throw new IllegalArgumentException(String.format("Invalid engine id: %s. Expected: %s", request.getEngine(),
           Constants.ENGINE_ID));
     }
-    return null;
+    BaseTimeSeriesPlanNode planNode = planQuery(request);
+    TimeBuckets timeBuckets = TimeBucketComputer.compute(planNode, request);
+    return new TimeSeriesLogicalPlanResult(planNode, timeBuckets);
+  }
+
+  public BaseTimeSeriesPlanNode planQuery(RangeTimeSeriesRequest request) {
+    PlanIdGenerator planIdGenerator = new PlanIdGenerator();
+    Tokenizer tokenizer = new Tokenizer(request.getQuery());
+    List<List<String>> commands = tokenizer.tokenize();
+    Preconditions.checkState(commands.size() > 1, "At least two commands required. "
+        + "Query should start with a fetch followed by an aggregation.");
+    BaseTimeSeriesPlanNode lastNode = null;
+    AggInfo aggInfo = null;
+    List<String> groupByColumns = new ArrayList<>();
+    for (int commandId = commands.size() - 1; commandId >= 0; commandId--) {
+      String command = commands.get(commandId).get(0);
+      Preconditions.checkState((command.equals("fetch") && commandId == 0)
+          || (!command.equals("fetch") && commandId > 0),
+          "fetch should be the first command");
+      List<BaseTimeSeriesPlanNode> children = Collections.emptyList();
+      if (lastNode != null) {
+        children = Collections.singletonList(lastNode);
+      }
+      switch (command) {
+        case "fetch":
+          lastNode = handleFetchNode(planIdGenerator.generateId(), commands.get(commandId), children, aggInfo,
+              groupByColumns);
+          break;
+        case "sum":
+        case "min":
+        case "max":
+          Preconditions.checkState(commandId == 1,
+              "Aggregation should be the second command (fetch should be first)");
+          Preconditions.checkState(aggInfo == null, "Aggregation already set. Only single agg allowed.");
+          aggInfo = new AggInfo(command.toUpperCase(Locale.ENGLISH), false);
+          if (commands.get(commandId).size() > 1) {
+            String[] cols = commands.get(commandId).get(1).split(",");
+            groupByColumns = Stream.of(cols).map(String::trim).collect(Collectors.toList());
+          }
+          break;
+        case "keepLastValue":
+          lastNode = new KeepLastValuePlanNode(planIdGenerator.generateId(), children);
+          break;
+        case "transformNull":
+          Double defaultValue = TransformNullPlanNode.DEFAULT_VALUE;
+          if (commands.get(commandId).size() > 1) {
+            defaultValue = Double.parseDouble(commands.get(commandId).get(1));
+          }
+          lastNode = new TransformNullPlanNode(planIdGenerator.generateId(), defaultValue, children);
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown function: " + command);
+      }
+    }
+    return lastNode;
+  }
+
+  public BaseTimeSeriesPlanNode handleFetchNode(String planId, List<String> tokens,
+      List<BaseTimeSeriesPlanNode> children, AggInfo aggInfo, List<String> groupByColumns) {
+    Preconditions.checkState(tokens.size() % 2 == 0, "Mismatched args");
+    String tableName = null;
+    String timeColumn = null;
+    TimeUnit timeUnit = null;
+    String filter = "";
+    String valueExpr = null;
+    for (int idx = 0; idx < tokens.size(); idx += 2) {
+      String key = tokens.get(idx);
+      String value = tokens.get(idx + 1);
+      switch (key) {
+        case "table":
+          tableName = value.replaceAll("\"", "");
+          break;
+        case "timeColumn":
+          timeColumn = value.replaceAll("\"", "");
+          break;
+        case "timeUnit":
+          timeUnit = TimeUnit.valueOf(value.replaceAll("\"", ""));
+          break;
+        case "filter":
+          filter = value.replaceAll("\"", "");
+          break;
+        case "value":
+          valueExpr = value.replaceAll("\"", "");
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown key: " + key);
+      }
+    }
+    Preconditions.checkNotNull(tableName, "Table name not set. Set via table=");
+    Preconditions.checkNotNull(timeColumn, "Time column not set. Set via time_col=");
+    Preconditions.checkNotNull(timeUnit, "Time unit not set. Set via time_unit=");
+    Preconditions.checkNotNull(valueExpr, "Value expression not set. Set via value=");
+    return new ScanFilterAndProjectPlanNode(planId, children, tableName, timeColumn, timeUnit, 0L, filter, valueExpr,
+        aggInfo, groupByColumns);
   }
 }

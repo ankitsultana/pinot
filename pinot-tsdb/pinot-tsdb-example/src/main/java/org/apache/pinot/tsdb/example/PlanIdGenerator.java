@@ -16,30 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.tsdb.spi;
+package org.apache.pinot.tsdb.example;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+public class PlanIdGenerator {
+  private final Integer _id = 0;
 
-
-public class AggInfo {
-  private final String _aggFunction;
-  // TODO: This flag is unused right now. It might make more sense to have this in the physical plans.
-  private final boolean _isPartial;
-
-  @JsonCreator
-  public AggInfo(
-      @JsonProperty("aggFunction") String aggFunction,
-      @JsonProperty("isPartial") boolean isPartial) {
-    _aggFunction = aggFunction;
-    _isPartial = isPartial;
+  public PlanIdGenerator() {
   }
 
-  public String getAggFunction() {
-    return _aggFunction;
-  }
-
-  public boolean isPartial() {
-    return _isPartial;
+  public String generateId() {
+    return "plan_" + _id;
   }
 }

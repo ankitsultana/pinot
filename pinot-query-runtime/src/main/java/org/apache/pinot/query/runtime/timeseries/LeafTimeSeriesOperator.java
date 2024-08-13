@@ -34,7 +34,8 @@ public class LeafTimeSeriesOperator extends BaseTimeSeriesOperator {
   private final QueryExecutor _queryExecutor;
   private final ExecutorService _executorService;
 
-  public LeafTimeSeriesOperator(ServerQueryRequest serverQueryRequest, QueryExecutor queryExecutor, ExecutorService executorService) {
+  public LeafTimeSeriesOperator(ServerQueryRequest serverQueryRequest, QueryExecutor queryExecutor,
+      ExecutorService executorService) {
     super(Collections.emptyList());
     _request = serverQueryRequest;
     _queryExecutor = queryExecutor;

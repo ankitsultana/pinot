@@ -30,7 +30,8 @@ class TimeSeriesDispatchObserver implements StreamObserver<Worker.TimeSeriesResp
 
   private Worker.TimeSeriesResponse _timeSeriesResponse;
 
-  public TimeSeriesDispatchObserver(QueryServerInstance serverInstance, Consumer<AsyncQueryTimeSeriesDispatchResponse> callback) {
+  public TimeSeriesDispatchObserver(QueryServerInstance serverInstance,
+      Consumer<AsyncQueryTimeSeriesDispatchResponse> callback) {
     _serverInstance = serverInstance;
     _callback = callback;
   }

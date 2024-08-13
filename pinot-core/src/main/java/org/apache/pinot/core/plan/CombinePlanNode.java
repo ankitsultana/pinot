@@ -128,7 +128,8 @@ public class CombinePlanNode implements PlanNode {
       return new TimeSeriesCombineOperator(new TimeSeriesAggResultsBlockMerger(
           null, _queryContext.getTimeSeriesContext().getAggInfo()),
           operators, _queryContext, _executorService);
-    } else if (_streamer != null && QueryContextUtils.isSelectionOnlyQuery(_queryContext) && _queryContext.getLimit() != 0) {
+    } else if (_streamer != null && QueryContextUtils.isSelectionOnlyQuery(_queryContext)
+        && _queryContext.getLimit() != 0) {
       // Use streaming operator only for non-empty selection-only query
       return new StreamingSelectionOnlyCombineOperator(operators, _queryContext, _executorService);
     } else {

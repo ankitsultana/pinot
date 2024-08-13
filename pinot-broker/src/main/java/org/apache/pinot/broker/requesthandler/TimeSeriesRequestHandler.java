@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Preconditions;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +38,8 @@ import org.apache.pinot.broker.queryquota.QueryQuotaManager;
 import org.apache.pinot.broker.routing.BrokerRoutingManager;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.common.response.BrokerResponse;
-import org.apache.pinot.common.utils.HumanReadableDuration;
 import org.apache.pinot.common.response.PrometheusResponse;
+import org.apache.pinot.common.utils.HumanReadableDuration;
 import org.apache.pinot.query.service.dispatch.QueryDispatcher;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.trace.RequestContext;
@@ -132,16 +131,20 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
           step = nameValuePair.getValue();
           break;
         case "timeout":
-          // TODO: Actually use timeout.
           timeout = nameValuePair.getValue();
           break;
+        default:
+          throw new IllegalArgumentException("Unknown query parameter: " + nameValuePair.getName());
       }
     }
     Preconditions.checkNotNull(query, "Query cannot be null");
     Preconditions.checkNotNull(startTs, "Start time cannot be null");
     Preconditions.checkNotNull(endTs, "End time cannot be null");
+    if (timeout == null) {
+      timeout = "15s";
+    }
     return new RangeTimeSeriesRequest("prom",
-        query, startTs, endTs, getStepSeconds(step), Duration.ofSeconds(15));
+        query, startTs, endTs, getStepSeconds(step), HumanReadableDuration.fromString(timeout));
   }
 
   public static Long getStepSeconds(@Nullable String step) {
@@ -152,6 +155,6 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
       return Long.parseLong(step);
     } catch (NumberFormatException ignored) {
     }
-    return HumanReadableDuration.valueOf(step).toSeconds();
+    return HumanReadableDuration.fromString(step).getSeconds();
   }
 }

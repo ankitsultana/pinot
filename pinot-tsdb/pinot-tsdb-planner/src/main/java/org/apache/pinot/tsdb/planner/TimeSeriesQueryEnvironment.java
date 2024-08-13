@@ -90,8 +90,8 @@ public class TimeSeriesQueryEnvironment {
     return _plannerMap.get(request.getEngine()).plan(request);
   }
 
-  public TimeSeriesDispatchablePlan buildPhysicalPlan(
-      RangeTimeSeriesRequest timeSeriesRequest, RequestContext requestContext, TimeSeriesLogicalPlanResult logicalPlan) {
+  public TimeSeriesDispatchablePlan buildPhysicalPlan(RangeTimeSeriesRequest timeSeriesRequest,
+      RequestContext requestContext, TimeSeriesLogicalPlanResult logicalPlan) {
     // Step-1: Find tables in the query.
     final Set<String> tableNames = new HashSet<>();
     findTableNames(logicalPlan.getPlanNode(), tableNames::add);
@@ -112,7 +112,7 @@ public class TimeSeriesQueryEnvironment {
     ServerInstance serverInstance = entry.getKey();
     // Step-3: Assign segments to the leaf plan nodes.
     TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
-    TableScanVisitor.INSTANCE.assignSegmentsToPlan(logicalPlan.getPlanNode(),
+    TableScanVisitor.INSTANCE.assignSegmentsToPlan(logicalPlan.getPlanNode(), logicalPlan.getTimeBuckets(),
         TableScanVisitor.createContext(requestContext.getRequestId()));
     return new TimeSeriesDispatchablePlan(timeSeriesRequest.getEngine(),
         new TimeSeriesQueryServerInstance(serverInstance),

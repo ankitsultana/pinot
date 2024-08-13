@@ -25,9 +25,9 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.pinot</groupId>
-    <artifactId>pinot</artifactId>
+    <artifactId>pinot-tsdb</artifactId>
     <version>1.2.0-SNAPSHOT</version>
-    <relativePath>../../pom.xml</relativePath>
+    <relativePath>..</relativePath>
   </parent>
 
   <artifactId>pinot-tsdb-example</artifactId>

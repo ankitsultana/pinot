@@ -54,7 +54,7 @@ public class SeriesBlockSerdeUtils {
       }
     }
     PrometheusResponse.Data data = new PrometheusResponse.Data("matrix", result);
-    return new PrometheusResponse("success", data);
+    return new PrometheusResponse("success", data, null, null);
   }
 
   public static String serialize(SeriesBlock seriesBlock)

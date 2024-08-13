@@ -18,7 +18,6 @@
  */
 package org.apache.pinot.tsdb.spi.series;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;

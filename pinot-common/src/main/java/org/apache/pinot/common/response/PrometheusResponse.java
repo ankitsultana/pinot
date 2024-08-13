@@ -27,11 +27,16 @@ import java.util.Map;
 public class PrometheusResponse {
   private String _status;
   private Data _data;
+  private String _errorType;
+  private String _error;
 
   @JsonCreator
-  public PrometheusResponse(@JsonProperty("status") String status, @JsonProperty("data") Data data) {
+  public PrometheusResponse(@JsonProperty("status") String status, @JsonProperty("data") Data data,
+      @JsonProperty("errorType") String errorType, @JsonProperty("error") String error) {
     _status = status;
     _data = data;
+    _errorType = errorType;
+    _error = error;
   }
 
   public String getStatus() {
@@ -40,6 +45,14 @@ public class PrometheusResponse {
 
   public Data getData() {
     return _data;
+  }
+
+  public String getErrorType() {
+    return _errorType;
+  }
+
+  public String getError() {
+    return _error;
   }
 
   public static class Data {

@@ -16,30 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.tsdb.spi;
+package org.apache.pinot.tsdb.example.plan;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import org.apache.pinot.tsdb.example.operator.KeepLastValueOperator;
+import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
+import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 
 
-public class AggInfo {
-  private final String _aggFunction;
-  // TODO: This flag is unused right now. It might make more sense to have this in the physical plans.
-  private final boolean _isPartial;
-
-  @JsonCreator
-  public AggInfo(
-      @JsonProperty("aggFunction") String aggFunction,
-      @JsonProperty("isPartial") boolean isPartial) {
-    _aggFunction = aggFunction;
-    _isPartial = isPartial;
+public class KeepLastValuePlanNode extends BaseTimeSeriesPlanNode {
+  public KeepLastValuePlanNode(String id, List<BaseTimeSeriesPlanNode> children) {
+    super(id, children);
   }
 
-  public String getAggFunction() {
-    return _aggFunction;
+  @Override
+  public String getKlass() {
+    return KeepLastValuePlanNode.class.getName();
   }
 
-  public boolean isPartial() {
-    return _isPartial;
+  @Override
+  public String getExplainName() {
+    return "KEEP_LAST_VALUE";
+  }
+
+  @Override
+  public BaseTimeSeriesOperator run() {
+    BaseTimeSeriesOperator childOperator = _children.get(0).run();
+    return new KeepLastValueOperator(List.of(childOperator));
   }
 }

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.pinot.tsdb.spi.AggInfo;
+import org.apache.pinot.tsdb.spi.TimeBuckets;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
 
 
@@ -42,7 +43,8 @@ public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
       @JsonProperty("id") String id, @JsonProperty("children") List<BaseTimeSeriesPlanNode> children,
       @JsonProperty("tableName") String tableName, @JsonProperty("timeColumn") String timeColumn,
       @JsonProperty("timeUnit") TimeUnit timeUnit, @JsonProperty("offset") Long offset,
-      @JsonProperty("filterExpression") String filterExpression, @JsonProperty("valueExpression") String valueExpression,
+      @JsonProperty("filterExpression") String filterExpression,
+      @JsonProperty("valueExpression") String valueExpression,
       @JsonProperty("aggInfo") AggInfo aggInfo, @JsonProperty("groupByColumns") List<String> groupByColumns) {
     super(id, children);
     _tableName = tableName;
@@ -100,5 +102,16 @@ public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
 
   public List<String> getGroupByColumns() {
     return _groupByColumns;
+  }
+
+  public String getEffectiveFilter(TimeBuckets timeBuckets) {
+    String filter = _filterExpression == null ? "" : _filterExpression;
+    long startTime = timeBuckets.getStartTime() - _offset;
+    long endTime = timeBuckets.getEndTime() - _offset;
+    String addnFilter = String.format("%s >= %d AND %s <= %d", _timeColumn, startTime, _timeColumn, endTime);
+    if (filter.strip().isEmpty()) {
+      return addnFilter;
+    }
+    return String.format("(%s) AND (%s)", filter, addnFilter);
   }
 }
