@@ -116,6 +116,7 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
     Long endTs = null;
     String step = null;
     String timeout = null;
+    String engine = null;
     for (NameValuePair nameValuePair : pairs) {
       switch (nameValuePair.getName()) {
         case "query":
@@ -133,6 +134,9 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
         case "timeout":
           timeout = nameValuePair.getValue();
           break;
+        case "engine":
+          engine = nameValuePair.getValue();
+          break;
         default:
           throw new IllegalArgumentException("Unknown query parameter: " + nameValuePair.getName());
       }
@@ -143,8 +147,8 @@ public class TimeSeriesRequestHandler extends BaseBrokerRequestHandler {
     if (timeout == null) {
       timeout = "15s";
     }
-    return new RangeTimeSeriesRequest("prom",
-        query, startTs, endTs, getStepSeconds(step), HumanReadableDuration.fromString(timeout));
+    return new RangeTimeSeriesRequest(engine, query, startTs, endTs, getStepSeconds(step),
+        HumanReadableDuration.fromString(timeout));
   }
 
   public static Long getStepSeconds(@Nullable String step) {

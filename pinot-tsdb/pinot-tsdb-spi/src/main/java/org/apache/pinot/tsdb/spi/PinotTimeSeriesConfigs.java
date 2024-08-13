@@ -27,6 +27,10 @@ public class PinotTimeSeriesConfigs {
   public static class CommonConfigs {
     public static final String TIME_SERIES_ENGINES = TIME_SERIES_ENGINE_CONFIG_PREFIX + ".engines";
 
+    public static String getEnableEngines() {
+      return TIME_SERIES_ENGINES;
+    }
+
     public static String getSeriesBuilderClass(String engine) {
       return TIME_SERIES_ENGINE_CONFIG_PREFIX + "." + engine + ".series.builder.class";
     }
