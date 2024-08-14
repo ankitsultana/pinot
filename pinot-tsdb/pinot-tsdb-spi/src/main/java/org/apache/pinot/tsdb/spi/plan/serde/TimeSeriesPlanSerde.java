@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.tsdb.planner.physical.serde;
+package org.apache.pinot.tsdb.spi.plan.serde;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -58,11 +58,13 @@ public class TimeSeriesPlanSerde {
       throws JsonProcessingException, ClassNotFoundException {
     JsonNode children = null;
     if (jsonNode instanceof ObjectNode) {
+      // Remove children field to prevent Jackson from deserializing it. We will handle it manually.
       ObjectNode objectNode = (ObjectNode) jsonNode;
       if (objectNode.has("children")) {
         children = objectNode.get("children");
         objectNode.remove("children");
       }
+      objectNode.putIfAbsent("children", OBJECT_MAPPER.createArrayNode());
     }
     BaseTimeSeriesPlanNode planNode = null;
     try {

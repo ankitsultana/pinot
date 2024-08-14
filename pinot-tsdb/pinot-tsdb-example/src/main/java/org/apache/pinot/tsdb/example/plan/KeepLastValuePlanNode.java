@@ -18,6 +18,8 @@
  */
 package org.apache.pinot.tsdb.example.plan;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import org.apache.pinot.tsdb.example.operator.KeepLastValueOperator;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
@@ -25,7 +27,9 @@ import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 
 
 public class KeepLastValuePlanNode extends BaseTimeSeriesPlanNode {
-  public KeepLastValuePlanNode(String id, List<BaseTimeSeriesPlanNode> children) {
+  @JsonCreator
+  public KeepLastValuePlanNode(@JsonProperty("id") String id,
+      @JsonProperty("children") List<BaseTimeSeriesPlanNode> children) {
     super(id, children);
   }
 

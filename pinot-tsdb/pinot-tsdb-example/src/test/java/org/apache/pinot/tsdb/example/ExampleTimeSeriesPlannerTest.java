@@ -23,6 +23,8 @@ import java.io.InputStream;
 import java.time.Duration;
 import org.apache.pinot.tsdb.spi.RangeTimeSeriesRequest;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanResult;
+import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
+import org.apache.pinot.tsdb.spi.plan.serde.TimeSeriesPlanSerde;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.*;
@@ -30,8 +32,9 @@ import static org.testng.Assert.*;
 
 public class ExampleTimeSeriesPlannerTest {
   @Test
-  public void testFoo()
+  public void testPlanGenerationAndSerde()
       throws IOException {
+    BaseTimeSeriesPlanNode planNode = null;
     try (InputStream inputStream = ExampleTimeSeriesPlannerTest.class.getClassLoader().getResourceAsStream(
         "plan_test/1.ql")) {
       String resp = new String(inputStream.readAllBytes());
@@ -40,6 +43,23 @@ public class ExampleTimeSeriesPlannerTest {
           10_000, 11_000, 60, Duration.ofSeconds(10));
       TimeSeriesLogicalPlanResult planResult = planner.plan(request);
       assertNotNull(planResult);
+      assertNotNull(planResult.getPlanNode());
+      planNode = planResult.getPlanNode();
+    }
+    BaseTimeSeriesPlanNode deserializedPlanNode = TimeSeriesPlanSerde.deserialize(
+        TimeSeriesPlanSerde.serialize(planNode));
+    assertNotNull(deserializedPlanNode);
+    comparePlanTree(planNode, deserializedPlanNode);
+  }
+
+  private void comparePlanTree(BaseTimeSeriesPlanNode tree1, BaseTimeSeriesPlanNode tree2) {
+    assertEquals(tree1.getId(), tree2.getId());
+    assertEquals(tree1.getKlass(), tree2.getKlass());
+    assertEquals(tree1.getExplainName(), tree2.getExplainName());
+    assertEquals(tree1.getChildren().size(), tree2.getChildren().size());
+    int numChildren = tree1.getChildren().size();
+    for (int i = 0; i < numChildren; i++) {
+      comparePlanTree(tree1.getChildren().get(i), tree2.getChildren().get(i));
     }
   }
 }

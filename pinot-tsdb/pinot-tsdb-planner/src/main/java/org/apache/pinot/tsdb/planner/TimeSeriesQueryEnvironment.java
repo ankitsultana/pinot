@@ -38,13 +38,13 @@ import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.tsdb.planner.physical.TableScanVisitor;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesDispatchablePlan;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesQueryServerInstance;
-import org.apache.pinot.tsdb.planner.physical.serde.TimeSeriesPlanSerde;
 import org.apache.pinot.tsdb.spi.PinotTimeSeriesConfigs;
 import org.apache.pinot.tsdb.spi.RangeTimeSeriesRequest;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanResult;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanner;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 import org.apache.pinot.tsdb.spi.plan.ScanFilterAndProjectPlanNode;
+import org.apache.pinot.tsdb.spi.plan.serde.TimeSeriesPlanSerde;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

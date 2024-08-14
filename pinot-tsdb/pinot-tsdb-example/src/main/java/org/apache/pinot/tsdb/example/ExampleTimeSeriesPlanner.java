@@ -20,7 +20,6 @@ package org.apache.pinot.tsdb.example;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,7 +50,9 @@ public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
       throw new IllegalArgumentException(String.format("Invalid engine id: %s. Expected: %s", request.getEngine(),
           Constants.ENGINE_ID));
     }
+    // Step-1: Parse and create a logical plan tree.
     BaseTimeSeriesPlanNode planNode = planQuery(request);
+    // Step-2: Compute the time-buckets.
     TimeBuckets timeBuckets = TimeBucketComputer.compute(planNode, request);
     return new TimeSeriesLogicalPlanResult(planNode, timeBuckets);
   }
@@ -65,19 +66,18 @@ public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
     BaseTimeSeriesPlanNode lastNode = null;
     AggInfo aggInfo = null;
     List<String> groupByColumns = new ArrayList<>();
+    BaseTimeSeriesPlanNode rootNode = null;
     for (int commandId = commands.size() - 1; commandId >= 0; commandId--) {
       String command = commands.get(commandId).get(0);
       Preconditions.checkState((command.equals("fetch") && commandId == 0)
           || (!command.equals("fetch") && commandId > 0),
           "fetch should be the first command");
-      List<BaseTimeSeriesPlanNode> children = Collections.emptyList();
-      if (lastNode != null) {
-        children = Collections.singletonList(lastNode);
-      }
+      List<BaseTimeSeriesPlanNode> children = new ArrayList<>();
+      BaseTimeSeriesPlanNode currentNode = null;
       switch (command) {
         case "fetch":
           List<String> tokens = commands.get(commandId).subList(1, commands.get(commandId).size());
-          lastNode = handleFetchNode(planIdGenerator.generateId(), tokens, children, aggInfo, groupByColumns);
+          currentNode = handleFetchNode(planIdGenerator.generateId(), tokens, children, aggInfo, groupByColumns);
           break;
         case "sum":
         case "min":
@@ -92,20 +92,29 @@ public class ExampleTimeSeriesPlanner implements TimeSeriesLogicalPlanner {
           }
           break;
         case "keepLastValue":
-          lastNode = new KeepLastValuePlanNode(planIdGenerator.generateId(), children);
+          currentNode = new KeepLastValuePlanNode(planIdGenerator.generateId(), children);
           break;
         case "transformNull":
           Double defaultValue = TransformNullPlanNode.DEFAULT_VALUE;
           if (commands.get(commandId).size() > 1) {
             defaultValue = Double.parseDouble(commands.get(commandId).get(1));
           }
-          lastNode = new TransformNullPlanNode(planIdGenerator.generateId(), defaultValue, children);
+          currentNode = new TransformNullPlanNode(planIdGenerator.generateId(), defaultValue, children);
           break;
         default:
           throw new IllegalArgumentException("Unknown function: " + command);
       }
+      if (currentNode != null) {
+        if (rootNode == null) {
+          rootNode = currentNode;
+        }
+        if (lastNode != null) {
+          lastNode.addChildNode(currentNode);
+        }
+        lastNode = currentNode;
+      }
     }
-    return lastNode;
+    return rootNode;
   }
 
   public BaseTimeSeriesPlanNode handleFetchNode(String planId, List<String> tokens,

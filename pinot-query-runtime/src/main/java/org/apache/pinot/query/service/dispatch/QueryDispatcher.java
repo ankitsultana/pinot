@@ -131,8 +131,8 @@ public class QueryDispatcher {
       }
       Worker.TimeSeriesResponse timeSeriesResponse = received.getQueryResponse();
       Preconditions.checkNotNull(timeSeriesResponse, "time series response is null");
-      SeriesBlockSerialized serializedSeriesBlock = OBJECT_MAPPER.readValue(timeSeriesResponse.getPayload().toString(),
-          SeriesBlockSerialized.class);
+      SeriesBlockSerialized serializedSeriesBlock = OBJECT_MAPPER.readValue(
+          timeSeriesResponse.getPayload().toStringUtf8(), SeriesBlockSerialized.class);
       return SeriesBlockSerdeUtils.convertToPrometheusResponse(serializedSeriesBlock);
     } catch (Throwable t) {
       return new PrometheusResponse("error", PrometheusResponse.Data.EMPTY,
@@ -312,7 +312,7 @@ public class QueryDispatcher {
   private TimeSeriesDispatchClient getOrCreateTimeSeriesDispatchClient(
       TimeSeriesQueryServerInstance queryServerInstance) {
     String hostname = queryServerInstance.getHostname();
-    int port = queryServerInstance.getQueryMailboxPort();
+    int port = queryServerInstance.getQueryServicePort();
     String key = String.format("%s_%d", hostname, port);
     return _timeSeriesDispatchClientMap.computeIfAbsent(key, k -> new TimeSeriesDispatchClient(hostname, port));
   }

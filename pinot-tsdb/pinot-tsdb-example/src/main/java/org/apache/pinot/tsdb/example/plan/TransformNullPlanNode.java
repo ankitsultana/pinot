@@ -18,6 +18,8 @@
  */
 package org.apache.pinot.tsdb.example.plan;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
@@ -30,7 +32,9 @@ public class TransformNullPlanNode extends BaseTimeSeriesPlanNode {
   public static final Double DEFAULT_VALUE = 0.0;
   private final Double _defaultValue;
 
-  public TransformNullPlanNode(String id, Double defaultValue, List<BaseTimeSeriesPlanNode> children) {
+  @JsonCreator
+  public TransformNullPlanNode(@JsonProperty("id") String id, @JsonProperty("defaultValue") Double defaultValue,
+      @JsonProperty("children") List<BaseTimeSeriesPlanNode> children) {
     super(id, children);
     _defaultValue = defaultValue;
   }
