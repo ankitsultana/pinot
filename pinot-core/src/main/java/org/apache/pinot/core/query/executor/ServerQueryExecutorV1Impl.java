@@ -378,6 +378,7 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       if (queryContext.isExplain()) {
         instanceResponse = getExplainResponseForNoMatchingSegment(numTotalSegments, queryContext);
       } else {
+        // TODO: Return empty series block here.
         instanceResponse = new InstanceResponseBlock(ResultsBlockUtils.buildEmptyQueryResults(queryContext));
       }
     } else {

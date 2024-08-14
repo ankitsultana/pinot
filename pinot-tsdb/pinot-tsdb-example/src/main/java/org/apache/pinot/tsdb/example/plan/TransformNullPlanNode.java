@@ -39,6 +39,10 @@ public class TransformNullPlanNode extends BaseTimeSeriesPlanNode {
     _defaultValue = defaultValue;
   }
 
+  public Double getDefaultValue() {
+    return _defaultValue;
+  }
+
   @Override
   public String getKlass() {
     return TransformNullPlanNode.class.getName();

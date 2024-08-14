@@ -48,7 +48,8 @@ public class SeriesBlockSerdeUtils {
         for (int index = 0; index < timeValues.length; index++) {
           promValues[index] = new Object[2];
           promValues[index][0] = timeValues[index];
-          promValues[index][1] = singleValue[index];
+          // TODO: Prometheus doesn't like nulls. What we do below is a hack.
+          promValues[index][1] = (singleValue[index] == null ? "0.0" : singleValue[index].toString());
         }
         result.add(new PrometheusResponse.Value(metric, promValues));
       }

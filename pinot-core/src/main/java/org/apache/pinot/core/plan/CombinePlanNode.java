@@ -44,6 +44,7 @@ import org.apache.pinot.spi.exception.QueryCancelledException;
 import org.apache.pinot.spi.trace.InvocationRecording;
 import org.apache.pinot.spi.trace.InvocationScope;
 import org.apache.pinot.spi.trace.Tracing;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 
 
 /**
@@ -126,7 +127,8 @@ public class CombinePlanNode implements PlanNode {
 
     if (QueryContextUtils.isTimeSeriesQuery(_queryContext)) {
       return new TimeSeriesCombineOperator(new TimeSeriesAggResultsBlockMerger(
-          null, _queryContext.getTimeSeriesContext().getAggInfo()),
+          SeriesBuilderFactoryProvider.getSeriesBuilderFactory(_queryContext.getTimeSeriesContext().getEngine()),
+          _queryContext.getTimeSeriesContext().getAggInfo()),
           operators, _queryContext, _executorService);
     } else if (_streamer != null && QueryContextUtils.isSelectionOnlyQuery(_queryContext)
         && _queryContext.getLimit() != 0) {

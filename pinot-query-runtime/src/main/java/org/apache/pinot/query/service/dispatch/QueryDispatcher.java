@@ -266,6 +266,7 @@ public class QueryDispatcher {
 
   Map<String, String> initializeTimeSeriesMetadataMap(TimeSeriesDispatchablePlan dispatchablePlan) {
     Map<String, String> result = new HashMap<>();
+    result.put("engine", dispatchablePlan.getEngine());
     result.put("startTimeSeconds", Long.toString(dispatchablePlan.getTimeBuckets().getStartTime()));
     result.put("windowSeconds", Long.toString(dispatchablePlan.getTimeBuckets().getBucketSize().getSeconds()));
     result.put("numElements", Long.toString(dispatchablePlan.getTimeBuckets().getTimeBuckets().length));

@@ -160,7 +160,7 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
     int[] timeIndexes = new int[actualTimeValues.length];
     for (int index = 0; index < actualTimeValues.length; index++) {
       timeIndexes[index] = (int) ((actualTimeValues[index] - _timeBuckets.getStartTime() * 1000L)
-          / _timeBuckets.getRangeSeconds());
+          / _timeBuckets.getBucketSize().toMillis());
     }
     return timeIndexes;
   }

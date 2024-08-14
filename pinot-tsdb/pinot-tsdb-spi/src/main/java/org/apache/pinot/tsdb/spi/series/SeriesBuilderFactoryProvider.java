@@ -26,13 +26,12 @@ import org.apache.pinot.tsdb.spi.PinotTimeSeriesConfigs;
 
 
 public class SeriesBuilderFactoryProvider {
-  public static final SeriesBuilderFactoryProvider INSTANCE = new SeriesBuilderFactoryProvider();
   private static final Map<String, SeriesBuilderFactory> FACTORY_MAP = new HashMap<>();
 
   private SeriesBuilderFactoryProvider() {
   }
 
-  public void init(PinotConfiguration pinotConfiguration) {
+  public static void init(PinotConfiguration pinotConfiguration) {
     String[] engines = pinotConfiguration.getProperty(
         PinotTimeSeriesConfigs.CommonConfigs.TIME_SERIES_ENGINES).split(",");
     for (String engine : engines) {

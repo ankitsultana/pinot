@@ -69,6 +69,7 @@ import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 import org.apache.pinot.tsdb.spi.plan.serde.TimeSeriesPlanSerde;
 import org.apache.pinot.tsdb.spi.series.SeriesBlock;
+import org.apache.pinot.tsdb.spi.series.SeriesBuilderFactoryProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -143,6 +144,7 @@ public class QueryRunner {
     }
     // TODO: Only do this when time-series engine is enabled
     PhysicalTimeSeriesPlanVisitor.INSTANCE.init(_leafQueryExecutor, _executorService, serverMetrics);
+    SeriesBuilderFactoryProvider.init(config);
 
     LOGGER.info("Initialized QueryRunner with hostname: {}, port: {}", hostname, port);
   }
@@ -253,9 +255,12 @@ public class QueryRunner {
     // TODO: Segment deserialization here is hacky.
     Map<String, List<String>> result = new HashMap<>();
     for (var entry : metadataMap.entrySet()) {
-      String[] segments = entry.getValue().split(",");
-      result.put("$segmentMapEntry#" + entry.getKey(),
-          Stream.of(segments).map(String::strip).collect(Collectors.toList()));
+      if (entry.getKey().startsWith("$segmentMapEntry#")) {
+        String planId = entry.getKey().substring("$segmentMapEntry#".length());
+        String[] segments = entry.getValue().split(",");
+        result.put(planId,
+            Stream.of(segments).map(String::strip).collect(Collectors.toList()));
+      }
     }
     return result;
   }

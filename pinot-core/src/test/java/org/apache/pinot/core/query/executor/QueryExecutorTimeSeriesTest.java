@@ -157,13 +157,12 @@ public class QueryExecutorTimeSeriesTest {
   }
 
   public void setUpTimeSeriesEngine() {
-    SeriesBuilderFactoryProvider sbfProvider = SeriesBuilderFactoryProvider.INSTANCE;
     PinotConfiguration pinotConfiguration = new PinotConfiguration(ImmutableMap.of(
         PinotTimeSeriesConfigs.CommonConfigs.TIME_SERIES_ENGINES, "example",
         PinotTimeSeriesConfigs.TIME_SERIES_ENGINE_CONFIG_PREFIX + ".example.series.builder.class",
        ExampleSeriesBuilderFactory.class.getName()
     ));
-    sbfProvider.init(pinotConfiguration);
+    SeriesBuilderFactoryProvider.init(pinotConfiguration);
   }
 
   @Test

@@ -63,10 +63,10 @@ public class PhysicalTimeSeriesPlanVisitor {
     for (int index = 0; index < planNode.getChildren().size(); index++) {
       BaseTimeSeriesPlanNode childNode = planNode.getChildren().get(index);
       if (childNode instanceof ScanFilterAndProjectPlanNode) {
-        ScanFilterAndProjectPlanNode sfpNode = (ScanFilterAndProjectPlanNode) planNode;
+        ScanFilterAndProjectPlanNode sfpNode = (ScanFilterAndProjectPlanNode) childNode;
         List<String> segments = context.getPlanIdToSegmentsMap().get(sfpNode.getId());
         ServerQueryRequest serverQueryRequest = compileLeafServerQueryRequest(sfpNode, segments, context);
-        TimeSeriesPhysicalTableScan physicalTableScan = new TimeSeriesPhysicalTableScan(planNode.getId(),
+        TimeSeriesPhysicalTableScan physicalTableScan = new TimeSeriesPhysicalTableScan(childNode.getId(),
             serverQueryRequest, _queryExecutor, _executorService);
         planNode.getChildren().set(index, physicalTableScan);
       } else {

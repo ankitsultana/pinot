@@ -20,6 +20,7 @@ package org.apache.pinot.tsdb.spi.plan;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.pinot.tsdb.spi.AggInfo;
@@ -50,6 +51,7 @@ public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
     _tableName = tableName;
     _timeColumn = timeColumn;
     _timeUnit = timeUnit;
+    // TODO: Adjust offset to meet TimeUnit resolution
     _offset = offset;
     _filterExpression = filterExpression;
     _valueExpression = valueExpression;
@@ -106,8 +108,9 @@ public class ScanFilterAndProjectPlanNode extends BaseTimeSeriesPlanNode {
 
   public String getEffectiveFilter(TimeBuckets timeBuckets) {
     String filter = _filterExpression == null ? "" : _filterExpression;
-    long startTime = timeBuckets.getStartTime() - _offset;
-    long endTime = timeBuckets.getEndTime() - _offset;
+    // TODO: This is wrong. offset should be converted to seconds before arithmetic.
+    long startTime = _timeUnit.convert(Duration.ofSeconds(timeBuckets.getStartTime() - _offset));
+    long endTime = _timeUnit.convert(Duration.ofSeconds(timeBuckets.getEndTime() - _offset));
     String addnFilter = String.format("%s >= %d AND %s <= %d", _timeColumn, startTime, _timeColumn, endTime);
     if (filter.strip().isEmpty()) {
       return addnFilter;

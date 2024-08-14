@@ -112,7 +112,7 @@ public class TimeSeriesQueryEnvironment {
     // Step-3: Assign segments to the leaf plan nodes.
     TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
     TableScanVisitor.INSTANCE.assignSegmentsToPlan(logicalPlan.getPlanNode(), logicalPlan.getTimeBuckets(),
-        TableScanVisitor.createContext(requestContext.getRequestId()));
+        scanVisitorContext);
     return new TimeSeriesDispatchablePlan(timeSeriesRequest.getEngine(),
         new TimeSeriesQueryServerInstance(serverInstance),
         TimeSeriesPlanSerde.serialize(logicalPlan.getPlanNode()), logicalPlan.getTimeBuckets(),
