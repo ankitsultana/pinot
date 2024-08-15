@@ -21,6 +21,7 @@ package org.apache.pinot.query.runtime.timeseries;
 import com.google.common.base.Preconditions;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.pinot.core.operator.blocks.InstanceResponseBlock;
 import org.apache.pinot.core.operator.blocks.results.TimeSeriesResultsBlock;
 import org.apache.pinot.core.query.executor.QueryExecutor;
@@ -47,6 +48,11 @@ public class LeafTimeSeriesOperator extends BaseTimeSeriesOperator {
     Preconditions.checkNotNull(_queryExecutor, "Leaf time series operator has not been initialized");
     InstanceResponseBlock instanceResponseBlock = _queryExecutor.execute(_request, _executorService);
     assert instanceResponseBlock.getResultsBlock() instanceof TimeSeriesResultsBlock;
+    if (CollectionUtils.isNotEmpty(instanceResponseBlock.getResultsBlock().getProcessingExceptions())) {
+      // TODO: Return error in the SeriesBlock instead.
+      throw new RuntimeException(
+          instanceResponseBlock.getResultsBlock().getProcessingExceptions().get(0).getMessage());
+    }
     return ((TimeSeriesResultsBlock) instanceResponseBlock.getResultsBlock()).getSeriesBlock();
   }
 

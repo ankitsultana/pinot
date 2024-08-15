@@ -101,6 +101,7 @@ public class PhysicalTimeSeriesPlanVisitor {
         .setQueryOptions(Collections.emptyMap())
         .setAliasList(Collections.emptyList())
         .setTimeSeriesContext(timeSeriesContext)
+        .setLimit(Integer.MAX_VALUE)
         .build();
   }
 }

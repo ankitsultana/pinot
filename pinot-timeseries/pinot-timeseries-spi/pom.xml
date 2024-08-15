@@ -30,7 +30,7 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>pinot-tsdb-spi</artifactId>
+  <artifactId>pinot-timeseries-spi</artifactId>
 
   <properties>
     <pinot.root>${basedir}/../..</pinot.root>

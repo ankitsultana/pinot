@@ -261,8 +261,7 @@ public class PinotClientRequest {
       LOGGER.error("Caught exception while processing POST request", e);
       _brokerMetrics.addMeteredGlobalValue(BrokerMeter.UNCAUGHT_POST_EXCEPTIONS, 1L);
       asyncResponse.resume(Response.serverError().entity(
-          new PrometheusResponse("error", PrometheusResponse.Data.EMPTY, e.getClass().getSimpleName(),
-              e.getMessage()))
+          new PrometheusResponse("error", null, e.getClass().getSimpleName(), e.getMessage()))
           .build());
     }
   }

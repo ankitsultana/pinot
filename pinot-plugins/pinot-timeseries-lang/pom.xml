@@ -25,35 +25,22 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.pinot</groupId>
-    <artifactId>pinot</artifactId>
+    <artifactId>pinot-plugins</artifactId>
     <version>1.2.0-SNAPSHOT</version>
-    <relativePath>../../pom.xml</relativePath>
+    <relativePath>..</relativePath>
   </parent>
 
-  <artifactId>pinot-tsdb-planner</artifactId>
+  <artifactId>pinot-timeseries-lang</artifactId>
+  <packaging>pom</packaging>
+  <name>Pluggable Pinot Time Series Languages</name>
 
   <properties>
     <pinot.root>${basedir}/../..</pinot.root>
-    <maven.compiler.source>11</maven.compiler.source>
-    <maven.compiler.target>11</maven.compiler.target>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <plugin.type>pinot-ts-languages</plugin.type>
   </properties>
-  <dependencies>
-    <dependency>
-      <groupId>org.apache.pinot</groupId>
-      <artifactId>pinot-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.pinot</groupId>
-      <artifactId>pinot-tsdb-spi</artifactId>
-      <version>1.2.0-SNAPSHOT</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testng</groupId>
-      <artifactId>testng</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+
+  <modules>
+    <module>pinot-timeseries-spql</module>
+  </modules>
 
 </project>

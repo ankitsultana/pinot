@@ -59,7 +59,7 @@
     <module>pinot-compatibility-verifier</module>
     <module>pinot-query-planner</module>
     <module>pinot-query-runtime</module>
-    <module>pinot-tsdb</module>
+    <module>pinot-timeseries</module>
   </modules>
 
   <licenses>

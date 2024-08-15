@@ -36,7 +36,7 @@ public class ExampleTimeSeriesPlannerTest {
       throws IOException {
     BaseTimeSeriesPlanNode planNode = null;
     try (InputStream inputStream = ExampleTimeSeriesPlannerTest.class.getClassLoader().getResourceAsStream(
-        "plan_test/1.ql")) {
+        "plan_test/1.txt")) {
       String resp = new String(inputStream.readAllBytes());
       ExampleTimeSeriesPlanner planner = new ExampleTimeSeriesPlanner();
       RangeTimeSeriesRequest request = new RangeTimeSeriesRequest("example", resp,

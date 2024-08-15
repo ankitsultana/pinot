@@ -19,6 +19,7 @@
 package org.apache.pinot.tsdb.spi.series;
 
 import java.util.List;
+import java.util.Objects;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
 
 
@@ -44,14 +45,16 @@ public abstract class BaseSeriesBuilder {
   public abstract void addValue(long timeValue, Double value);
 
   public void mergeSeries(Series series) {
-    int numDataPoints = series.getTimeValues().length;
+    int numDataPoints = series.getValues().length;
+    Long[] timeValues = Objects.requireNonNull(series.getTimeValues(),
+        "Cannot merge series: found null timeValues");
     for (int i = 0; i < numDataPoints; i++) {
-      addValue(series.getTimeValues()[i], series.getValues()[i]);
+      addValue(timeValues[i], series.getValues()[i]);
     }
   }
 
   public void mergeAlignedSeries(Series series) {
-    int numDataPoints = series.getTimeValues().length;
+    int numDataPoints = series.getValues().length;
     for (int i = 0; i < numDataPoints; i++) {
       addValueAtIndex(i, series.getValues()[i]);
     }

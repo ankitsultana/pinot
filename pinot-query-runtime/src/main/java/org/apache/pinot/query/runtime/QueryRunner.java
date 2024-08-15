@@ -20,6 +20,8 @@ package org.apache.pinot.query.runtime;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -240,7 +242,7 @@ public class QueryRunner {
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     } catch (Throwable t) {
-      responseObserver.onError(t);
+      responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(t.getMessage())));
     }
   }
 

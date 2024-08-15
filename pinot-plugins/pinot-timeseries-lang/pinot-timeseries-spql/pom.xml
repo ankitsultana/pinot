@@ -25,15 +25,15 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.pinot</groupId>
-    <artifactId>pinot-tsdb</artifactId>
+    <artifactId>pinot-timeseries-lang</artifactId>
     <version>1.2.0-SNAPSHOT</version>
     <relativePath>..</relativePath>
   </parent>
 
-  <artifactId>pinot-tsdb-example</artifactId>
+  <artifactId>pinot-timeseries-spql</artifactId>
 
   <properties>
-    <pinot.root>${basedir}/../..</pinot.root>
+    <pinot.root>${basedir}/../../..</pinot.root>
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -42,7 +42,7 @@
   <dependencies>
     <dependency>
       <groupId>org.apache.pinot</groupId>
-      <artifactId>pinot-tsdb-spi</artifactId>
+      <artifactId>pinot-timeseries-spi</artifactId>
       <version>1.2.0-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
