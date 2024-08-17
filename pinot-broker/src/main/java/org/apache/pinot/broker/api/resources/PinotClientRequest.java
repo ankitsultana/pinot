@@ -252,7 +252,7 @@ public class PinotClientRequest {
       try (RequestScope requestContext = Tracing.getTracer().createRequestScope()) {
         PrometheusResponse response = executeTimeSeriesQuery(engine, request, requestContext);
         if (response.getErrorType() != null && !response.getErrorType().isEmpty()) {
-          asyncResponse.resume(Response.serverError().entity(response).build());
+          asyncResponse.resume(Response.serverError().entity(response.serializeWhenError()).build());
           return;
         }
         asyncResponse.resume(response);

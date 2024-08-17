@@ -19,17 +19,25 @@
 package org.apache.pinot.common.response;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 
 public class PrometheusResponse {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private String _status;
   private Data _data;
   private String _errorType;
   private String _error;
+
+  static {
+    OBJECT_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+  }
 
   @JsonCreator
   public PrometheusResponse(@JsonProperty("status") String status, @JsonProperty("data") Data data,
@@ -54,6 +62,11 @@ public class PrometheusResponse {
 
   public String getError() {
     return _error;
+  }
+
+  public String serializeWhenError()
+      throws JsonProcessingException {
+    return OBJECT_MAPPER.writeValueAsString(this);
   }
 
   public static class Data {

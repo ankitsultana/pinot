@@ -121,11 +121,19 @@ public class QueryDispatcher {
       submit(requestId, plan, timeoutMs, queryOptions, receiver::offer);
       AsyncQueryTimeSeriesDispatchResponse received = receiver.poll(timeoutMs, TimeUnit.MILLISECONDS);
       if (received == null) {
-        return new PrometheusResponse("error", null, "TimeoutException", "Timed out waiting for response");
+        new PrometheusResponse("error", null, "TimeoutException", "Timed out waiting for response");
       }
       if (received.getThrowable() != null) {
         Throwable t = received.getThrowable();
         return new PrometheusResponse("error", null, t.getClass().getSimpleName(), t.getMessage());
+      }
+      if (received.getQueryResponse() == null) {
+        return new PrometheusResponse("error", null, "NullResponse", "Received null response from server");
+      }
+      if (received.getQueryResponse().containsMetadata("error")) {
+        return new PrometheusResponse("error", null,
+            received.getQueryResponse().getMetadataOrDefault("errorType", "unknown error-type"),
+            received.getQueryResponse().getMetadataOrDefault("error", "unknown error"));
       }
       Worker.TimeSeriesResponse timeSeriesResponse = received.getQueryResponse();
       Preconditions.checkNotNull(timeSeriesResponse, "time series response is null");
