@@ -72,6 +72,7 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.MultiStageQueryStats;
 import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
+import org.apache.pinot.query.runtime.timeseries.serde.TimeSeriesBlockSerde;
 import org.apache.pinot.query.service.dispatch.timeseries.AsyncQueryTimeSeriesDispatchResponse;
 import org.apache.pinot.query.service.dispatch.timeseries.TimeSeriesDispatchClient;
 import org.apache.pinot.spi.accounting.ThreadExecutionContext;
@@ -83,6 +84,7 @@ import org.apache.pinot.tsdb.planner.TimeSeriesPlanConstants.WorkerResponseMetad
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesDispatchablePlan;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesQueryServerInstance;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
+import org.apache.pinot.tsdb.spi.series.TimeSeriesBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -198,8 +200,9 @@ public class QueryDispatcher {
       }
       Worker.TimeSeriesResponse timeSeriesResponse = received.getQueryResponse();
       Preconditions.checkNotNull(timeSeriesResponse, "time series response is null");
-      return OBJECT_MAPPER.readValue(
-          timeSeriesResponse.getPayload().toStringUtf8(), PinotBrokerTimeSeriesResponse.class);
+      TimeSeriesBlock timeSeriesBlock = TimeSeriesBlockSerde.deserializeTimeSeriesBlock(timeSeriesResponse.getPayload()
+          .asReadOnlyByteBuffer());
+      return PinotBrokerTimeSeriesResponse.fromTimeSeriesBlock(timeSeriesBlock);
     } catch (Throwable t) {
       return PinotBrokerTimeSeriesResponse.newErrorResponse(t.getClass().getSimpleName(), t.getMessage());
     }

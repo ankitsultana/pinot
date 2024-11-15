@@ -20,9 +20,7 @@ package org.apache.pinot.query.runtime;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +38,6 @@ import org.apache.helix.HelixManager;
 import org.apache.pinot.common.datatable.StatMap;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.proto.Worker;
-import org.apache.pinot.common.response.PinotBrokerTimeSeriesResponse;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.query.executor.QueryExecutor;
@@ -68,6 +65,7 @@ import org.apache.pinot.query.runtime.plan.pipeline.PipelineBreakerResult;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestUtils;
 import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesPlanVisitor;
 import org.apache.pinot.query.runtime.timeseries.TimeSeriesExecutionContext;
+import org.apache.pinot.query.runtime.timeseries.serde.TimeSeriesBlockSerde;
 import org.apache.pinot.spi.accounting.ThreadExecutionContext;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.executor.ExecutorServiceUtils;
@@ -274,9 +272,7 @@ public class QueryRunner {
         try {
           TimeSeriesBlock seriesBlock = operator.nextBlock();
           Worker.TimeSeriesResponse response = Worker.TimeSeriesResponse.newBuilder()
-              .setPayload(ByteString.copyFrom(
-                  PinotBrokerTimeSeriesResponse.fromTimeSeriesBlock(seriesBlock).serialize(),
-                  StandardCharsets.UTF_8))
+              .setPayload(TimeSeriesBlockSerde.serializeTimeSeriesBlock(seriesBlock))
               .build();
           responseObserver.onNext(response);
           responseObserver.onCompleted();
