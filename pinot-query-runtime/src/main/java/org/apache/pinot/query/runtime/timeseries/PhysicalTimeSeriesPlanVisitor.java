@@ -78,9 +78,8 @@ public class PhysicalTimeSeriesPlanVisitor {
         planNode.getChildren().set(index, physicalTableScan);
       } else if (childNode instanceof TimeSeriesExchangeNode) {
         TimeSeriesExchangeNode exchangeNode = (TimeSeriesExchangeNode) childNode;
-        long deadlineMs = System.currentTimeMillis() + context.getTimeoutMs();
         TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = new TimeSeriesExchangeReceivePlanNode(
-            exchangeNode.getId(), Collections.emptyList(), deadlineMs, exchangeNode.getAggInfo(),
+            exchangeNode.getId(), Collections.emptyList(), context.getDeadlineMs(), exchangeNode.getAggInfo(),
             context.getSeriesBuilderFactory());
         exchangeReceivePlanNode.init(context.getReceiverByPlanId().get(exchangeNode.getId()), context.getNumQueryServers());
       } else {
@@ -111,7 +110,7 @@ public class PhysicalTimeSeriesPlanVisitor {
         .setFilter(filterContext)
         .setGroupByExpressions(groupByExpressions)
         .setSelectExpressions(Collections.emptyList())
-        .setQueryOptions(ImmutableMap.of(QueryOptionKey.TIMEOUT_MS, Long.toString(context.getTimeoutMs())))
+        .setQueryOptions(ImmutableMap.of(QueryOptionKey.TIMEOUT_MS, Long.toString(context.getRemainingTimeMs())))
         .setAliasList(Collections.emptyList())
         .setTimeSeriesContext(timeSeriesContext)
         .setLimit(Integer.MAX_VALUE)

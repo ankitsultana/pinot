@@ -40,13 +40,13 @@ public class PhysicalTimeSeriesPlanVisitorTest {
     final String planId = "id";
     final String tableName = "orderTable";
     final String timeColumn = "orderTime";
-    final AggInfo aggInfo = new AggInfo("SUM", null);
+    final AggInfo aggInfo = new AggInfo("SUM", false, null);
     final String filterExpr = "cityName = 'Chicago'";
     // Case-1: Without offset, simple column based group-by expression, simple column based value, and non-empty filter.
     {
       TimeSeriesExecutionContext context =
           new TimeSeriesExecutionContext("m3ql", TimeBuckets.ofSeconds(1000L, Duration.ofSeconds(10), 100),
-              Collections.emptyMap(), DUMMY_TIMEOUT_MS, Collections.emptyMap(), Collections.emptyMap());
+              Collections.emptyMap(), DUMMY_TIMEOUT_MS, Collections.emptyMap(), Collections.emptyMap(), 0);
       LeafTimeSeriesPlanNode leafNode =
           new LeafTimeSeriesPlanNode(planId, Collections.emptyList(), tableName, timeColumn, TimeUnit.SECONDS, 0L,
               filterExpr, "orderCount", aggInfo, Collections.singletonList("cityName"));
@@ -64,7 +64,7 @@ public class PhysicalTimeSeriesPlanVisitorTest {
     {
       TimeSeriesExecutionContext context =
           new TimeSeriesExecutionContext("m3ql", TimeBuckets.ofSeconds(1000L, Duration.ofSeconds(10), 100),
-              Collections.emptyMap(), DUMMY_TIMEOUT_MS, Collections.emptyMap(), Collections.emptyMap());
+              Collections.emptyMap(), DUMMY_TIMEOUT_MS, Collections.emptyMap(), Collections.emptyMap(), 0);
       LeafTimeSeriesPlanNode leafNode =
           new LeafTimeSeriesPlanNode(planId, Collections.emptyList(), tableName, timeColumn, TimeUnit.SECONDS, 10L,
               filterExpr, "orderCount*2", aggInfo, Collections.singletonList("concat(cityName, stateName, '-')"));

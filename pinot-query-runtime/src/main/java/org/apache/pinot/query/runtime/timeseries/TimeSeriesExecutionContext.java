@@ -30,19 +30,19 @@ public class TimeSeriesExecutionContext {
   private final String _language;
   private final TimeBuckets _initialTimeBuckets;
   private final Map<String, List<String>> _planIdToSegmentsMap;
-  private final long _timeoutMs;
+  private final long _deadlineMs;
   private final Map<String, String> _metadataMap;
   private final Map<String, BlockingQueue<Object>> _receiverByPlanId;
   private final int _numQueryServers;
   private final TimeSeriesBuilderFactory _seriesBuilderFactory;
 
   public TimeSeriesExecutionContext(String language, TimeBuckets initialTimeBuckets,
-      Map<String, List<String>> planIdToSegmentsMap, long timeoutMs, Map<String, String> metadataMap,
+      Map<String, List<String>> planIdToSegmentsMap, long deadlineMs, Map<String, String> metadataMap,
       Map<String, BlockingQueue<Object>> receiverByPlanId, int numQueryServers) {
     _language = language;
     _initialTimeBuckets = initialTimeBuckets;
     _planIdToSegmentsMap = planIdToSegmentsMap;
-    _timeoutMs = timeoutMs;
+    _deadlineMs = deadlineMs;
     _metadataMap = metadataMap;
     _receiverByPlanId = receiverByPlanId;
     _numQueryServers = numQueryServers;
@@ -50,8 +50,8 @@ public class TimeSeriesExecutionContext {
   }
 
   public TimeSeriesExecutionContext(String language, TimeBuckets initialTimeBuckets,
-      Map<String, BlockingQueue<Object>> receiverByPlanId, int numQueryServers) {
-    this(language, initialTimeBuckets, null, 0, null, receiverByPlanId, numQueryServers);
+      Map<String, BlockingQueue<Object>> receiverByPlanId, int numQueryServers, long deadlineMs) {
+    this(language, initialTimeBuckets, null, deadlineMs, null, receiverByPlanId, numQueryServers);
   }
 
   public String getLanguage() {
@@ -66,8 +66,8 @@ public class TimeSeriesExecutionContext {
     return _planIdToSegmentsMap;
   }
 
-  public long getTimeoutMs() {
-    return _timeoutMs;
+  public long getDeadlineMs() {
+    return _deadlineMs;
   }
 
   public Map<String, String> getMetadataMap() {
@@ -84,5 +84,9 @@ public class TimeSeriesExecutionContext {
 
   public TimeSeriesBuilderFactory getSeriesBuilderFactory() {
     return _seriesBuilderFactory;
+  }
+
+  public long getRemainingTimeMs() {
+    return System.currentTimeMillis() - _deadlineMs;
   }
 }

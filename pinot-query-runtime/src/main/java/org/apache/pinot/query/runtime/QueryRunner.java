@@ -263,14 +263,15 @@ public class QueryRunner {
     };
     // Schedule plan nodes one after another
     try {
+      final long deadlineMs = extractDeadlineMs(metadata);
       final long timeoutMs = extractTimeoutMs(metadata);
-      Preconditions.checkState(timeoutMs > 0,
+      Preconditions.checkState(System.currentTimeMillis() < deadlineMs,
           "Query timed out before getting processed in server. Remaining time: %s", timeoutMs);
       List<BaseTimeSeriesPlanNode> fragmentRoots = dispatchPlanInOrder.stream().map(TimeSeriesPlanSerde::deserialize)
           .collect(Collectors.toList());
       TimeSeriesExecutionContext context = new TimeSeriesExecutionContext(
           metadata.get(WorkerRequestMetadataKeys.LANGUAGE), extractTimeBuckets(metadata),
-          extractPlanToSegmentMap(metadata), timeoutMs, metadata, null);
+          extractPlanToSegmentMap(metadata), deadlineMs, metadata, null, 0);
       final List<BaseTimeSeriesOperator> fragmentOpChains = fragmentRoots.stream().map(x -> {
           return PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(x, context);
         }).collect(Collectors.toList());
@@ -409,6 +410,10 @@ public class QueryRunner {
   private long extractTimeoutMs(Map<String, String> metadataMap) {
     long deadlineMs = Long.parseLong(metadataMap.get(WorkerRequestMetadataKeys.DEADLINE_MS));
     return deadlineMs - System.currentTimeMillis();
+  }
+
+  private long extractDeadlineMs(Map<String, String> metadataMap) {
+    return Long.parseLong(metadataMap.get(WorkerRequestMetadataKeys.DEADLINE_MS));
   }
 
   private TimeBuckets extractTimeBuckets(Map<String, String> metadataMap) {

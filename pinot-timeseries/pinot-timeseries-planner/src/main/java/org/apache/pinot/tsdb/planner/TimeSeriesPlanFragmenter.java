@@ -18,7 +18,7 @@ public class TimeSeriesPlanFragmenter {
     List<BaseTimeSeriesPlanNode> result = new ArrayList<>();
     Context context = new Context();
     if (isSingleNodeQuery) {
-      final String id = rootNode.getId() + "#receiver";
+      final String id = rootNode.getId();
       return ImmutableList.of(new TimeSeriesExchangeNode(id, Collections.emptyList(), null), rootNode);
     }
     result.add(fragment(rootNode, context));
@@ -31,7 +31,7 @@ public class TimeSeriesPlanFragmenter {
       Preconditions.checkState(visitServerFragment(planNode) == 1, "Found multiple exchange node in hierarchy. Only 1 allowed.");
       LeafTimeSeriesPlanNode newLeafPlanNode = cloneWithPartialAgg((LeafTimeSeriesPlanNode) planNode);
       context._fragments.add(newLeafPlanNode);
-      return new TimeSeriesExchangeNode(planNode.getId() + "#receiver", Collections.emptyList(), null);
+      return new TimeSeriesExchangeNode(planNode.getId(), Collections.emptyList(), null);
     }
     List<BaseTimeSeriesPlanNode> newChildNodes = new ArrayList<>();
     for (BaseTimeSeriesPlanNode childNode : planNode.getChildren()) {

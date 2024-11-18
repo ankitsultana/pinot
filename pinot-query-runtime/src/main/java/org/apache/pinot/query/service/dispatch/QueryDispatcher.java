@@ -487,9 +487,10 @@ public class QueryDispatcher {
     Map<String, BlockingQueue<Object>> receiversByPlanId = new HashMap<>();
     populateConsumers(brokerFragment, receiversByPlanId, plan.getQueryServers().size());
     // Compile brokerFragment to get operators
-    TimeSeriesExecutionContext brokerExecutionContext = new TimeSeriesExecutionContext(
-        plan.getTimeBuckets(), receiversByPlanId, plan.getQueryServers().size());
-    BaseTimeSeriesOperator brokerOperator = PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(brokerFragment, brokerExecutionContext);
+    TimeSeriesExecutionContext brokerExecutionContext = new TimeSeriesExecutionContext(plan.getLanguage(),
+        plan.getTimeBuckets(), receiversByPlanId, plan.getQueryServers().size(), deadlineMs);
+    BaseTimeSeriesOperator brokerOperator = PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(brokerFragment,
+        brokerExecutionContext);
     // Create dispatch observer for each query server
     for (TimeSeriesQueryServerInstance serverInstance : plan.getQueryServers()) {
       QueryServerInstance queryServerInstance = new QueryServerInstance(serverInstance.getHostname(),

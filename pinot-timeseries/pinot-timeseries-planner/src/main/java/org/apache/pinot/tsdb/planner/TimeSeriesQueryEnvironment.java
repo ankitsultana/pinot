@@ -113,15 +113,15 @@ public class TimeSeriesQueryEnvironment {
     List<BaseTimeSeriesPlanNode> fragments = TimeSeriesPlanFragmenter.getFragments(logicalPlan.getPlanNode(), serverInstances.size() == 1);
     // Step-4: Assign segments to the leaf plan nodes.
     TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
-    List<String> serializedPlanByRootId = new ArrayList<>();
+    List<String> serializedPlans = new ArrayList<>();
     for (int index = 1; index < fragments.size(); index++) {
       BaseTimeSeriesPlanNode serverFragment = fragments.get(index);
       TableScanVisitor.INSTANCE.assignSegmentsToPlan(serverFragment, logicalPlan.getTimeBuckets(),
           scanVisitorContext);
-      serializedPlanByRootId.add(TimeSeriesPlanSerde.serialize(serverFragment));
+      serializedPlans.add(TimeSeriesPlanSerde.serialize(serverFragment));
     }
     return new TimeSeriesDispatchablePlan(timeSeriesRequest.getLanguage(), serverInstances, fragments.get(0),
-        serializedPlanByRootId, logicalPlan.getTimeBuckets(), scanVisitorContext.getPlanIdToSegmentMap());
+        serializedPlans, logicalPlan.getTimeBuckets(), scanVisitorContext.getPlanIdToSegmentMap());
   }
 
   public static void findTableNames(BaseTimeSeriesPlanNode planNode, Consumer<String> tableNameConsumer) {
