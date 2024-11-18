@@ -87,6 +87,6 @@ public class TimeSeriesExecutionContext {
   }
 
   public long getRemainingTimeMs() {
-    return System.currentTimeMillis() - _deadlineMs;
+    return _deadlineMs - System.currentTimeMillis();
   }
 }

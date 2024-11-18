@@ -72,15 +72,14 @@ import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.MultiStageQueryStats;
 import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
 import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesPlanVisitor;
-import org.apache.pinot.query.runtime.timeseries.TimeSeriesExchangeReceivePlanNode;
 import org.apache.pinot.query.runtime.timeseries.TimeSeriesExecutionContext;
-import org.apache.pinot.query.runtime.timeseries.serde.TimeSeriesBlockSerde;
 import org.apache.pinot.query.service.dispatch.timeseries.TimeSeriesDispatchClient;
 import org.apache.pinot.query.service.dispatch.timeseries.TimeSeriesDispatchObserver;
 import org.apache.pinot.spi.accounting.ThreadExecutionContext;
 import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.spi.trace.Tracing;
 import org.apache.pinot.spi.utils.CommonConstants;
+import org.apache.pinot.tsdb.planner.TimeSeriesExchangeNode;
 import org.apache.pinot.tsdb.planner.TimeSeriesPlanConstants.WorkerRequestMetadataKeys;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesDispatchablePlan;
 import org.apache.pinot.tsdb.planner.physical.TimeSeriesQueryServerInstance;
@@ -495,7 +494,7 @@ public class QueryDispatcher {
     for (TimeSeriesQueryServerInstance serverInstance : plan.getQueryServers()) {
       QueryServerInstance queryServerInstance = new QueryServerInstance(serverInstance.getHostname(),
           serverInstance.getQueryServicePort(), serverInstance.getQueryMailboxPort());
-      Deadline deadline = Deadline.after(System.currentTimeMillis() - deadlineMs, TimeUnit.MILLISECONDS);
+      Deadline deadline = Deadline.after(deadlineMs - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
       // Send server fragment to every server
       Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
           .addAllDispatchPlan(plan.getSerializedPlanFragmentByRootId())
@@ -511,7 +510,7 @@ public class QueryDispatcher {
 
   private void populateConsumers(BaseTimeSeriesPlanNode planNode, Map<String, BlockingQueue<Object>> receiverMap,
       int numQueryServers) {
-    if (planNode instanceof TimeSeriesExchangeReceivePlanNode) {
+    if (planNode instanceof TimeSeriesExchangeNode) {
       receiverMap.put(planNode.getId(), new ArrayBlockingQueue<>(numQueryServers));
     }
     for (BaseTimeSeriesPlanNode childNode : planNode.getChildren()) {

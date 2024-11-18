@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import org.apache.pinot.common.metrics.ServerMetrics;
@@ -61,12 +63,28 @@ public class PhysicalTimeSeriesPlanVisitor {
 
   public BaseTimeSeriesOperator compile(BaseTimeSeriesPlanNode rootNode, TimeSeriesExecutionContext context) {
     // Step-1: Replace scan filter project with our physical plan node with Pinot Core and Runtime context
-    initLeafPlanNode(rootNode, context);
+    rootNode = initLeafPlanNode(rootNode, context);
     // Step-2: Trigger recursive operator generation
     return rootNode.run();
   }
 
-  public void initLeafPlanNode(BaseTimeSeriesPlanNode planNode, TimeSeriesExecutionContext context) {
+  public BaseTimeSeriesPlanNode initLeafPlanNode(BaseTimeSeriesPlanNode planNode, TimeSeriesExecutionContext context) {
+    if (planNode instanceof LeafTimeSeriesPlanNode) {
+      LeafTimeSeriesPlanNode leafNode = (LeafTimeSeriesPlanNode) planNode;
+      List<String> segments = context.getPlanIdToSegmentsMap().get(leafNode.getId());
+      ServerQueryRequest serverQueryRequest = compileLeafServerQueryRequest(leafNode, segments, context);
+      TimeSeriesPhysicalTableScan physicalTableScan =
+          new TimeSeriesPhysicalTableScan(planNode.getId(), serverQueryRequest, _queryExecutor, _executorService);
+      return physicalTableScan;
+    } else if (planNode instanceof TimeSeriesExchangeNode) {
+      TimeSeriesExchangeNode exchangeNode = (TimeSeriesExchangeNode) planNode;
+      TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = new TimeSeriesExchangeReceivePlanNode(
+          exchangeNode.getId(), context.getDeadlineMs(), exchangeNode.getAggInfo(),
+          context.getSeriesBuilderFactory());
+      BlockingQueue<Object> receiver = context.getReceiverByPlanId().get(exchangeNode.getId());
+      exchangeReceivePlanNode.init(Objects.requireNonNull(receiver, "No receiver for node"), context.getNumQueryServers());
+      return exchangeReceivePlanNode;
+    }
     for (int index = 0; index < planNode.getChildren().size(); index++) {
       BaseTimeSeriesPlanNode childNode = planNode.getChildren().get(index);
       if (childNode instanceof LeafTimeSeriesPlanNode) {
@@ -79,13 +97,15 @@ public class PhysicalTimeSeriesPlanVisitor {
       } else if (childNode instanceof TimeSeriesExchangeNode) {
         TimeSeriesExchangeNode exchangeNode = (TimeSeriesExchangeNode) childNode;
         TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = new TimeSeriesExchangeReceivePlanNode(
-            exchangeNode.getId(), Collections.emptyList(), context.getDeadlineMs(), exchangeNode.getAggInfo(),
+            exchangeNode.getId(), context.getDeadlineMs(), exchangeNode.getAggInfo(),
             context.getSeriesBuilderFactory());
-        exchangeReceivePlanNode.init(context.getReceiverByPlanId().get(exchangeNode.getId()), context.getNumQueryServers());
+        BlockingQueue<Object> receiver = context.getReceiverByPlanId().get(exchangeNode.getId());
+        exchangeReceivePlanNode.init(Objects.requireNonNull(receiver, "No receiver for node"), context.getNumQueryServers());
       } else {
         initLeafPlanNode(childNode, context);
       }
     }
+    return planNode;
   }
 
   public ServerQueryRequest compileLeafServerQueryRequest(LeafTimeSeriesPlanNode leafNode, List<String> segments,

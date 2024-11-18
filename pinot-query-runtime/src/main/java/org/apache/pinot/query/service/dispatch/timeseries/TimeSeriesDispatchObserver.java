@@ -24,6 +24,7 @@ import java.util.concurrent.BlockingQueue;
 import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.query.routing.QueryServerInstance;
 import org.apache.pinot.query.runtime.timeseries.serde.TimeSeriesBlockSerde;
+import org.apache.pinot.tsdb.planner.TimeSeriesPlanConstants.WorkerResponseMetadataKeys;
 import org.apache.pinot.tsdb.spi.series.TimeSeriesBlock;
 
 
@@ -43,11 +44,15 @@ public class TimeSeriesDispatchObserver implements StreamObserver<Worker.TimeSer
 
   @Override
   public void onNext(Worker.TimeSeriesResponse timeSeriesResponse) {
-    // Extract planId
-    String planId = timeSeriesResponse.getMetadataMap().get("planId");
+    if (timeSeriesResponse.containsMetadata(WorkerResponseMetadataKeys.ERROR_TYPE)) {
+      String errorType = timeSeriesResponse.getMetadataOrDefault(WorkerResponseMetadataKeys.ERROR_TYPE, "");
+      String errorMessage = timeSeriesResponse.getMetadataOrDefault(WorkerResponseMetadataKeys.ERROR_MESSAGE, "");
+      onError(new Throwable(String.format("Error in server (type: %s): %s", errorType, errorMessage)));
+      return;
+    }
+    String planId = timeSeriesResponse.getMetadataMap().get(WorkerResponseMetadataKeys.PLAN_ID);
     TimeSeriesBlock block = null;
     Throwable error = null;
-    // TODO: Check error in metadata map too.
     try {
       block = TimeSeriesBlockSerde.deserializeTimeSeriesBlock(timeSeriesResponse.getPayload().asReadOnlyByteBuffer());
     } catch (Throwable t) {

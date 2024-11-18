@@ -26,9 +26,9 @@ public class TimeSeriesExchangeReceiveOperator extends BaseTimeSeriesOperator {
   private final AggInfo _aggInfo;
   private final TimeSeriesBuilderFactory _factory;
 
-  public TimeSeriesExchangeReceiveOperator(BaseTimeSeriesOperator childOperator, BlockingQueue<Object> receiver,
-      long deadlineMs, int expectedBlocks, @Nullable AggInfo aggInfo, TimeSeriesBuilderFactory seriesBuilderFactory) {
-    super(Collections.singletonList(childOperator));
+  public TimeSeriesExchangeReceiveOperator(BlockingQueue<Object> receiver, long deadlineMs, int expectedBlocks,
+      @Nullable AggInfo aggInfo, TimeSeriesBuilderFactory seriesBuilderFactory) {
+    super(Collections.emptyList());
     _receiver = receiver;
     _deadlineMs = deadlineMs;
     _expectedBlocks = expectedBlocks;
@@ -119,10 +119,10 @@ public class TimeSeriesExchangeReceiveOperator extends BaseTimeSeriesOperator {
       }
       for (var entry : blockToMerge.getSeriesMap().entrySet()) {
         long seriesHash = entry.getKey();
-        if (!timeSeriesMap.containsKey(seriesHash)) {
-          List<TimeSeries> timeSeriesList = new ArrayList<>(entry.getValue());
-          timeSeriesMap.put(seriesHash, timeSeriesList);
-        }
+        Preconditions.checkState(!timeSeriesMap.containsKey(seriesHash), "Broker no-aggregation receive"
+            + " cannot receive the same series multiple times");
+        List<TimeSeries> timeSeriesList = new ArrayList<>(entry.getValue());
+        timeSeriesMap.put(seriesHash, timeSeriesList);
       }
     }
     return new TimeSeriesBlock(timeBuckets, timeSeriesMap);

@@ -20,6 +20,7 @@ package org.apache.pinot.query.runtime;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.grpc.stub.StreamObserver;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.helix.HelixManager;
 import org.apache.pinot.common.datatable.StatMap;
 import org.apache.pinot.common.metrics.ServerMetrics;
@@ -249,12 +251,15 @@ public class QueryRunner {
   public void processTimeSeriesQuery(List<String> dispatchPlanInOrder, Map<String, String> metadata,
       StreamObserver<Worker.TimeSeriesResponse> responseObserver) {
     // Define a common way to handle errors.
-    final Consumer<Throwable> handleErrors = (t) -> {
+    final Consumer<Pair<Throwable, String>> handleErrors = (pair) -> {
+      Throwable t = pair.getLeft();
       try {
+        String planId = pair.getRight();
         Map<String, String> errorMetadata = new HashMap<>();
         errorMetadata.put(WorkerResponseMetadataKeys.ERROR_TYPE, t.getClass().getSimpleName());
         errorMetadata.put(WorkerResponseMetadataKeys.ERROR_MESSAGE, t.getMessage() == null
             ? "Unknown error: no message" : t.getMessage());
+        errorMetadata.put(WorkerResponseMetadataKeys.PLAN_ID, planId);
         responseObserver.onNext(Worker.TimeSeriesResponse.newBuilder().putAllMetadata(errorMetadata).build());
         responseObserver.onCompleted();
       } catch (Throwable t2) {
@@ -277,21 +282,26 @@ public class QueryRunner {
         }).collect(Collectors.toList());
       // Run the operator using the same executor service as OpChainSchedulerService
       _executorService.submit(() -> {
+        String currentPlanId = "";
         try {
-          for (BaseTimeSeriesOperator fragmentOpChain : fragmentOpChains) {
+          for (int index = 0; index < fragmentOpChains.size(); index++) {
+            currentPlanId = fragmentRoots.get(index).getId();
+            BaseTimeSeriesOperator fragmentOpChain = fragmentOpChains.get(index);
             TimeSeriesBlock seriesBlock = fragmentOpChain.nextBlock();
             Worker.TimeSeriesResponse response = Worker.TimeSeriesResponse.newBuilder()
-                .setPayload(TimeSeriesBlockSerde.serializeTimeSeriesBlock(seriesBlock)).build();
+                .setPayload(TimeSeriesBlockSerde.serializeTimeSeriesBlock(seriesBlock))
+                .putAllMetadata(ImmutableMap.of(WorkerResponseMetadataKeys.PLAN_ID, currentPlanId))
+                .build();
             responseObserver.onNext(response);
           }
           responseObserver.onCompleted();
         } catch (Throwable t) {
-          handleErrors.accept(t);
+          handleErrors.accept(Pair.of(t, currentPlanId));
         }
       });
     } catch (Throwable t) {
       LOGGER.error("Error running time-series query", t);
-      handleErrors.accept(t);
+      handleErrors.accept(Pair.of(t, ""));
     }
   }
 

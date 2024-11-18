@@ -1,5 +1,6 @@
 package org.apache.pinot.query.runtime.timeseries;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import javax.annotation.Nullable;
@@ -16,9 +17,9 @@ public class TimeSeriesExchangeReceivePlanNode extends BaseTimeSeriesPlanNode {
   private BlockingQueue<Object> _receiver;
   private int _numExpectedBlocks;
 
-  public TimeSeriesExchangeReceivePlanNode(String id, List<BaseTimeSeriesPlanNode> children, long deadlineMs,
-      @Nullable AggInfo aggInfo, TimeSeriesBuilderFactory factory) {
-    super(id, children);
+  public TimeSeriesExchangeReceivePlanNode(String id, long deadlineMs,  @Nullable AggInfo aggInfo,
+      TimeSeriesBuilderFactory factory) {
+    super(id, Collections.emptyList());
     _deadlineMs = deadlineMs;
     _aggInfo = aggInfo;
     _factory = factory;
@@ -31,7 +32,7 @@ public class TimeSeriesExchangeReceivePlanNode extends BaseTimeSeriesPlanNode {
 
   @Override
   public BaseTimeSeriesPlanNode withChildNodes(List<BaseTimeSeriesPlanNode> newChildNodes) {
-    return new TimeSeriesExchangeReceivePlanNode(_id, newChildNodes, _deadlineMs, _aggInfo, _factory);
+    return new TimeSeriesExchangeReceivePlanNode(_id, _deadlineMs, _aggInfo, _factory);
   }
 
   @Override
@@ -46,7 +47,6 @@ public class TimeSeriesExchangeReceivePlanNode extends BaseTimeSeriesPlanNode {
 
   @Override
   public BaseTimeSeriesOperator run() {
-    return new TimeSeriesExchangeReceiveOperator( _children.get(0).run(), _receiver, _deadlineMs, _numExpectedBlocks,
-        _aggInfo, _factory);
+    return new TimeSeriesExchangeReceiveOperator(_receiver, _deadlineMs, _numExpectedBlocks, _aggInfo, _factory);
   }
 }
