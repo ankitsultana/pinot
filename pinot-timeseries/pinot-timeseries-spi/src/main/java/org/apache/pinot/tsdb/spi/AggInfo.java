@@ -45,18 +45,25 @@ import javax.annotation.Nullable;
  */
 public class AggInfo {
   private final String _aggFunction;
+  private final boolean _partial;
   private final Map<String, String> _params;
 
   @JsonCreator
   public AggInfo(@JsonProperty("aggFunction") String aggFunction,
+      @JsonProperty("partial") boolean partial,
       @JsonProperty("params") @Nullable Map<String, String> params) {
     Preconditions.checkNotNull(aggFunction, "Received null aggFunction in AggInfo");
     _aggFunction = aggFunction;
+    _partial = partial;
     _params = params != null ? params : Collections.emptyMap();
   }
 
   public String getAggFunction() {
     return _aggFunction;
+  }
+
+  public boolean isPartial() {
+    return _partial;
   }
 
   public Map<String, String> getParams() {

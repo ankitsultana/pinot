@@ -44,6 +44,11 @@ public class TransformNullPlanNode extends BaseTimeSeriesPlanNode {
   }
 
   @Override
+  public BaseTimeSeriesPlanNode withChildNodes(List<BaseTimeSeriesPlanNode> newChildNodes) {
+    return new TransformNullPlanNode(_id, _defaultValue, newChildNodes);
+  }
+
+  @Override
   public String getKlass() {
     return TransformNullPlanNode.class.getName();
   }

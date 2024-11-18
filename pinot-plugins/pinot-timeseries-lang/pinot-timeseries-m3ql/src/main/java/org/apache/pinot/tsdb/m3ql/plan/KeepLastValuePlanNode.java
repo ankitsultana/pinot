@@ -34,6 +34,11 @@ public class KeepLastValuePlanNode extends BaseTimeSeriesPlanNode {
   }
 
   @Override
+  public BaseTimeSeriesPlanNode withChildNodes(List<BaseTimeSeriesPlanNode> newChildNodes) {
+    return new KeepLastValuePlanNode(_id, newChildNodes);
+  }
+
+  @Override
   public String getKlass() {
     return KeepLastValuePlanNode.class.getName();
   }

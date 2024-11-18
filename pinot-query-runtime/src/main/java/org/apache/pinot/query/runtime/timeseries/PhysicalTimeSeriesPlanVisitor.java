@@ -37,6 +37,7 @@ import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.spi.utils.CommonConstants.Broker.Request.QueryOptionKey;
 import org.apache.pinot.spi.utils.CommonConstants.Query.Request.MetadataKeys;
 import org.apache.pinot.sql.parsers.CalciteSqlParser;
+import org.apache.pinot.tsdb.planner.TimeSeriesExchangeNode;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 import org.apache.pinot.tsdb.spi.plan.LeafTimeSeriesPlanNode;
@@ -72,9 +73,16 @@ public class PhysicalTimeSeriesPlanVisitor {
         LeafTimeSeriesPlanNode leafNode = (LeafTimeSeriesPlanNode) childNode;
         List<String> segments = context.getPlanIdToSegmentsMap().get(leafNode.getId());
         ServerQueryRequest serverQueryRequest = compileLeafServerQueryRequest(leafNode, segments, context);
-        TimeSeriesPhysicalTableScan physicalTableScan = new TimeSeriesPhysicalTableScan(childNode.getId(),
-            serverQueryRequest, _queryExecutor, _executorService);
+        TimeSeriesPhysicalTableScan physicalTableScan =
+            new TimeSeriesPhysicalTableScan(childNode.getId(), serverQueryRequest, _queryExecutor, _executorService);
         planNode.getChildren().set(index, physicalTableScan);
+      } else if (childNode instanceof TimeSeriesExchangeNode) {
+        TimeSeriesExchangeNode exchangeNode = (TimeSeriesExchangeNode) childNode;
+        long deadlineMs = System.currentTimeMillis() + context.getTimeoutMs();
+        TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = new TimeSeriesExchangeReceivePlanNode(
+            exchangeNode.getId(), Collections.emptyList(), deadlineMs, exchangeNode.getAggInfo(),
+            context.getSeriesBuilderFactory());
+        exchangeReceivePlanNode.init(context.getReceiverByPlanId().get(exchangeNode.getId()), context.getNumQueryServers());
       } else {
         initLeafPlanNode(childNode, context);
       }

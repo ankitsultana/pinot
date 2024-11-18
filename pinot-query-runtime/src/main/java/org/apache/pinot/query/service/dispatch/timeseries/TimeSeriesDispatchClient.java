@@ -21,6 +21,7 @@ package org.apache.pinot.query.service.dispatch.timeseries;
 import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.stub.StreamObserver;
 import java.util.function.Consumer;
 import org.apache.pinot.common.proto.PinotQueryWorkerGrpc;
 import org.apache.pinot.common.proto.Worker;
@@ -45,9 +46,8 @@ public class TimeSeriesDispatchClient {
     return _channel;
   }
 
-  public void submit(Worker.TimeSeriesQueryRequest request, QueryServerInstance virtualServer, Deadline deadline,
-      Consumer<AsyncQueryTimeSeriesDispatchResponse> callback) {
-    _dispatchStub.withDeadline(deadline).submitTimeSeries(
-        request, new TimeSeriesDispatchObserver(virtualServer, callback));
+  public void submit(Worker.TimeSeriesQueryRequest request, Deadline deadline,
+      StreamObserver<Worker.TimeSeriesResponse> responseStreamObserver) {
+    _dispatchStub.withDeadline(deadline).submitTimeSeries(request, responseStreamObserver);
   }
 }

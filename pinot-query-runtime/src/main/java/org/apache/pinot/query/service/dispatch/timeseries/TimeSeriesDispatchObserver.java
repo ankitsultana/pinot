@@ -19,9 +19,12 @@
 package org.apache.pinot.query.service.dispatch.timeseries;
 
 import io.grpc.stub.StreamObserver;
-import java.util.function.Consumer;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.query.routing.QueryServerInstance;
+import org.apache.pinot.query.runtime.timeseries.serde.TimeSeriesBlockSerde;
+import org.apache.pinot.tsdb.spi.series.TimeSeriesBlock;
 
 
 /**
@@ -31,36 +34,40 @@ import org.apache.pinot.query.routing.QueryServerInstance;
  */
 public class TimeSeriesDispatchObserver implements StreamObserver<Worker.TimeSeriesResponse> {
   private final QueryServerInstance _serverInstance;
-  private final Consumer<AsyncQueryTimeSeriesDispatchResponse> _callback;
+  private final Map<String, BlockingQueue<Object>> _receiversByPlanId;
 
-  private Worker.TimeSeriesResponse _timeSeriesResponse;
-
-  public TimeSeriesDispatchObserver(QueryServerInstance serverInstance,
-      Consumer<AsyncQueryTimeSeriesDispatchResponse> callback) {
+  public TimeSeriesDispatchObserver(QueryServerInstance serverInstance, Map<String, BlockingQueue<Object>> receiversByPlanId) {
     _serverInstance = serverInstance;
-    _callback = callback;
+    _receiversByPlanId = receiversByPlanId;
   }
 
   @Override
   public void onNext(Worker.TimeSeriesResponse timeSeriesResponse) {
-    _timeSeriesResponse = timeSeriesResponse;
+    // Extract planId
+    String planId = timeSeriesResponse.getMetadataMap().get("planId");
+    TimeSeriesBlock block = null;
+    Throwable error = null;
+    // TODO: Check error in metadata map too.
+    try {
+      block = TimeSeriesBlockSerde.deserializeTimeSeriesBlock(timeSeriesResponse.getPayload().asReadOnlyByteBuffer());
+    } catch (Throwable t) {
+      error = t;
+    }
+    if (error != null) {
+      _receiversByPlanId.get(planId).offer(error);
+    } else {
+      _receiversByPlanId.get(planId).offer(block);
+    }
   }
 
   @Override
   public void onError(Throwable throwable) {
-    _callback.accept(
-        new AsyncQueryTimeSeriesDispatchResponse(
-            _serverInstance,
-            Worker.TimeSeriesResponse.getDefaultInstance(),
-            throwable));
+    for (BlockingQueue q : _receiversByPlanId.values()) {
+      q.offer(throwable);
+    }
   }
 
   @Override
   public void onCompleted() {
-    _callback.accept(
-        new AsyncQueryTimeSeriesDispatchResponse(
-            _serverInstance,
-            _timeSeriesResponse,
-            null));
   }
 }

@@ -20,11 +20,14 @@ package org.apache.pinot.tsdb.planner;
 
 import com.google.common.base.Preconditions;
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
@@ -32,7 +35,6 @@ import org.apache.pinot.common.request.PinotQuery;
 import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.core.routing.RoutingTable;
-import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.tsdb.planner.physical.TableScanVisitor;
@@ -99,25 +101,27 @@ public class TimeSeriesQueryEnvironment {
         "Expected exactly one table name in the logical plan, got: %s",
         tableNames);
     String tableName = tableNames.iterator().next();
-    // Step-2: Compute routing table assuming all segments are selected. This is to perform the check to reject tables
-    //         that span across multiple servers.
+    // Step-2: Compute routing table assuming all segments are selected. This means that we don't do server pruning.
+    // TODO: Prune servers based on filters.
     RoutingTable routingTable = _routingManager.getRoutingTable(compileBrokerRequest(tableName),
         requestContext.getRequestId());
     Preconditions.checkState(routingTable != null,
         "Failed to get routing table for table: %s", tableName);
-    Preconditions.checkState(routingTable.getServerInstanceToSegmentsMap().size() == 1,
-        "Only support routing to a single server. Computed: %s",
-        routingTable.getServerInstanceToSegmentsMap().size());
-    var entry = routingTable.getServerInstanceToSegmentsMap().entrySet().iterator().next();
-    ServerInstance serverInstance = entry.getKey();
-    // Step-3: Assign segments to the leaf plan nodes.
+    List<TimeSeriesQueryServerInstance> serverInstances = routingTable.getServerInstanceToSegmentsMap().keySet()
+        .stream().map(TimeSeriesQueryServerInstance::new).collect(Collectors.toList());
+    // Step-3: Create plan fragments.
+    List<BaseTimeSeriesPlanNode> fragments = TimeSeriesPlanFragmenter.getFragments(logicalPlan.getPlanNode(), serverInstances.size() == 1);
+    // Step-4: Assign segments to the leaf plan nodes.
     TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
-    TableScanVisitor.INSTANCE.assignSegmentsToPlan(logicalPlan.getPlanNode(), logicalPlan.getTimeBuckets(),
-        scanVisitorContext);
-    return new TimeSeriesDispatchablePlan(timeSeriesRequest.getLanguage(),
-        new TimeSeriesQueryServerInstance(serverInstance),
-        TimeSeriesPlanSerde.serialize(logicalPlan.getPlanNode()), logicalPlan.getTimeBuckets(),
-        scanVisitorContext.getPlanIdToSegmentMap());
+    List<String> serializedPlanByRootId = new ArrayList<>();
+    for (int index = 1; index < fragments.size(); index++) {
+      BaseTimeSeriesPlanNode serverFragment = fragments.get(index);
+      TableScanVisitor.INSTANCE.assignSegmentsToPlan(serverFragment, logicalPlan.getTimeBuckets(),
+          scanVisitorContext);
+      serializedPlanByRootId.add(TimeSeriesPlanSerde.serialize(serverFragment));
+    }
+    return new TimeSeriesDispatchablePlan(timeSeriesRequest.getLanguage(), serverInstances, fragments.get(0),
+        serializedPlanByRootId, logicalPlan.getTimeBuckets(), scanVisitorContext.getPlanIdToSegmentMap());
   }
 
   public static void findTableNames(BaseTimeSeriesPlanNode planNode, Consumer<String> tableNameConsumer) {

@@ -65,6 +65,12 @@ public class LeafTimeSeriesPlanNode extends BaseTimeSeriesPlanNode {
   }
 
   @Override
+  public BaseTimeSeriesPlanNode withChildNodes(List<BaseTimeSeriesPlanNode> newChildNodes) {
+    return new LeafTimeSeriesPlanNode(_id, newChildNodes, _tableName, _timeColumn, _timeUnit, _offsetSeconds,
+        _filterExpression, _valueExpression, _aggInfo, _groupByExpressions);
+  }
+
+  @Override
   public String getKlass() {
     return LeafTimeSeriesPlanNode.class.getName();
   }

@@ -54,7 +54,7 @@ message QueryResponse {
 }
 
 message TimeSeriesQueryRequest {
-  bytes dispatchPlan = 1;
+  repeated string dispatchPlan = 1;
   map<string, string> metadata = 2;
 }
 

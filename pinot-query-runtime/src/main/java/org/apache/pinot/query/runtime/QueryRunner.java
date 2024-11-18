@@ -246,35 +246,43 @@ public class QueryRunner {
    * TODO: This design is at odds with MSE because MSE runs even the leaf stage via OpChainSchedulerService.
    *   However, both OpChain scheduler and this method use the same ExecutorService.
    */
-  public void processTimeSeriesQuery(String serializedPlan, Map<String, String> metadata,
+  public void processTimeSeriesQuery(List<String> dispatchPlanInOrder, Map<String, String> metadata,
       StreamObserver<Worker.TimeSeriesResponse> responseObserver) {
     // Define a common way to handle errors.
     final Consumer<Throwable> handleErrors = (t) -> {
-      Map<String, String> errorMetadata = new HashMap<>();
-      errorMetadata.put(WorkerResponseMetadataKeys.ERROR_TYPE, t.getClass().getSimpleName());
-      errorMetadata.put(WorkerResponseMetadataKeys.ERROR_MESSAGE, t.getMessage() == null
-          ? "Unknown error: no message" : t.getMessage());
-      responseObserver.onNext(Worker.TimeSeriesResponse.newBuilder().putAllMetadata(errorMetadata).build());
-      responseObserver.onCompleted();
+      try {
+        Map<String, String> errorMetadata = new HashMap<>();
+        errorMetadata.put(WorkerResponseMetadataKeys.ERROR_TYPE, t.getClass().getSimpleName());
+        errorMetadata.put(WorkerResponseMetadataKeys.ERROR_MESSAGE, t.getMessage() == null
+            ? "Unknown error: no message" : t.getMessage());
+        responseObserver.onNext(Worker.TimeSeriesResponse.newBuilder().putAllMetadata(errorMetadata).build());
+        responseObserver.onCompleted();
+      } catch (Throwable t2) {
+        LOGGER.warn("Unable to send error to broker. Original error: {}", t.getMessage(), t2);
+      }
     };
+    // Schedule plan nodes one after another
     try {
       final long timeoutMs = extractTimeoutMs(metadata);
       Preconditions.checkState(timeoutMs > 0,
           "Query timed out before getting processed in server. Remaining time: %s", timeoutMs);
-      // Deserialize plan, and compile to create a tree of operators.
-      BaseTimeSeriesPlanNode rootNode = TimeSeriesPlanSerde.deserialize(serializedPlan);
+      List<BaseTimeSeriesPlanNode> fragmentRoots = dispatchPlanInOrder.stream().map(TimeSeriesPlanSerde::deserialize)
+          .collect(Collectors.toList());
       TimeSeriesExecutionContext context = new TimeSeriesExecutionContext(
           metadata.get(WorkerRequestMetadataKeys.LANGUAGE), extractTimeBuckets(metadata),
-          extractPlanToSegmentMap(metadata), timeoutMs, metadata);
-      BaseTimeSeriesOperator operator = PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(rootNode, context);
+          extractPlanToSegmentMap(metadata), timeoutMs, metadata, null);
+      final List<BaseTimeSeriesOperator> fragmentOpChains = fragmentRoots.stream().map(x -> {
+          return PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(x, context);
+        }).collect(Collectors.toList());
       // Run the operator using the same executor service as OpChainSchedulerService
       _executorService.submit(() -> {
         try {
-          TimeSeriesBlock seriesBlock = operator.nextBlock();
-          Worker.TimeSeriesResponse response = Worker.TimeSeriesResponse.newBuilder()
-              .setPayload(TimeSeriesBlockSerde.serializeTimeSeriesBlock(seriesBlock))
-              .build();
-          responseObserver.onNext(response);
+          for (BaseTimeSeriesOperator fragmentOpChain : fragmentOpChains) {
+            TimeSeriesBlock seriesBlock = fragmentOpChain.nextBlock();
+            Worker.TimeSeriesResponse response = Worker.TimeSeriesResponse.newBuilder()
+                .setPayload(TimeSeriesBlockSerde.serializeTimeSeriesBlock(seriesBlock)).build();
+            responseObserver.onNext(response);
+          }
           responseObserver.onCompleted();
         } catch (Throwable t) {
           handleErrors.accept(t);
