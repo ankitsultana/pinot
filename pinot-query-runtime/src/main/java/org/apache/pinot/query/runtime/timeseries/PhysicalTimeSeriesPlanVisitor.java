@@ -101,6 +101,7 @@ public class PhysicalTimeSeriesPlanVisitor {
             context.getSeriesBuilderFactory());
         BlockingQueue<Object> receiver = context.getReceiverByPlanId().get(exchangeNode.getId());
         exchangeReceivePlanNode.init(Objects.requireNonNull(receiver, "No receiver for node"), context.getNumQueryServers());
+        planNode.getChildren().set(index, exchangeReceivePlanNode);
       } else {
         initLeafPlanNode(childNode, context);
       }

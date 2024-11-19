@@ -110,7 +110,8 @@ public class TimeSeriesQueryEnvironment {
     List<TimeSeriesQueryServerInstance> serverInstances = routingTable.getServerInstanceToSegmentsMap().keySet()
         .stream().map(TimeSeriesQueryServerInstance::new).collect(Collectors.toList());
     // Step-3: Create plan fragments.
-    List<BaseTimeSeriesPlanNode> fragments = TimeSeriesPlanFragmenter.getFragments(logicalPlan.getPlanNode(), serverInstances.size() == 1);
+    List<BaseTimeSeriesPlanNode> fragments = TimeSeriesPlanFragmenter.getFragments(
+        logicalPlan.getPlanNode(), serverInstances.size() == 1);
     // Step-4: Assign segments to the leaf plan nodes.
     TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
     List<String> serializedPlans = new ArrayList<>();

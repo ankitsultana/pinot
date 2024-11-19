@@ -254,7 +254,7 @@ public class QueryDispatcher {
   }
 
   Map<String, String> initializeTimeSeriesMetadataMap(TimeSeriesDispatchablePlan dispatchablePlan, long deadlineMs,
-      RequestContext requestContext) {
+      RequestContext requestContext, String instanceId) {
     Map<String, String> result = new HashMap<>();
     TimeBuckets timeBuckets = dispatchablePlan.getTimeBuckets();
     result.put(WorkerRequestMetadataKeys.LANGUAGE, dispatchablePlan.getLanguage());
@@ -262,7 +262,7 @@ public class QueryDispatcher {
     result.put(WorkerRequestMetadataKeys.WINDOW_SECONDS, Long.toString(timeBuckets.getBucketSize().getSeconds()));
     result.put(WorkerRequestMetadataKeys.NUM_ELEMENTS, Long.toString(timeBuckets.getTimeBuckets().length));
     result.put(WorkerRequestMetadataKeys.DEADLINE_MS, Long.toString(deadlineMs));
-    for (Map.Entry<String, List<String>> entry : dispatchablePlan.getPlanIdToSegments().entrySet()) {
+    for (Map.Entry<String, List<String>> entry : dispatchablePlan.getPlanIdToSegments().get(instanceId).entrySet()) {
       result.put(WorkerRequestMetadataKeys.encodeSegmentListKey(entry.getKey()), String.join(",", entry.getValue()));
     }
     result.put(CommonConstants.Query.Request.MetadataKeys.REQUEST_ID, Long.toString(requestContext.getRequestId()));
@@ -495,10 +495,11 @@ public class QueryDispatcher {
       QueryServerInstance queryServerInstance = new QueryServerInstance(serverInstance.getHostname(),
           serverInstance.getQueryServicePort(), serverInstance.getQueryMailboxPort());
       Deadline deadline = Deadline.after(deadlineMs - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+      Preconditions.checkState(!deadline.isExpired(), "Deadline expired before query could be sent to servers");
       // Send server fragment to every server
       Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
           .addAllDispatchPlan(plan.getSerializedPlanFragmentByRootId())
-          .putAllMetadata(initializeTimeSeriesMetadataMap(plan, deadlineMs, requestContext))
+          .putAllMetadata(initializeTimeSeriesMetadataMap(plan, deadlineMs, requestContext, serverInstance.getInstanceId()))
           .putMetadata(CommonConstants.Query.Request.MetadataKeys.REQUEST_ID, Long.toString(requestId))
           .build();
       TimeSeriesDispatchObserver dispatchObserver = new TimeSeriesDispatchObserver(queryServerInstance, receiversByPlanId);

@@ -30,11 +30,11 @@ public class TimeSeriesDispatchablePlan {
   private final BaseTimeSeriesPlanNode _brokerFragment;
   private final List<String> _serializedPlansInOrder;
   private final TimeBuckets _timeBuckets;
-  private final Map<String, List<String>> _planIdToSegments;
+  private final Map<String, Map<String, List<String>>> _planIdToSegments;
 
   public TimeSeriesDispatchablePlan(String language, List<TimeSeriesQueryServerInstance> serverInstances,
       BaseTimeSeriesPlanNode brokerFragment, List<String> serializedPlanMap, TimeBuckets timeBuckets,
-      Map<String, List<String>> planIdToSegments) {
+      Map<String, Map<String, List<String>>> planIdToSegments) {
     _language = language;
     _queryServerInstance = serverInstances;
     _brokerFragment = brokerFragment;
@@ -63,7 +63,7 @@ public class TimeSeriesDispatchablePlan {
     return _timeBuckets;
   }
 
-  public Map<String, List<String>> getPlanIdToSegments() {
+  public Map<String, Map<String, List<String>>> getPlanIdToSegments() {
     return _planIdToSegments;
   }
 }
