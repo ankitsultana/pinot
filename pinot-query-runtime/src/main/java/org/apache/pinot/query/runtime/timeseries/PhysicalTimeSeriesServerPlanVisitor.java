@@ -37,22 +37,20 @@ import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.spi.utils.CommonConstants.Broker.Request.QueryOptionKey;
 import org.apache.pinot.spi.utils.CommonConstants.Query.Request.MetadataKeys;
 import org.apache.pinot.sql.parsers.CalciteSqlParser;
+import org.apache.pinot.tsdb.planner.TimeSeriesExchangeNode;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 import org.apache.pinot.tsdb.spi.plan.LeafTimeSeriesPlanNode;
 
 
-public class PhysicalTimeSeriesPlanVisitor {
-  public static final PhysicalTimeSeriesPlanVisitor INSTANCE = new PhysicalTimeSeriesPlanVisitor();
+public class PhysicalTimeSeriesServerPlanVisitor {
+  private final QueryExecutor _queryExecutor;
+  private final ExecutorService _executorService;
+  private final ServerMetrics _serverMetrics;
 
-  private QueryExecutor _queryExecutor;
-  private ExecutorService _executorService;
-  private ServerMetrics _serverMetrics;
-
-  private PhysicalTimeSeriesPlanVisitor() {
-  }
-
-  public void init(QueryExecutor queryExecutor, ExecutorService executorService, ServerMetrics serverMetrics) {
+  // Warning: Don't use singleton access pattern, since Quickstarts run in a single JVM and spawn multiple broker/server
+  public PhysicalTimeSeriesServerPlanVisitor(QueryExecutor queryExecutor, ExecutorService executorService,
+      ServerMetrics serverMetrics) {
     _queryExecutor = queryExecutor;
     _executorService = executorService;
     _serverMetrics = serverMetrics;
@@ -60,31 +58,41 @@ public class PhysicalTimeSeriesPlanVisitor {
 
   public BaseTimeSeriesOperator compile(BaseTimeSeriesPlanNode rootNode, TimeSeriesExecutionContext context) {
     // Step-1: Replace scan filter project with our physical plan node with Pinot Core and Runtime context
-    initLeafPlanNode(rootNode, context);
+    rootNode = initLeafPlanNode(rootNode, context);
     // Step-2: Trigger recursive operator generation
     return rootNode.run();
   }
 
-  public void initLeafPlanNode(BaseTimeSeriesPlanNode planNode, TimeSeriesExecutionContext context) {
+  public BaseTimeSeriesPlanNode initLeafPlanNode(BaseTimeSeriesPlanNode planNode, TimeSeriesExecutionContext context) {
+    if (planNode instanceof LeafTimeSeriesPlanNode) {
+      return compileToPhysicalLeafNode((LeafTimeSeriesPlanNode) planNode, context);
+    } else if (planNode instanceof TimeSeriesExchangeNode) {
+      throw new IllegalStateException("Found time series exchange node in servers");
+    }
     for (int index = 0; index < planNode.getChildren().size(); index++) {
       BaseTimeSeriesPlanNode childNode = planNode.getChildren().get(index);
       if (childNode instanceof LeafTimeSeriesPlanNode) {
-        LeafTimeSeriesPlanNode leafNode = (LeafTimeSeriesPlanNode) childNode;
-        List<String> segments = context.getPlanIdToSegmentsMap().get(leafNode.getId());
-        ServerQueryRequest serverQueryRequest = compileLeafServerQueryRequest(leafNode, segments, context);
-        TimeSeriesPhysicalTableScan physicalTableScan = new TimeSeriesPhysicalTableScan(childNode.getId(),
-            serverQueryRequest, _queryExecutor, _executorService);
+        TimeSeriesPhysicalTableScan physicalTableScan =
+            compileToPhysicalLeafNode((LeafTimeSeriesPlanNode) childNode, context);
         planNode.getChildren().set(index, physicalTableScan);
       } else {
         initLeafPlanNode(childNode, context);
       }
     }
+    return planNode;
   }
 
   public ServerQueryRequest compileLeafServerQueryRequest(LeafTimeSeriesPlanNode leafNode, List<String> segments,
       TimeSeriesExecutionContext context) {
-    return new ServerQueryRequest(compileQueryContext(leafNode, context),
-        segments, getServerQueryRequestMetadataMap(context), _serverMetrics);
+    return new ServerQueryRequest(compileQueryContext(leafNode, context), segments,
+        getServerQueryRequestMetadataMap(context), _serverMetrics);
+  }
+
+  TimeSeriesPhysicalTableScan compileToPhysicalLeafNode(LeafTimeSeriesPlanNode leafNode,
+      TimeSeriesExecutionContext context) {
+    List<String> segments = context.getPlanIdToSegmentsMap().get(leafNode.getId());
+    ServerQueryRequest serverQueryRequest = compileLeafServerQueryRequest(leafNode, segments, context);
+    return new TimeSeriesPhysicalTableScan(leafNode.getId(), serverQueryRequest, _queryExecutor, _executorService);
   }
 
   @VisibleForTesting
@@ -103,7 +111,7 @@ public class PhysicalTimeSeriesPlanVisitor {
         .setFilter(filterContext)
         .setGroupByExpressions(groupByExpressions)
         .setSelectExpressions(Collections.emptyList())
-        .setQueryOptions(ImmutableMap.of(QueryOptionKey.TIMEOUT_MS, Long.toString(context.getTimeoutMs())))
+        .setQueryOptions(ImmutableMap.of(QueryOptionKey.TIMEOUT_MS, Long.toString(context.getRemainingTimeMs())))
         .setAliasList(Collections.emptyList())
         .setTimeSeriesContext(timeSeriesContext)
         .setLimit(Integer.MAX_VALUE)

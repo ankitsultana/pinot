@@ -34,7 +34,7 @@ import static org.testng.Assert.*;
 
 public class TimeSeriesAggregationOperatorTest {
   private static final String DUMMY_TIME_COLUMN = "someTimeColumn";
-  private static final AggInfo AGG_INFO = new AggInfo("", Collections.emptyMap());
+  private static final AggInfo AGG_INFO = new AggInfo("", false, Collections.emptyMap());
   private static final ExpressionContext VALUE_EXPRESSION = ExpressionContext.forIdentifier("someValueColumn");
 
   @Test

@@ -16,53 +16,51 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.tsdb.m3ql.plan;
+package org.apache.pinot.tsdb.planner;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.util.List;
-import org.apache.pinot.tsdb.m3ql.operator.TransformNullOperator;
+import javax.annotation.Nullable;
+import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.operator.BaseTimeSeriesOperator;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 
 
-public class TransformNullPlanNode extends BaseTimeSeriesPlanNode {
-  public static final Double DEFAULT_VALUE = 0.0;
-  private final Double _defaultValue;
+public class TimeSeriesExchangeNode extends BaseTimeSeriesPlanNode {
+  @Nullable
+  private final AggInfo _aggInfo;
 
   @JsonCreator
-  public TransformNullPlanNode(@JsonProperty("id") String id, @JsonProperty("defaultValue") Double defaultValue,
-      @JsonProperty("children") List<BaseTimeSeriesPlanNode> children) {
+  public TimeSeriesExchangeNode(@JsonProperty("id") String id,
+      @JsonProperty("children") List<BaseTimeSeriesPlanNode> children,
+      @Nullable @JsonProperty("aggInfo") AggInfo aggInfo) {
     super(id, children);
-    _defaultValue = defaultValue;
+    _aggInfo = aggInfo;
   }
 
-  public Double getDefaultValue() {
-    return _defaultValue;
+  @Nullable
+  public AggInfo getAggInfo() {
+    return _aggInfo;
   }
 
   @Override
   public BaseTimeSeriesPlanNode withChildNodes(List<BaseTimeSeriesPlanNode> newChildNodes) {
-    return new TransformNullPlanNode(_id, _defaultValue, newChildNodes);
+    return new TimeSeriesExchangeNode(_id, newChildNodes, _aggInfo);
   }
 
   @Override
   public String getKlass() {
-    return TransformNullPlanNode.class.getName();
+    return TimeSeriesExchangeNode.class.getName();
   }
 
   @Override
   public String getExplainName() {
-    return "TRANSFORM_NULL";
+    return "TIME_SERIES_BROKER_RECEIVE";
   }
 
   @Override
   public BaseTimeSeriesOperator run() {
-    Preconditions.checkState(_children.size() == 1,
-        "TransformNullPlanNode should have only 1 child, got: %s", _children.size());
-    BaseTimeSeriesOperator childOperator = _children.get(0).run();
-    return new TransformNullOperator(_defaultValue, ImmutableList.of(childOperator));
+    throw new IllegalStateException("Time Series Exchange should have been replaced with a physical plan node");
   }
 }

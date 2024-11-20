@@ -47,6 +47,8 @@ public abstract class BaseTimeSeriesPlanNode {
     _children.add(planNode);
   }
 
+  public abstract BaseTimeSeriesPlanNode withChildNodes(List<BaseTimeSeriesPlanNode> newChildNodes);
+
   public abstract String getKlass();
 
   public abstract String getExplainName();

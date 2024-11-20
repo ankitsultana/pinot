@@ -222,8 +222,8 @@ public class QueryServer extends PinotQueryWorkerGrpc.PinotQueryWorkerImplBase {
   @Override
   public void submitTimeSeries(Worker.TimeSeriesQueryRequest request,
       StreamObserver<Worker.TimeSeriesResponse> responseObserver) {
-    ByteString bytes = request.getDispatchPlan();
-    _queryRunner.processTimeSeriesQuery(bytes.toStringUtf8(), request.getMetadataMap(), responseObserver);
+    List<String> dispatchPlanMap = request.getDispatchPlanList();
+    _queryRunner.processTimeSeriesQuery(dispatchPlanMap, request.getMetadataMap(), responseObserver);
   }
 
   @Override

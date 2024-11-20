@@ -222,7 +222,7 @@ public class QueryExecutorTest {
     ExpressionContext valueExpression = ExpressionContext.forIdentifier("orderAmount");
     TimeSeriesContext timeSeriesContext =
         new TimeSeriesContext(TIME_SERIES_LANGUAGE_NAME, TIME_SERIES_TIME_COL_NAME, TimeUnit.SECONDS, timeBuckets,
-            0L /* offsetSeconds */, valueExpression, new AggInfo("SUM", null));
+            0L /* offsetSeconds */, valueExpression, new AggInfo("SUM", false, null));
     QueryContext queryContext = getQueryContextForTimeSeries(timeSeriesContext, Collections.emptyList());
     ServerQueryRequest serverQueryRequest =
         new ServerQueryRequest(queryContext, _segmentNames, new HashMap<>(), ServerMetrics.get());
@@ -241,7 +241,7 @@ public class QueryExecutorTest {
     ExpressionContext valueExpression = ExpressionContext.forIdentifier("orderItemCount");
     TimeSeriesContext timeSeriesContext =
         new TimeSeriesContext(TIME_SERIES_LANGUAGE_NAME, TIME_SERIES_TIME_COL_NAME, TimeUnit.SECONDS, timeBuckets,
-            0L /* offsetSeconds */, valueExpression, new AggInfo("MAX", null));
+            0L /* offsetSeconds */, valueExpression, new AggInfo("MAX", false, null));
     QueryContext queryContext = getQueryContextForTimeSeries(timeSeriesContext);
     ServerQueryRequest serverQueryRequest =
         new ServerQueryRequest(queryContext, _segmentNames, new HashMap<>(), ServerMetrics.get());
@@ -273,7 +273,7 @@ public class QueryExecutorTest {
     ExpressionContext valueExpression = ExpressionContext.forIdentifier("orderItemCount");
     TimeSeriesContext timeSeriesContext =
         new TimeSeriesContext(TIME_SERIES_LANGUAGE_NAME, TIME_SERIES_TIME_COL_NAME, TimeUnit.SECONDS, timeBuckets,
-            0L /* offsetSeconds */, valueExpression, new AggInfo("MIN", null));
+            0L /* offsetSeconds */, valueExpression, new AggInfo("MIN", false, null));
     QueryContext queryContext = getQueryContextForTimeSeries(timeSeriesContext);
     ServerQueryRequest serverQueryRequest =
         new ServerQueryRequest(queryContext, _segmentNames, new HashMap<>(), ServerMetrics.get());
