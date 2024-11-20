@@ -65,7 +65,7 @@ import org.apache.pinot.query.runtime.plan.PlanNodeToOpChain;
 import org.apache.pinot.query.runtime.plan.pipeline.PipelineBreakerExecutor;
 import org.apache.pinot.query.runtime.plan.pipeline.PipelineBreakerResult;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestUtils;
-import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesPlanVisitor;
+import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesServerPlanVisitor;
 import org.apache.pinot.query.runtime.timeseries.TimeSeriesExecutionContext;
 import org.apache.pinot.query.runtime.timeseries.serde.TimeSeriesBlockSerde;
 import org.apache.pinot.spi.accounting.ThreadExecutionContext;
@@ -114,6 +114,7 @@ public class QueryRunner {
   private Integer _maxRowsInJoin;
   @Nullable
   private JoinOverFlowMode _joinOverflowMode;
+  private PhysicalTimeSeriesServerPlanVisitor _timeSeriesPhysicalPlanVisitor;
 
   /**
    * Initializes the query executor.
@@ -157,7 +158,8 @@ public class QueryRunner {
       throw new RuntimeException(e);
     }
     if (StringUtils.isNotBlank(config.getProperty(PinotTimeSeriesConfiguration.getEnabledLanguagesConfigKey()))) {
-      PhysicalTimeSeriesPlanVisitor.INSTANCE.init(_leafQueryExecutor, _executorService, serverMetrics);
+      _timeSeriesPhysicalPlanVisitor = new PhysicalTimeSeriesServerPlanVisitor(_leafQueryExecutor, _executorService,
+          _serverMetrics);
       TimeSeriesBuilderFactoryProvider.init(config);
     }
 
@@ -278,7 +280,7 @@ public class QueryRunner {
           metadata.get(WorkerRequestMetadataKeys.LANGUAGE), extractTimeBuckets(metadata),
           extractPlanToSegmentMap(metadata), deadlineMs, metadata, null, 0);
       final List<BaseTimeSeriesOperator> fragmentOpChains = fragmentRoots.stream().map(x -> {
-          return PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(x, context);
+          return _timeSeriesPhysicalPlanVisitor.compile(x, context);
         }).collect(Collectors.toList());
       // Run the operator using the same executor service as OpChainSchedulerService
       _executorService.submit(() -> {

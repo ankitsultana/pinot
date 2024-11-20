@@ -71,7 +71,7 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.MultiStageQueryStats;
 import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
-import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesPlanVisitor;
+import org.apache.pinot.query.runtime.timeseries.PhysicalTimeSeriesBrokerPlanVisitor;
 import org.apache.pinot.query.runtime.timeseries.TimeSeriesExecutionContext;
 import org.apache.pinot.query.service.dispatch.timeseries.TimeSeriesDispatchClient;
 import org.apache.pinot.query.service.dispatch.timeseries.TimeSeriesDispatchObserver;
@@ -105,6 +105,7 @@ public class QueryDispatcher {
   private final Map<String, TimeSeriesDispatchClient> _timeSeriesDispatchClientMap = new ConcurrentHashMap<>();
   @Nullable
   private final TlsConfig _tlsConfig;
+  private final PhysicalTimeSeriesBrokerPlanVisitor _timeSeriesPhysicalPlanVisitor;
 
   public QueryDispatcher(MailboxService mailboxService) {
     this(mailboxService, null);
@@ -115,6 +116,7 @@ public class QueryDispatcher {
     _executorService = Executors.newFixedThreadPool(2 * Runtime.getRuntime().availableProcessors(),
         new TracedThreadFactory(Thread.NORM_PRIORITY, false, PINOT_BROKER_QUERY_DISPATCHER_FORMAT));
     _tlsConfig = tlsConfig;
+    _timeSeriesPhysicalPlanVisitor = new PhysicalTimeSeriesBrokerPlanVisitor();
   }
 
   public void start() {
@@ -488,7 +490,7 @@ public class QueryDispatcher {
     // Compile brokerFragment to get operators
     TimeSeriesExecutionContext brokerExecutionContext = new TimeSeriesExecutionContext(plan.getLanguage(),
         plan.getTimeBuckets(), receiversByPlanId, plan.getQueryServers().size(), deadlineMs);
-    BaseTimeSeriesOperator brokerOperator = PhysicalTimeSeriesPlanVisitor.INSTANCE.compile(brokerFragment,
+    BaseTimeSeriesOperator brokerOperator = _timeSeriesPhysicalPlanVisitor.compile(brokerFragment,
         brokerExecutionContext);
     // Create dispatch observer for each query server
     for (TimeSeriesQueryServerInstance serverInstance : plan.getQueryServers()) {

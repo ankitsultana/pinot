@@ -44,61 +44,58 @@ public class TimeSeriesExchangeReceiveOperator extends BaseTimeSeriesOperator {
       } else {
         return getNextBlockWithAggregation();
       }
-    } catch (Exception e) {
-      throw new RuntimeException("Error in Time Series Exchange Receive Operator", e);
+    } catch (Throwable t) {
+      throw new RuntimeException(t.getMessage(), t);
     }
   }
 
-  private TimeSeriesBlock getNextBlockWithAggregation() {
-    try {
-      TimeBuckets timeBuckets = null;
-      Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap = new HashMap<>();
-      for (int index = 0; index < _expectedBlocks; index++) {
-        long remainingTimeMs = _deadlineMs - System.currentTimeMillis();
-        Preconditions.checkState(remainingTimeMs > 0, "Timed out before polling exchange receive");
-        Object result = _receiver.poll(remainingTimeMs, TimeUnit.MILLISECONDS);
-        Preconditions.checkNotNull(result, "Timed out waiting for response. Waited: %s ms", remainingTimeMs);
-        if (result instanceof Throwable) {
-          throw new RuntimeException("Received error in exchange receive", (Throwable) result);
-        }
-        Preconditions.checkState(result instanceof TimeSeriesBlock, "Found unexpected object. This is a bug: %s", result.getClass());
-        TimeSeriesBlock blockToMerge = (TimeSeriesBlock) result;
-        if (timeBuckets == null) {
-          timeBuckets = blockToMerge.getTimeBuckets();
-        } else {
-          Preconditions.checkState(timeBuckets.equals(blockToMerge.getTimeBuckets()),
-              "Found unequal time buckets from server response");
-        }
-        for (var entry : blockToMerge.getSeriesMap().entrySet()) {
-          long seriesHash = entry.getKey();
-          Preconditions.checkState(entry.getValue().size() == 1,
-              "Expected exactly 1 time series in server response, found: %s", entry.getValue().size());
-          TimeSeries currentTimeSeries = entry.getValue().get(0);
-          BaseTimeSeriesBuilder seriesBuilder = seriesBuilderMap.get(seriesHash);
-          if (seriesBuilder == null) {
-            seriesBuilder = _factory.newTimeSeriesBuilder(
-                _aggInfo, Long.toString(seriesHash), timeBuckets, currentTimeSeries.getTagNames(),
-                currentTimeSeries.getTagValues());
-            seriesBuilderMap.put(seriesHash, seriesBuilder);
-          }
-          seriesBuilder.mergeAlignedSeries(currentTimeSeries);
-        }
+  private TimeSeriesBlock getNextBlockWithAggregation()
+      throws Throwable {
+    TimeBuckets timeBuckets = null;
+    Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap = new HashMap<>();
+    for (int index = 0; index < _expectedBlocks; index++) {
+      long remainingTimeMs = _deadlineMs - System.currentTimeMillis();
+      Preconditions.checkState(remainingTimeMs > 0, "Timed out before polling exchange receive");
+      Object result = _receiver.poll(remainingTimeMs, TimeUnit.MILLISECONDS);
+      Preconditions.checkNotNull(result, "Timed out waiting for response. Waited: %s ms", remainingTimeMs);
+      if (result instanceof Throwable) {
+        throw (Throwable) result;
       }
-      Map<Long, List<TimeSeries>> seriesMap = new HashMap<>(seriesBuilderMap.size());
-      for (var entry : seriesBuilderMap.entrySet()) {
+      Preconditions.checkState(result instanceof TimeSeriesBlock, "Found unexpected object. This is a bug: %s", result.getClass());
+      TimeSeriesBlock blockToMerge = (TimeSeriesBlock) result;
+      if (timeBuckets == null) {
+        timeBuckets = blockToMerge.getTimeBuckets();
+      } else {
+        Preconditions.checkState(timeBuckets.equals(blockToMerge.getTimeBuckets()),
+            "Found unequal time buckets from server response");
+      }
+      for (var entry : blockToMerge.getSeriesMap().entrySet()) {
         long seriesHash = entry.getKey();
-        List<TimeSeries> timeSeriesList = new ArrayList<>();
-        timeSeriesList.add(entry.getValue().build());
-        seriesMap.put(seriesHash, timeSeriesList);
+        Preconditions.checkState(entry.getValue().size() == 1,
+            "Expected exactly 1 time series in server response, found: %s", entry.getValue().size());
+        TimeSeries currentTimeSeries = entry.getValue().get(0);
+        BaseTimeSeriesBuilder seriesBuilder = seriesBuilderMap.get(seriesHash);
+        if (seriesBuilder == null) {
+          seriesBuilder = _factory.newTimeSeriesBuilder(
+              _aggInfo, Long.toString(seriesHash), timeBuckets, currentTimeSeries.getTagNames(),
+              currentTimeSeries.getTagValues());
+          seriesBuilderMap.put(seriesHash, seriesBuilder);
+        }
+        seriesBuilder.mergeAlignedSeries(currentTimeSeries);
       }
-      return new TimeSeriesBlock(timeBuckets, seriesMap);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
     }
+    Map<Long, List<TimeSeries>> seriesMap = new HashMap<>(seriesBuilderMap.size());
+    for (var entry : seriesBuilderMap.entrySet()) {
+      long seriesHash = entry.getKey();
+      List<TimeSeries> timeSeriesList = new ArrayList<>();
+      timeSeriesList.add(entry.getValue().build());
+      seriesMap.put(seriesHash, timeSeriesList);
+    }
+    return new TimeSeriesBlock(timeBuckets, seriesMap);
   }
 
   private TimeSeriesBlock getNextBlockNoAggregation()
-      throws InterruptedException {
+      throws Throwable {
     Map<Long, List<TimeSeries>> timeSeriesMap = new HashMap<>();
     TimeBuckets timeBuckets = null;
     for (int index = 0; index < _expectedBlocks; index++) {
@@ -107,7 +104,7 @@ public class TimeSeriesExchangeReceiveOperator extends BaseTimeSeriesOperator {
       Object result = _receiver.poll(remainingTimeMs, TimeUnit.MILLISECONDS);
       Preconditions.checkNotNull(result, "Timed out waiting for response. Waited: %s ms", remainingTimeMs);
       if (result instanceof Throwable) {
-        throw new RuntimeException("Received error in exchange receive", (Throwable) result);
+        throw ((Throwable) result);
       }
       Preconditions.checkState(result instanceof TimeSeriesBlock, "Found unexpected object. This is a bug: %s", result.getClass());
       TimeSeriesBlock blockToMerge = (TimeSeriesBlock) result;

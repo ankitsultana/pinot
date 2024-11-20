@@ -20,7 +20,10 @@ package org.apache.pinot.query.runtime.timeseries;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.pinot.common.metrics.ServerMetrics;
+import org.apache.pinot.core.query.executor.QueryExecutor;
 import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.spi.utils.CommonConstants.Broker.Request.QueryOptionKey;
 import org.apache.pinot.tsdb.spi.AggInfo;
@@ -28,12 +31,19 @@ import org.apache.pinot.tsdb.spi.TimeBuckets;
 import org.apache.pinot.tsdb.spi.plan.LeafTimeSeriesPlanNode;
 import org.testng.annotations.Test;
 
+import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
 
-public class PhysicalTimeSeriesPlanVisitorTest {
+public class PhysicalTimeSeriesServerPlanVisitorTest {
   private static final int DUMMY_TIMEOUT_MS = 10_000;
+  private static final PhysicalTimeSeriesServerPlanVisitor _planVisitor;
+
+  static {
+    _planVisitor = new PhysicalTimeSeriesServerPlanVisitor(
+        mock(QueryExecutor.class), mock(ExecutorService.class), mock(ServerMetrics.class));
+  }
 
   @Test
   public void testCompileQueryContext() {
@@ -50,7 +60,7 @@ public class PhysicalTimeSeriesPlanVisitorTest {
       LeafTimeSeriesPlanNode leafNode =
           new LeafTimeSeriesPlanNode(planId, Collections.emptyList(), tableName, timeColumn, TimeUnit.SECONDS, 0L,
               filterExpr, "orderCount", aggInfo, Collections.singletonList("cityName"));
-      QueryContext queryContext = PhysicalTimeSeriesPlanVisitor.INSTANCE.compileQueryContext(leafNode, context);
+      QueryContext queryContext = _planVisitor.compileQueryContext(leafNode, context);
       assertNotNull(queryContext.getTimeSeriesContext());
       assertEquals(queryContext.getTimeSeriesContext().getLanguage(), "m3ql");
       assertEquals(queryContext.getTimeSeriesContext().getOffsetSeconds(), 0L);
@@ -68,7 +78,7 @@ public class PhysicalTimeSeriesPlanVisitorTest {
       LeafTimeSeriesPlanNode leafNode =
           new LeafTimeSeriesPlanNode(planId, Collections.emptyList(), tableName, timeColumn, TimeUnit.SECONDS, 10L,
               filterExpr, "orderCount*2", aggInfo, Collections.singletonList("concat(cityName, stateName, '-')"));
-      QueryContext queryContext = PhysicalTimeSeriesPlanVisitor.INSTANCE.compileQueryContext(leafNode, context);
+      QueryContext queryContext = _planVisitor.compileQueryContext(leafNode, context);
       assertNotNull(queryContext);
       assertNotNull(queryContext.getGroupByExpressions());
       assertEquals("concat(cityName,stateName,'-')", queryContext.getGroupByExpressions().get(0).toString());
