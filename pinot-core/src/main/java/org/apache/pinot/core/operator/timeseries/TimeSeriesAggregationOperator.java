@@ -22,22 +22,31 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.time.Duration;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.common.request.context.RequestContextUtils;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.operator.BaseProjectOperator;
+import org.apache.pinot.core.operator.ColumnContext;
 import org.apache.pinot.core.operator.ExecutionStatistics;
 import org.apache.pinot.core.operator.blocks.TimeSeriesBuilderBlock;
 import org.apache.pinot.core.operator.blocks.ValueBlock;
 import org.apache.pinot.core.operator.blocks.results.TimeSeriesResultsBlock;
+import org.apache.pinot.core.operator.timeseries.executor.TimeSeriesEmptyGroupByExecutor;
+import org.apache.pinot.core.operator.timeseries.executor.TimeSeriesGroupByExecutor;
+import org.apache.pinot.core.operator.timeseries.executor.TimeSeriesNonEmptyGroupByExecutor;
+import org.apache.pinot.core.plan.maker.InstancePlanMakerImplV2;
+import org.apache.pinot.core.query.aggregation.groupby.DictionaryBasedGroupKeyGenerator;
+import org.apache.pinot.core.query.aggregation.groupby.GroupKeyGenerator;
+import org.apache.pinot.core.query.aggregation.groupby.NoDictionaryMultiColumnGroupKeyGenerator;
+import org.apache.pinot.core.query.aggregation.groupby.NoDictionarySingleColumnGroupKeyGenerator;
 import org.apache.pinot.segment.spi.SegmentMetadata;
 import org.apache.pinot.tsdb.spi.AggInfo;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
@@ -64,6 +73,8 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
   private final int _maxSeriesLimit;
   private final long _maxDataPointsLimit;
   private final long _numTotalDocs;
+  private final BaseTimeSeriesBuilder _emptyGroupSetSeriesBuilder;
+  private final TimeSeriesGroupByExecutor _groupByExecutor;
   private long _numDocsScanned = 0;
 
   public TimeSeriesAggregationOperator(
@@ -89,57 +100,70 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
     _maxSeriesLimit = _seriesBuilderFactory.getMaxUniqueSeriesPerServerLimit();
     _maxDataPointsLimit = _seriesBuilderFactory.getMaxDataPointsPerServerLimit();
     _numTotalDocs = segmentMetadata.getTotalDocs();
+    if (_groupByExpressions.isEmpty()) {
+      Object[] emptyTagValues = new Object[0];
+      long hash = TimeSeries.hash(emptyTagValues);
+      _emptyGroupSetSeriesBuilder = _seriesBuilderFactory.newTimeSeriesBuilder(_aggInfo, Long.toString(hash),
+          _timeBuckets, Collections.emptyList(), emptyTagValues);
+    } else {
+      _emptyGroupSetSeriesBuilder = null;
+    }
+    // Initialize group by executor
+    // TODO(timeseries): What's the right way to handle null handling for both value and dimensions?
+    ExpressionContext[] groupByExpressionCompiled =
+        groupByExpressions.stream().map(RequestContextUtils::getExpression).toArray(ExpressionContext[]::new);
+    boolean hasNoDictionaryGroupByExpression = false;
+    for (ExpressionContext groupByExpression : groupByExpressionCompiled) {
+      ColumnContext columnContext = _projectOperator.getResultColumnContext(groupByExpression);
+      Preconditions.checkState(columnContext.isSingleValue(), "Multi-value columns not supported yet");
+      hasNoDictionaryGroupByExpression |= columnContext.getDictionary() == null;
+    }
+    if (_groupByExpressions.isEmpty()) {
+      _groupByExecutor = new TimeSeriesEmptyGroupByExecutor(_emptyGroupSetSeriesBuilder, _timeBuckets,
+          _valueExpression);
+    } else if (hasNoDictionaryGroupByExpression) {
+      Supplier<GroupKeyGenerator> groupKeyGeneratorSupplier;
+      if (_groupByExpressions.size() == 1) {
+        groupKeyGeneratorSupplier = () -> {
+          return new NoDictionarySingleColumnGroupKeyGenerator(_projectOperator,
+              groupByExpressionCompiled[0], _maxSeriesLimit, false, null);
+        };
+      } else {
+        groupKeyGeneratorSupplier = () -> {
+          return new NoDictionaryMultiColumnGroupKeyGenerator(_projectOperator,
+              groupByExpressionCompiled, _maxSeriesLimit, false,
+              null);
+        };
+      }
+      _groupByExecutor = new TimeSeriesNonEmptyGroupByExecutor(_aggInfo, _timeBuckets, _valueExpression,
+            _groupByExpressions, _seriesBuilderFactory, groupKeyGeneratorSupplier);
+    } else {
+      Supplier<GroupKeyGenerator> groupKeyGeneratorSupplier = () -> {
+        return new DictionaryBasedGroupKeyGenerator(_projectOperator, groupByExpressionCompiled, _maxSeriesLimit,
+            InstancePlanMakerImplV2.DEFAULT_MAX_INITIAL_RESULT_HOLDER_CAPACITY, null);
+      };
+      _groupByExecutor = new TimeSeriesNonEmptyGroupByExecutor(_aggInfo, _timeBuckets, _valueExpression,
+            groupByExpressions, _seriesBuilderFactory, groupKeyGeneratorSupplier);
+    }
   }
 
   @Override
-  protected TimeSeriesResultsBlock getNextBlock() {
+  public TimeSeriesResultsBlock getNextBlock() {
     ValueBlock valueBlock;
-    Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap = new HashMap<>(1024);
+    int[] timeValueIndexes = null;
     while ((valueBlock = _projectOperator.nextBlock()) != null) {
       int numDocs = valueBlock.getNumDocs();
       _numDocsScanned += numDocs;
-      // TODO: This is quite unoptimized and allocates liberally
       BlockValSet blockValSet = valueBlock.getBlockValueSet(_timeColumn);
       long[] timeValues = blockValSet.getLongValuesSV();
       applyTimeOffset(timeValues, numDocs);
-      int[] timeValueIndexes = getTimeValueIndex(timeValues, numDocs);
-      Object[][] tagValues = new Object[_groupByExpressions.size()][];
-      for (int i = 0; i < _groupByExpressions.size(); i++) {
-        blockValSet = valueBlock.getBlockValueSet(_groupByExpressions.get(i));
-        switch (blockValSet.getValueType()) {
-          case JSON:
-          case STRING:
-            tagValues[i] = blockValSet.getStringValuesSV();
-            break;
-          case LONG:
-            tagValues[i] = ArrayUtils.toObject(blockValSet.getLongValuesSV());
-            break;
-          case INT:
-            tagValues[i] = ArrayUtils.toObject(blockValSet.getIntValuesSV());
-            break;
-          default:
-            throw new NotImplementedException("Can't handle types other than string and long");
-        }
+      if (timeValueIndexes == null || timeValueIndexes.length < numDocs) {
+        timeValueIndexes = new int[numDocs];
       }
-      BlockValSet valueExpressionBlockValSet = valueBlock.getBlockValueSet(_valueExpression);
-      switch (valueExpressionBlockValSet.getValueType()) {
-        case LONG:
-          processLongExpression(valueExpressionBlockValSet, seriesBuilderMap, timeValueIndexes, tagValues, numDocs);
-          break;
-        case INT:
-          processIntExpression(valueExpressionBlockValSet, seriesBuilderMap, timeValueIndexes, tagValues, numDocs);
-          break;
-        case DOUBLE:
-          processDoubleExpression(valueExpressionBlockValSet, seriesBuilderMap, timeValueIndexes, tagValues, numDocs);
-          break;
-        case STRING:
-          processStringExpression(valueExpressionBlockValSet, seriesBuilderMap, timeValueIndexes, tagValues, numDocs);
-          break;
-        default:
-          // TODO: Support other types?
-          throw new IllegalStateException(
-              "Don't yet support value expression of type: " + valueExpressionBlockValSet.getValueType());
-      }
+      populateTimeValueIndex(timeValues, numDocs, timeValueIndexes);
+      _groupByExecutor.process(numDocs, timeValueIndexes, valueBlock);
+      Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap = _groupByExecutor.getTimeSeriesBuilderBlock()
+          .getSeriesBuilderMap();
       Preconditions.checkState(seriesBuilderMap.size() * (long) _timeBuckets.getNumBuckets() <= _maxDataPointsLimit,
           "Exceeded max data point limit per server. Limit: %s. Data points in current segment so far: %s",
           _maxDataPointsLimit, seriesBuilderMap.size() * _timeBuckets.getNumBuckets());
@@ -147,7 +171,8 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
           "Exceeded max unique series limit per server. Limit: %s. Series in current segment so far: %s",
           _maxSeriesLimit, seriesBuilderMap.size());
     }
-    return new TimeSeriesResultsBlock(new TimeSeriesBuilderBlock(_timeBuckets, seriesBuilderMap));
+    TimeSeriesBuilderBlock seriesBuilderBlock = _groupByExecutor.getTimeSeriesBuilderBlock();
+    return new TimeSeriesResultsBlock(seriesBuilderBlock);
   }
 
   @Override
@@ -171,93 +196,23 @@ public class TimeSeriesAggregationOperator extends BaseOperator<TimeSeriesResult
   }
 
   @VisibleForTesting
-  protected int[] getTimeValueIndex(long[] actualTimeValues, int numDocs) {
+  protected void populateTimeValueIndex(long[] actualTimeValues, int numDocs, int[] timeIndexesBuffer) {
     if (_storedTimeUnit == TimeUnit.MILLISECONDS) {
-      return getTimeValueIndexMillis(actualTimeValues, numDocs);
+      populateTimeValueIndexMillis(actualTimeValues, numDocs, timeIndexesBuffer);
+      return;
     }
-    int[] timeIndexes = new int[numDocs];
     final long reference = _timeBuckets.getTimeRangeStartExclusive();
     final long divisor = _timeBuckets.getBucketSize().getSeconds();
     for (int index = 0; index < numDocs; index++) {
-      timeIndexes[index] = (int) ((actualTimeValues[index] - reference - 1) / divisor);
+      timeIndexesBuffer[index] = (int) ((actualTimeValues[index] - reference - 1) / divisor);
     }
-    return timeIndexes;
   }
 
-  private int[] getTimeValueIndexMillis(long[] actualTimeValues, int numDocs) {
-    int[] timeIndexes = new int[numDocs];
+  private void populateTimeValueIndexMillis(long[] actualTimeValues, int numDocs, int[] timeIndexes) {
     final long reference = _timeBuckets.getTimeRangeStartExclusive() * 1000L;
     final long divisor = _timeBuckets.getBucketSize().toMillis();
     for (int index = 0; index < numDocs; index++) {
       timeIndexes[index] = (int) ((actualTimeValues[index] - reference - 1) / divisor);
-    }
-    return timeIndexes;
-  }
-
-  public void processLongExpression(BlockValSet blockValSet, Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap,
-      int[] timeValueIndexes, Object[][] tagValues, int numDocs) {
-    long[] valueColumnValues = blockValSet.getLongValuesSV();
-    for (int docIdIndex = 0; docIdIndex < numDocs; docIdIndex++) {
-      Object[] tagValuesForDoc = new Object[_groupByExpressions.size()];
-      for (int tagIndex = 0; tagIndex < tagValues.length; tagIndex++) {
-        tagValuesForDoc[tagIndex] = tagValues[tagIndex][docIdIndex];
-      }
-      long hash = TimeSeries.hash(tagValuesForDoc);
-      seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newTimeSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
-                  _groupByExpressions,
-                  tagValuesForDoc))
-          .addValueAtIndex(timeValueIndexes[docIdIndex], (double) valueColumnValues[docIdIndex]);
-    }
-  }
-
-  public void processIntExpression(BlockValSet blockValSet, Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap,
-      int[] timeValueIndexes, Object[][] tagValues, int numDocs) {
-    int[] valueColumnValues = blockValSet.getIntValuesSV();
-    for (int docIdIndex = 0; docIdIndex < numDocs; docIdIndex++) {
-      Object[] tagValuesForDoc = new Object[_groupByExpressions.size()];
-      for (int tagIndex = 0; tagIndex < tagValues.length; tagIndex++) {
-        tagValuesForDoc[tagIndex] = tagValues[tagIndex][docIdIndex];
-      }
-      long hash = TimeSeries.hash(tagValuesForDoc);
-      seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newTimeSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
-                  _groupByExpressions,
-                  tagValuesForDoc))
-          .addValueAtIndex(timeValueIndexes[docIdIndex], (double) valueColumnValues[docIdIndex]);
-    }
-  }
-
-  public void processDoubleExpression(BlockValSet blockValSet, Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap,
-      int[] timeValueIndexes, Object[][] tagValues, int numDocs) {
-    double[] valueColumnValues = blockValSet.getDoubleValuesSV();
-    for (int docIdIndex = 0; docIdIndex < numDocs; docIdIndex++) {
-      Object[] tagValuesForDoc = new Object[_groupByExpressions.size()];
-      for (int tagIndex = 0; tagIndex < tagValues.length; tagIndex++) {
-        tagValuesForDoc[tagIndex] = tagValues[tagIndex][docIdIndex];
-      }
-      long hash = TimeSeries.hash(tagValuesForDoc);
-      seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newTimeSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
-                  _groupByExpressions,
-                  tagValuesForDoc))
-          .addValueAtIndex(timeValueIndexes[docIdIndex], valueColumnValues[docIdIndex]);
-    }
-  }
-
-  public void processStringExpression(BlockValSet blockValSet, Map<Long, BaseTimeSeriesBuilder> seriesBuilderMap,
-      int[] timeValueIndexes, Object[][] tagValues, int numDocs) {
-    String[] valueColumnValues = blockValSet.getStringValuesSV();
-    for (int docIdIndex = 0; docIdIndex < numDocs; docIdIndex++) {
-      Object[] tagValuesForDoc = new Object[_groupByExpressions.size()];
-      for (int tagIndex = 0; tagIndex < tagValues.length; tagIndex++) {
-        tagValuesForDoc[tagIndex] = tagValues[tagIndex][docIdIndex];
-      }
-      long hash = TimeSeries.hash(tagValuesForDoc);
-      seriesBuilderMap.computeIfAbsent(hash,
-              k -> _seriesBuilderFactory.newTimeSeriesBuilder(_aggInfo, Long.toString(hash), _timeBuckets,
-                  _groupByExpressions, tagValuesForDoc))
-          .addValueAtIndex(timeValueIndexes[docIdIndex], valueColumnValues[docIdIndex]);
     }
   }
 

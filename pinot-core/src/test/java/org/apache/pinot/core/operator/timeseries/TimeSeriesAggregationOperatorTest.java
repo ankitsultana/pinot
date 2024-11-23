@@ -86,7 +86,7 @@ public class TimeSeriesAggregationOperatorTest {
   }
 
   @Test
-  public void testGetTimeValueIndexForSeconds() {
+  public void testPopulateTimeValueIndexForSeconds() {
     /*
      * TimeBuckets: [10_000, 10_100, 10_200, ..., 10_900]
      * storedTimeValues: [9_999, 10_000, 9_999, 9_901, 10_100, 10_899, 10_900]
@@ -97,12 +97,13 @@ public class TimeSeriesAggregationOperatorTest {
     TimeBuckets timeBuckets = TimeBuckets.ofSeconds(10_000, Duration.ofSeconds(100), 10);
     TimeSeriesAggregationOperator aggregationOperator = buildOperator(storedTimeUnit, timeBuckets);
     long[] storedTimeValues = new long[]{9_999L, 10_000L, 9_999L, 9_901L, 10_100L, 10_899L, 10_900L};
-    int[] indexes = aggregationOperator.getTimeValueIndex(storedTimeValues, storedTimeValues.length);
+    int[] indexes = new int[storedTimeValues.length];
+    aggregationOperator.populateTimeValueIndex(storedTimeValues, storedTimeValues.length, indexes);
     assertEquals(indexes, expectedIndexes);
   }
 
   @Test
-  public void testGetTimeValueIndexForMillis() {
+  public void testPopulateTimeValueIndexForMillis() {
     /*
      * TimeBuckets: [10_000, 10_100, 10_200, ..., 10_900]
      * storedTimeValues: [9_999_000, 10_000_000, 10_500_000, 10_899_999, 10_800_001, 10_900_000]
@@ -113,12 +114,13 @@ public class TimeSeriesAggregationOperatorTest {
     TimeBuckets timeBuckets = TimeBuckets.ofSeconds(10_000, Duration.ofSeconds(100), 10);
     TimeSeriesAggregationOperator aggregationOperator = buildOperator(storedTimeUnit, timeBuckets);
     long[] storedTimeValues = new long[]{9_999_000L, 10_000_000L, 10_500_000L, 10_899_999L, 10_800_001L, 10_900_000L};
-    int[] indexes = aggregationOperator.getTimeValueIndex(storedTimeValues, storedTimeValues.length);
+    int[] indexes = new int[storedTimeValues.length];
+    aggregationOperator.populateTimeValueIndex(storedTimeValues, storedTimeValues.length, indexes);
     assertEquals(indexes, expectedIndexes);
   }
 
   @Test
-  public void testGetTimeValueIndexOutOfBounds() {
+  public void testPopulateTimeValueIndexOutOfBounds() {
     final TimeUnit storedTimeUnit = TimeUnit.SECONDS;
     final int numTimeBuckets = 10;
     final int windowSeconds = 100;
@@ -132,7 +134,8 @@ public class TimeSeriesAggregationOperatorTest {
   private void testOutOfBoundsTimeValueIndex(long[] storedTimeValues, int numTimeBuckets,
       TimeSeriesAggregationOperator aggOperator) {
     assertEquals(storedTimeValues.length, 1, "Misconfigured test: pass single stored time value");
-    int[] indexes = aggOperator.getTimeValueIndex(storedTimeValues, storedTimeValues.length);
+    int[] indexes = new int[storedTimeValues.length];
+    aggOperator.populateTimeValueIndex(storedTimeValues, storedTimeValues.length, indexes);
     assertTrue(indexes[0] < 0 || indexes[0] >= numTimeBuckets, "Expected time index to spill beyond valid range");
   }
 

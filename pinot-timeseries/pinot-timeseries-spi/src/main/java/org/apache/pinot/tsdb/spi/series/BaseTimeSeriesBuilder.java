@@ -53,10 +53,25 @@ public abstract class BaseTimeSeriesBuilder {
     _tagValues = tagValues;
   }
 
+  public String getId() {
+    return _id;
+  }
+
   public abstract void addValueAtIndex(int timeBucketIndex, Double value);
 
   public void addValueAtIndex(int timeBucketIndex, String value) {
     throw new IllegalStateException("This aggregation function does not support string input");
+  }
+
+  /**
+   * This method can be used when a given value needs to be added N times to an index. Series builder implementations
+   * should override this to optimize their operations. e.g. a Sum series builder can simply add value * multiplicity
+   * once.
+   */
+  public void addValueAtIndex(int timeBucketIndex, Double value, int multiplicity) {
+    for (int index = 0; index < multiplicity; index++) {
+      addValueAtIndex(timeBucketIndex, value);
+    }
   }
 
   public abstract void addValue(long timeValue, Double value);
