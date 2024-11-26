@@ -479,6 +479,10 @@ public class AggregationFunctionFactory {
             return new DistinctCountULLAggregationFunction(arguments);
           case DISTINCTCOUNTRAWULL:
             return new DistinctCountRawULLAggregationFunction(arguments);
+          case TIMESERIES_MIN:
+          case TIMESERIES_MAX:
+          case TIMESERIES_SUM:
+            return new TimeSeriesAggregationFunction(functionType, arguments.get(0), arguments.get(1), arguments.get(2));
           default:
             throw new IllegalArgumentException("Unsupported aggregation function type: " + functionType);
         }

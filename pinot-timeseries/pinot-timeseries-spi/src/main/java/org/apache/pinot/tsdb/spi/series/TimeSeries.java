@@ -63,7 +63,7 @@ import org.apache.pinot.tsdb.spi.TimeBuckets;
  *   </ul>
  * </p>
  */
-public class TimeSeries {
+public class TimeSeries implements Comparable<TimeSeries> {
   private final String _id;
   private final Long[] _timeValues;
   private final TimeBuckets _timeBuckets;
@@ -133,5 +133,10 @@ public class TimeSeries {
   // TODO: This can be cleaned up
   public static long hash(Object[] tagNamesAndValues) {
     return Objects.hash(tagNamesAndValues);
+  }
+
+  @Override
+  public int compareTo(TimeSeries o) {
+    throw new UnsupportedOperationException("");
   }
 }
