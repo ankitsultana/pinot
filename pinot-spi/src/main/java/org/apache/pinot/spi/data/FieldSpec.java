@@ -509,7 +509,7 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
    * The <code>DataType</code> enum is used to demonstrate the data type of a field.
    */
   @SuppressWarnings("rawtypes")
-  public enum ggDataType {
+  public enum DataType {
     // LIST is for complex lists which is different from multi-value column of primitives
     // STRUCT, MAP and LIST are composable to form a COMPLEX field
     INT(Integer.BYTES, true, true),

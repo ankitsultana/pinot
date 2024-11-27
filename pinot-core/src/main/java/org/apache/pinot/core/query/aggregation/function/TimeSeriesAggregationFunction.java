@@ -65,13 +65,13 @@ public class TimeSeriesAggregationFunction implements AggregationFunction<Double
     for (int docIndex = 0; docIndex < length; docIndex++) {
       int timeIndex = timeIndexes[docIndex];
       switch (_aggregationFunctionType) {
-        case TIMESERIES_MAX:
+        case TIMESERIESMAX:
           currentValues[timeIndex] = Math.max(currentValues[timeIndex], values[timeIndex]);
           break;
-        case TIMESERIES_MIN:
+        case TIMESERIESMIN:
           currentValues[timeIndex] = Math.min(currentValues[timeIndex], values[timeIndex]);
           break;
-        case TIMESERIES_SUM:
+        case TIMESERIESSUM:
           currentValues[timeIndex] = currentValues[timeIndex] + values[timeIndex];
           break;
         default:
@@ -87,23 +87,27 @@ public class TimeSeriesAggregationFunction implements AggregationFunction<Double
     // get values:     from blockValSetMap
     int[] timeIndexes = blockValSetMap.get(_timeExpression).getIntValuesSV();
     double[] values = blockValSetMap.get(_valueExpression).getDoubleValuesSV();
-    for (int docIndex = 0; docIndex < groupKeyArray.length; docIndex++) {
+    for (int docIndex = 0; docIndex < length; docIndex++) {
       int groupId = groupKeyArray[docIndex];
       int timeIndex = timeIndexes[docIndex];
+      double valueToAdd = values[docIndex];
       Double[] currentValues = groupByResultHolder.getResult(groupId);
       if (currentValues == null) {
         currentValues = new Double[_numTimeBuckets];
         groupByResultHolder.setValueForKey(groupId, currentValues);
       }
       switch (_aggregationFunctionType) {
-        case TIMESERIES_MAX:
-          currentValues[timeIndex] = Math.max(currentValues[timeIndex], values[timeIndex]);
+        case TIMESERIESMAX:
+          currentValues[timeIndex] = currentValues[timeIndex] == null
+              ? valueToAdd : Math.max(currentValues[timeIndex], valueToAdd);
           break;
-        case TIMESERIES_MIN:
-          currentValues[timeIndex] = Math.min(currentValues[timeIndex], values[timeIndex]);
+        case TIMESERIESMIN:
+          currentValues[timeIndex] = currentValues[timeIndex] == null
+              ? valueToAdd : Math.min(currentValues[timeIndex], valueToAdd);
           break;
-        case TIMESERIES_SUM:
-          currentValues[timeIndex] = currentValues[timeIndex] + values[timeIndex];
+        case TIMESERIESSUM:
+          currentValues[timeIndex] = currentValues[timeIndex] == null
+              ? valueToAdd : (currentValues[timeIndex] + valueToAdd);
           break;
         default:
           throw new UnsupportedOperationException("Unknown aggregation function: " + _aggregationFunctionType);
@@ -131,13 +135,13 @@ public class TimeSeriesAggregationFunction implements AggregationFunction<Double
   public Double[] merge(Double[] intermediateResult1,
       Double[] intermediateResult2) {
     switch (_aggregationFunctionType) {
-      case TIMESERIES_MAX:
+      case TIMESERIESMAX:
         mergeMax(intermediateResult1, intermediateResult2);
         break;
-      case TIMESERIES_MIN:
+      case TIMESERIESMIN:
         mergeMin(intermediateResult1, intermediateResult2);
         break;
-      case TIMESERIES_SUM:
+      case TIMESERIESSUM:
         mergeSum(intermediateResult1, intermediateResult2);
         break;
       default:

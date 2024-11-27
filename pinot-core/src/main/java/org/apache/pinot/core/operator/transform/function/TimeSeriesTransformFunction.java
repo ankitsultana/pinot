@@ -10,7 +10,7 @@ import org.apache.pinot.spi.data.FieldSpec.DataType;
 
 
 public class TimeSeriesTransformFunction extends BaseTransformFunction {
-  public static final String FUNCTION_NAME = "timeSeriesTimeBuckets";
+  public static final String FUNCTION_NAME = "timeSeriesSeconds";
   private TimeUnit _timeUnit;
   private long _reference = -1;
   private long _divisor = -1;

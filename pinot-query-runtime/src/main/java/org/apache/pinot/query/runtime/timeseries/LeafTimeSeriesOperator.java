@@ -78,8 +78,12 @@ public class LeafTimeSeriesOperator extends BaseTimeSeriesOperator {
 
   private TimeSeriesBlock handleGroupByResultsBlock(GroupByResultsBlock groupByResultsBlock) {
     Iterator<Record> iter = groupByResultsBlock.getTable().iterator();
-    Map<Long, List<TimeSeries>> timeSeriesMap =  new HashMap<>(groupByResultsBlock.getNumRows());
+    Map<Long, List<TimeSeries>> timeSeriesMap = new HashMap<>(groupByResultsBlock.getNumRows());
     List<String> tagNames = new ArrayList<>();
+    int numColumns = groupByResultsBlock.getDataSchema().getColumnNames().length - 1;
+    for (int index = 0; index < numColumns; index++) {
+      tagNames.add(groupByResultsBlock.getDataSchema().getColumnName(index));
+    }
     while (iter.hasNext()) {
       Record record = iter.next();
       Object[] values = record.getValues();
@@ -94,7 +98,7 @@ public class LeafTimeSeriesOperator extends BaseTimeSeriesOperator {
           doubleValues, tagNames, tagValues));
       timeSeriesMap.put(seriesHash, timeSeriesList);
     }
-    return new TimeSeriesBlock(null, timeSeriesMap);
+    return new TimeSeriesBlock(_context.getInitialTimeBuckets(), timeSeriesMap);
   }
 
   private TimeSeriesBlock buildAggregationResultsBlock(AggregationResultsBlock aggregationResultsBlock) {

@@ -35,7 +35,6 @@ import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.common.request.context.FilterContext;
 import org.apache.pinot.common.request.context.FunctionContext;
 import org.apache.pinot.common.request.context.RequestContextUtils;
-import org.apache.pinot.common.request.context.TimeSeriesContext;
 import org.apache.pinot.core.query.executor.QueryExecutor;
 import org.apache.pinot.core.query.request.ServerQueryRequest;
 import org.apache.pinot.core.query.request.context.QueryContext;
@@ -105,9 +104,8 @@ public class PhysicalTimeSeriesPlanVisitor {
     ExpressionContext valueExpression = RequestContextUtils.getExpression(leafNode.getValueExpression());
     ExpressionContext timeExpression = buildTimeTransform(leafNode.getTimeColumn(), leafNode.getTimeUnit(),
         context.getInitialTimeBuckets(), leafNode.getOffsetSeconds() == null ? 0L : leafNode.getOffsetSeconds());
-    FunctionContext aggFunction = new FunctionContext(FunctionContext.Type.AGGREGATION,
-        getAggFunctionType(leafNode.getAggInfo()).name(), List.of(valueExpression, timeExpression));
-    ExpressionContext aggFunctionExpr = ExpressionContext.forFunction(aggFunction);
+    ExpressionContext aggFunctionExpr = buildAggregationExpr(getAggFunctionType(leafNode.getAggInfo()), valueExpression,
+        timeExpression, context.getInitialTimeBuckets().getNumBuckets());
     return new QueryContext.Builder()
         .setTableName(leafNode.getTableName())
         .setFilter(filterContext)
@@ -126,6 +124,14 @@ public class PhysicalTimeSeriesPlanVisitor {
     return result;
   }
 
+  private ExpressionContext buildAggregationExpr(AggregationFunctionType functionType,
+      ExpressionContext valueExpression, ExpressionContext timeExpression, int numBuckets) {
+    ExpressionContext literalExpr = ExpressionContext.forLiteral(Literal.intValue(numBuckets));
+    FunctionContext aggFunction = new FunctionContext(FunctionContext.Type.AGGREGATION,
+        functionType.getName(), List.of(valueExpression, timeExpression, literalExpr));
+    return ExpressionContext.forFunction(aggFunction);
+  }
+
   private ExpressionContext buildTimeTransform(String timeColumn, TimeUnit timeUnit, TimeBuckets timeBuckets,
       long offsetSeconds) {
     final String functionName = TransformFunctionType.TIMESERIES_SECONDS.name();
@@ -142,11 +148,11 @@ public class PhysicalTimeSeriesPlanVisitor {
     // TODO: This is hack. clean it up.
     switch (aggInfo.getAggFunction().toUpperCase()) {
       case "SUM":
-        return AggregationFunctionType.TIMESERIES_SUM;
+        return AggregationFunctionType.TIMESERIESSUM;
       case "MIN":
-        return AggregationFunctionType.TIMESERIES_MIN;
+        return AggregationFunctionType.TIMESERIESMIN;
       case "MAX":
-        return AggregationFunctionType.TIMESERIES_MAX;
+        return AggregationFunctionType.TIMESERIESMAX;
       default:
         throw new UnsupportedOperationException("Unsupported agg function type: " + aggInfo.getAggFunction());
     }

@@ -235,7 +235,7 @@ public enum TransformFunctionType {
 
   // Complex type handling
   ITEM("item"),
-  TIMESERIES_SECONDS("timeSeriesSecondsBucket");
+  TIMESERIES_SECONDS("timeSeriesSeconds");
 
   private final String _name;
   private final List<String> _names;
