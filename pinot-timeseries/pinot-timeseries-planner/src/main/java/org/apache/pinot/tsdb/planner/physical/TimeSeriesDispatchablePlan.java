@@ -21,33 +21,41 @@ package org.apache.pinot.tsdb.planner.physical;
 import java.util.List;
 import java.util.Map;
 import org.apache.pinot.tsdb.spi.TimeBuckets;
+import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
 
 
 public class TimeSeriesDispatchablePlan {
-  private final TimeSeriesQueryServerInstance _queryServerInstance;
+  private final List<TimeSeriesQueryServerInstance> _queryServerInstances;
   private final String _language;
-  private final String _serializedPlan;
+  private final BaseTimeSeriesPlanNode _brokerFragment;
+  private final List<String> _serializedPlan;
   private final TimeBuckets _timeBuckets;
-  private final Map<String, List<String>> _planIdToSegments;
+  private final Map<String, Map<String, List<String>>> _planIdToSegmentsByServer;
 
-  public TimeSeriesDispatchablePlan(String language, TimeSeriesQueryServerInstance queryServerInstance,
-      String serializedPlan, TimeBuckets timeBuckets, Map<String, List<String>> planIdToSegments) {
+  public TimeSeriesDispatchablePlan(String language, List<TimeSeriesQueryServerInstance> queryServerInstances,
+      BaseTimeSeriesPlanNode brokerFragment,
+      List<String> serializedPlan, TimeBuckets initialTimeBuckets, Map<String, Map<String, List<String>>> planIdToSegmentsByServer) {
     _language = language;
-    _queryServerInstance = queryServerInstance;
+    _queryServerInstances = queryServerInstances;
+    _brokerFragment = brokerFragment;
     _serializedPlan = serializedPlan;
-    _timeBuckets = timeBuckets;
-    _planIdToSegments = planIdToSegments;
+    _timeBuckets = initialTimeBuckets;
+    _planIdToSegmentsByServer = planIdToSegmentsByServer;
   }
 
   public String getLanguage() {
     return _language;
   }
 
-  public TimeSeriesQueryServerInstance getQueryServerInstance() {
-    return _queryServerInstance;
+  public List<TimeSeriesQueryServerInstance> getQueryServerInstances() {
+    return _queryServerInstances;
   }
 
-  public String getSerializedPlan() {
+  public BaseTimeSeriesPlanNode getBrokerFragment() {
+    return _brokerFragment;
+  }
+
+  public List<String> getSerializedPlan() {
     return _serializedPlan;
   }
 
@@ -55,7 +63,7 @@ public class TimeSeriesDispatchablePlan {
     return _timeBuckets;
   }
 
-  public Map<String, List<String>> getPlanIdToSegments() {
-    return _planIdToSegments;
+  public Map<String, Map<String, List<String>>> getPlanIdToSegmentsByServer() {
+    return _planIdToSegmentsByServer;
   }
 }

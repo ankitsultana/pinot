@@ -62,6 +62,7 @@ public class PhysicalTimeSeriesServerPlanVisitor {
     return rootNode.run();
   }
 
+  // TODO(timeseries): Instead of mutating inputs List, use plan cloning.
   public void initLeafPlanNode(BaseTimeSeriesPlanNode planNode, TimeSeriesExecutionContext context) {
     for (int index = 0; index < planNode.getInputs().size(); index++) {
       BaseTimeSeriesPlanNode childNode = planNode.getInputs().get(index);
