@@ -33,8 +33,8 @@ public class TimeSeriesDispatchablePlan {
   private final Map<String, Map<String, List<String>>> _planIdToSegmentsByServer;
 
   public TimeSeriesDispatchablePlan(String language, List<TimeSeriesQueryServerInstance> queryServerInstances,
-      BaseTimeSeriesPlanNode brokerFragment,
-      List<String> serializedPlan, TimeBuckets initialTimeBuckets, Map<String, Map<String, List<String>>> planIdToSegmentsByServer) {
+      BaseTimeSeriesPlanNode brokerFragment, List<String> serializedPlan, TimeBuckets initialTimeBuckets,
+      Map<String, Map<String, List<String>>> planIdToSegmentsByServer) {
     _language = language;
     _queryServerInstances = queryServerInstances;
     _brokerFragment = brokerFragment;

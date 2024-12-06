@@ -264,7 +264,8 @@ public class QueryDispatcher {
     result.put(WorkerRequestMetadataKeys.WINDOW_SECONDS, Long.toString(timeBuckets.getBucketSize().getSeconds()));
     result.put(WorkerRequestMetadataKeys.NUM_ELEMENTS, Long.toString(timeBuckets.getTimeBuckets().length));
     result.put(WorkerRequestMetadataKeys.DEADLINE_MS, Long.toString(deadlineMs));
-    for (Map.Entry<String, List<String>> entry : dispatchablePlan.getPlanIdToSegmentsByServer().get(instanceId).entrySet()) {
+    Map<String, List<String>> planIdToSegments = dispatchablePlan.getPlanIdToSegmentsByServer().get(instanceId);
+    for (Map.Entry<String, List<String>> entry : planIdToSegments.entrySet()) {
       result.put(WorkerRequestMetadataKeys.encodeSegmentListKey(entry.getKey()), String.join(",", entry.getValue()));
     }
     result.put(CommonConstants.Query.Request.MetadataKeys.REQUEST_ID, Long.toString(requestContext.getRequestId()));
@@ -479,8 +480,8 @@ public class QueryDispatcher {
     }
   }
 
-  TimeSeriesBlock submitAndGet(long requestId, TimeSeriesDispatchablePlan plan, long timeoutMs, Map<String, String> queryOptions,
-      RequestContext requestContext)
+  TimeSeriesBlock submitAndGet(long requestId, TimeSeriesDispatchablePlan plan, long timeoutMs,
+      Map<String, String> queryOptions, RequestContext requestContext)
       throws Exception {
     long deadlineMs = System.currentTimeMillis() + timeoutMs;
     BaseTimeSeriesPlanNode brokerFragment = plan.getBrokerFragment();
@@ -494,12 +495,13 @@ public class QueryDispatcher {
         brokerExecutionContext, plan.getQueryServerInstances().size());
     // Create dispatch observer for each query server
     for (TimeSeriesQueryServerInstance serverInstance : plan.getQueryServerInstances()) {
+      String serverId = serverInstance.getInstanceId();
       Deadline deadline = Deadline.after(deadlineMs - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
       Preconditions.checkState(!deadline.isExpired(), "Deadline expired before query could be sent to servers");
       // Send server fragment to every server
       Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
           .addAllDispatchPlan(plan.getSerializedPlan())
-          .putAllMetadata(initializeTimeSeriesMetadataMap(plan, deadlineMs, requestContext, serverInstance.getInstanceId()))
+          .putAllMetadata(initializeTimeSeriesMetadataMap(plan, deadlineMs, requestContext, serverId))
           .putMetadata(CommonConstants.Query.Request.MetadataKeys.REQUEST_ID, Long.toString(requestId))
           .build();
       TimeSeriesDispatchObserver

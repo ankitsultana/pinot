@@ -21,9 +21,7 @@ package org.apache.pinot.query.runtime;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,7 +42,6 @@ import org.apache.pinot.common.config.TlsConfig;
 import org.apache.pinot.common.datatable.StatMap;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.proto.Worker;
-import org.apache.pinot.common.response.PinotBrokerTimeSeriesResponse;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.query.executor.QueryExecutor;
@@ -277,10 +274,10 @@ public class QueryRunner {
     try {
       final long deadlineMs = extractDeadlineMs(metadata);
       Preconditions.checkState(System.currentTimeMillis() < deadlineMs,
-          "Query timed out before getting processed in server. Exceeded time (ms): %s",
+          "Query timed out before getting processed in server. Exceeded time by (ms): %s",
           System.currentTimeMillis() - deadlineMs);
-      List<BaseTimeSeriesPlanNode> fragmentRoots = serializedPlanFragments.stream().map(TimeSeriesPlanSerde::deserialize)
-          .collect(Collectors.toList());
+      List<BaseTimeSeriesPlanNode> fragmentRoots = serializedPlanFragments.stream()
+          .map(TimeSeriesPlanSerde::deserialize).collect(Collectors.toList());
       TimeSeriesExecutionContext context = new TimeSeriesExecutionContext(
           metadata.get(WorkerRequestMetadataKeys.LANGUAGE), extractTimeBuckets(metadata), deadlineMs, metadata,
           extractPlanToSegmentMap(metadata), Collections.emptyMap());
