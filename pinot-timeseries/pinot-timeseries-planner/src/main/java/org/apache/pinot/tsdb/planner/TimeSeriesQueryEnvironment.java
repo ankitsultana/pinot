@@ -22,19 +22,12 @@ import com.google.common.base.Preconditions;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.common.config.provider.TableCache;
-import org.apache.pinot.common.request.BrokerRequest;
-import org.apache.pinot.common.request.DataSource;
-import org.apache.pinot.common.request.PinotQuery;
-import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.core.routing.RoutingManager;
-import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.apache.pinot.spi.trace.RequestContext;
 import org.apache.pinot.tsdb.planner.physical.TableScanVisitor;
@@ -45,7 +38,6 @@ import org.apache.pinot.tsdb.spi.RangeTimeSeriesRequest;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanResult;
 import org.apache.pinot.tsdb.spi.TimeSeriesLogicalPlanner;
 import org.apache.pinot.tsdb.spi.plan.BaseTimeSeriesPlanNode;
-import org.apache.pinot.tsdb.spi.plan.LeafTimeSeriesPlanNode;
 import org.apache.pinot.tsdb.spi.plan.serde.TimeSeriesPlanSerde;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,58 +86,24 @@ public class TimeSeriesQueryEnvironment {
 
   public TimeSeriesDispatchablePlan buildPhysicalPlan(RangeTimeSeriesRequest timeSeriesRequest,
       RequestContext requestContext, TimeSeriesLogicalPlanResult logicalPlan) {
-    // Step-1: Find tables in the query.
-    final Set<String> tableNames = new HashSet<>();
-    findTableNames(logicalPlan.getPlanNode(), tableNames::add);
-    Preconditions.checkState(tableNames.size() == 1,
-        "Expected exactly one table name in the logical plan, got: %s",
-        tableNames);
-    String tableName = tableNames.iterator().next();
-    // Step-2: Compute routing table assuming all segments are selected. This means that we don't prune servers.
-    // TODO(timeseries): Prune servers based on filters.
-    RoutingTable routingTable = _routingManager.getRoutingTable(compileBrokerRequest(tableName),
-        requestContext.getRequestId());
-    Preconditions.checkState(routingTable != null,
-        "Failed to get routing table for table: %s", tableName);
-    List<TimeSeriesQueryServerInstance> serverInstances = routingTable.getServerInstanceToSegmentsMap().keySet()
+    // Step-1: Assign segments to servers for each leaf node.
+    TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
+    TableScanVisitor.INSTANCE.assignSegmentsToPlan(logicalPlan.getPlanNode(), logicalPlan.getTimeBuckets(),
+        scanVisitorContext);
+    Map<String, Map<String, List<String>>> serverToSegmentsByPlanId =
+        scanVisitorContext.computeServerToSegmentsByPlanId();
+    List<TimeSeriesQueryServerInstance> serverInstances = scanVisitorContext.getPlanIdToSegmentsByServer().keySet()
         .stream().map(TimeSeriesQueryServerInstance::new).collect(Collectors.toList());
-    // Step-3: Create plan fragments.
+    // Step-2: Create plan fragments and serialize them.
     List<BaseTimeSeriesPlanNode> fragments = TimeSeriesPlanFragmenter.getFragments(
         logicalPlan.getPlanNode(), serverInstances.size() == 1);
-    // Step-4: Assign segments to the leaf plan nodes.
-    TableScanVisitor.Context scanVisitorContext = TableScanVisitor.createContext(requestContext.getRequestId());
-    List<String> serializedPlanFragments = new ArrayList<>();
+    List<Pair<String, String>> serializedPlanFragments = new ArrayList<>();
     for (int index = 1; index < fragments.size(); index++) {
       BaseTimeSeriesPlanNode serverFragment = fragments.get(index);
-      TableScanVisitor.INSTANCE.assignSegmentsToPlan(serverFragment, logicalPlan.getTimeBuckets(),
-          scanVisitorContext);
-      serializedPlanFragments.add(TimeSeriesPlanSerde.serialize(serverFragment));
+      serializedPlanFragments.add(Pair.of(serverFragment.getId(), TimeSeriesPlanSerde.serialize(serverFragment)));
     }
     return new TimeSeriesDispatchablePlan(timeSeriesRequest.getLanguage(), serverInstances, fragments.get(0),
-        serializedPlanFragments, logicalPlan.getTimeBuckets(), scanVisitorContext.getPlanIdToSegmentsByServer());
-  }
-
-  public static void findTableNames(BaseTimeSeriesPlanNode planNode, Consumer<String> tableNameConsumer) {
-    if (planNode instanceof LeafTimeSeriesPlanNode) {
-      LeafTimeSeriesPlanNode scanNode = (LeafTimeSeriesPlanNode) planNode;
-      tableNameConsumer.accept(scanNode.getTableName());
-      return;
-    }
-    for (BaseTimeSeriesPlanNode childNode : planNode.getInputs()) {
-      findTableNames(childNode, tableNameConsumer);
-    }
-  }
-
-  private BrokerRequest compileBrokerRequest(String tableName) {
-    DataSource dataSource = new DataSource();
-    dataSource.setTableName(tableName);
-    PinotQuery pinotQuery = new PinotQuery();
-    pinotQuery.setDataSource(dataSource);
-    QuerySource querySource = new QuerySource();
-    querySource.setTableName(tableName);
-    BrokerRequest dummyRequest = new BrokerRequest();
-    dummyRequest.setPinotQuery(pinotQuery);
-    dummyRequest.setQuerySource(querySource);
-    return dummyRequest;
+        serializedPlanFragments, logicalPlan.getTimeBuckets(), scanVisitorContext.getPlanIdToSegmentsByInstanceId(),
+        serverToSegmentsByPlanId);
   }
 }

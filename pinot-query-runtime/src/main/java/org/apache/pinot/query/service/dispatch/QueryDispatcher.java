@@ -487,12 +487,12 @@ public class QueryDispatcher {
     BaseTimeSeriesPlanNode brokerFragment = plan.getBrokerFragment();
     // Get consumers for leafs
     Map<String, BlockingQueue<Object>> receiversByPlanId = new HashMap<>();
-    populateConsumers(brokerFragment, receiversByPlanId, plan.getQueryServerInstances().size());
+    populateConsumers(brokerFragment, receiversByPlanId, plan.getServerToSegmentsByPlanId());
     // Compile brokerFragment to get operators
     TimeSeriesExecutionContext brokerExecutionContext = new TimeSeriesExecutionContext(plan.getLanguage(),
         plan.getTimeBuckets(), deadlineMs, Collections.emptyMap(), Collections.emptyMap(), receiversByPlanId);
     BaseTimeSeriesOperator brokerOperator = _timeSeriesBrokerPlanVisitor.compile(brokerFragment,
-        brokerExecutionContext, plan.getQueryServerInstances().size());
+        brokerExecutionContext, plan.getServerToSegmentsByPlanId());
     // Create dispatch observer for each query server
     for (TimeSeriesQueryServerInstance serverInstance : plan.getQueryServerInstances()) {
       String serverId = serverInstance.getInstanceId();
@@ -500,7 +500,7 @@ public class QueryDispatcher {
       Preconditions.checkState(!deadline.isExpired(), "Deadline expired before query could be sent to servers");
       // Send server fragment to every server
       Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
-          .addAllDispatchPlan(plan.getSerializedPlanFragments())
+          .addAllDispatchPlan(plan.getSerializedPlanFragments(serverId))
           .putAllMetadata(initializeTimeSeriesMetadataMap(plan, deadlineMs, requestContext, serverId))
           .putMetadata(CommonConstants.Query.Request.MetadataKeys.REQUEST_ID, Long.toString(requestId))
           .build();
@@ -512,14 +512,14 @@ public class QueryDispatcher {
     return brokerOperator.nextBlock();
   }
 
-  // TODO(timeseries): When we support server pruning, numQueryServers may be different per plan node.
   private void populateConsumers(BaseTimeSeriesPlanNode planNode, Map<String, BlockingQueue<Object>> receiverMap,
-      int numQueryServers) {
+      Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
     if (planNode instanceof TimeSeriesExchangeNode) {
-      receiverMap.put(planNode.getId(), new ArrayBlockingQueue<>(numQueryServers));
+      Map<String, List<String>> serverToSegments = serverToSegmentsByPlanId.get(planNode.getId());
+      receiverMap.put(planNode.getId(), new ArrayBlockingQueue<>(serverToSegments.size()));
     }
     for (BaseTimeSeriesPlanNode childNode : planNode.getInputs()) {
-      populateConsumers(childNode, receiverMap, numQueryServers);
+      populateConsumers(childNode, receiverMap, serverToSegmentsByPlanId);
     }
   }
 

@@ -20,6 +20,7 @@ package org.apache.pinot.query.runtime.timeseries;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import org.apache.pinot.tsdb.planner.TimeSeriesExchangeNode;
@@ -37,29 +38,30 @@ public class PhysicalTimeSeriesBrokerPlanVisitor {
   }
 
   public BaseTimeSeriesOperator compile(BaseTimeSeriesPlanNode rootNode, TimeSeriesExecutionContext context,
-      int numServersQueried) {
+      Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
     // Step-1: Replace scan filter project with our physical plan node with Pinot Core and Runtime context
-    rootNode = initExchangeReceivePlanNode(rootNode, context, numServersQueried);
+    rootNode = initExchangeReceivePlanNode(rootNode, context, serverToSegmentsByPlanId);
     // Step-2: Trigger recursive operator generation
     return rootNode.run();
   }
 
   public BaseTimeSeriesPlanNode initExchangeReceivePlanNode(BaseTimeSeriesPlanNode planNode,
-      TimeSeriesExecutionContext context, int numServersQueried) {
+      TimeSeriesExecutionContext context, Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
+    Map<String, List<String>> serverToSegments = serverToSegmentsByPlanId.get(planNode.getId());
     if (planNode instanceof LeafTimeSeriesPlanNode) {
       throw new IllegalStateException("Found leaf time series plan node in broker");
     } else if (planNode instanceof TimeSeriesExchangeNode) {
-      return compileToPhysicalReceiveNode((TimeSeriesExchangeNode) planNode, context, numServersQueried);
+      return compileToPhysicalReceiveNode((TimeSeriesExchangeNode) planNode, context, serverToSegments.size());
     }
     List<BaseTimeSeriesPlanNode> newInputs = new ArrayList<>();
     for (int index = 0; index < planNode.getInputs().size(); index++) {
       BaseTimeSeriesPlanNode inputNode = planNode.getInputs().get(index);
       if (inputNode instanceof TimeSeriesExchangeNode) {
         TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = compileToPhysicalReceiveNode(
-            (TimeSeriesExchangeNode) inputNode, context, numServersQueried);
+            (TimeSeriesExchangeNode) inputNode, context, serverToSegments.size());
         newInputs.add(exchangeReceivePlanNode);
       } else {
-        newInputs.add(initExchangeReceivePlanNode(inputNode, context, numServersQueried));
+        newInputs.add(initExchangeReceivePlanNode(inputNode, context, serverToSegmentsByPlanId));
       }
     }
     return planNode.withInputs(newInputs);

@@ -58,7 +58,7 @@ public class TableScanVisitor {
       for (var entry : routingTable.getServerInstanceToSegmentsMap().entrySet()) {
         ServerInstance serverInstance = entry.getKey();
         List<String> segments = entry.getValue().getLeft();
-        context.getPlanIdToSegmentsByServer().computeIfAbsent(serverInstance.getInstanceId(), (x) -> new HashMap<>())
+        context.getPlanIdToSegmentsByServer().computeIfAbsent(serverInstance, (x) -> new HashMap<>())
             .put(sfpNode.getId(), segments);
       }
     }
@@ -72,15 +72,36 @@ public class TableScanVisitor {
   }
 
   public static class Context {
-    private final Map<String, Map<String, List<String>>> _planIdToSegmentsByServer = new HashMap<>();
+    private final Map<ServerInstance, Map<String, List<String>>> _planIdToSegmentsByServer = new HashMap<>();
     private final Long _requestId;
 
     public Context(Long requestId) {
       _requestId = requestId;
     }
 
-    public Map<String, Map<String, List<String>>> getPlanIdToSegmentsByServer() {
+    public Map<ServerInstance, Map<String, List<String>>> getPlanIdToSegmentsByServer() {
       return _planIdToSegmentsByServer;
+    }
+
+    public Map<String, Map<String, List<String>>> getPlanIdToSegmentsByInstanceId() {
+      Map<String, Map<String, List<String>>> result = new HashMap<>();
+      for (var entry : _planIdToSegmentsByServer.entrySet()) {
+        result.put(entry.getKey().getInstanceId(), entry.getValue());
+      }
+      return result;
+    }
+
+    public Map<String, Map<String, List<String>>> computeServerToSegmentsByPlanId() {
+      Map<String, Map<String, List<String>>> result = new HashMap<>();
+      for (var entry : _planIdToSegmentsByServer.entrySet()) {
+        String instanceId = entry.getKey().getInstanceId();
+        for (var planIdAndSegments : entry.getValue().entrySet()) {
+          String planId = planIdAndSegments.getKey();
+          List<String> segments = planIdAndSegments.getValue();
+          result.computeIfAbsent(planId, (x) -> new HashMap<>()).put(instanceId, segments);
+        }
+      }
+      return result;
     }
   }
 
