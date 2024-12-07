@@ -500,7 +500,7 @@ public class QueryDispatcher {
       Preconditions.checkState(!deadline.isExpired(), "Deadline expired before query could be sent to servers");
       // Send server fragment to every server
       Worker.TimeSeriesQueryRequest request = Worker.TimeSeriesQueryRequest.newBuilder()
-          .addAllDispatchPlan(plan.getSerializedPlan())
+          .addAllDispatchPlan(plan.getSerializedPlanFragments())
           .putAllMetadata(initializeTimeSeriesMetadataMap(plan, deadlineMs, requestContext, serverId))
           .putMetadata(CommonConstants.Query.Request.MetadataKeys.REQUEST_ID, Long.toString(requestId))
           .build();
@@ -512,6 +512,7 @@ public class QueryDispatcher {
     return brokerOperator.nextBlock();
   }
 
+  // TODO(timeseries): When we support server pruning, numQueryServers may be different per plan node.
   private void populateConsumers(BaseTimeSeriesPlanNode planNode, Map<String, BlockingQueue<Object>> receiverMap,
       int numQueryServers) {
     if (planNode instanceof TimeSeriesExchangeNode) {

@@ -53,13 +53,13 @@ public class PhysicalTimeSeriesBrokerPlanVisitor {
     }
     List<BaseTimeSeriesPlanNode> newInputs = new ArrayList<>();
     for (int index = 0; index < planNode.getInputs().size(); index++) {
-      BaseTimeSeriesPlanNode childNode = planNode.getInputs().get(index);
-      if (childNode instanceof TimeSeriesExchangeNode) {
+      BaseTimeSeriesPlanNode inputNode = planNode.getInputs().get(index);
+      if (inputNode instanceof TimeSeriesExchangeNode) {
         TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = compileToPhysicalReceiveNode(
-            (TimeSeriesExchangeNode) childNode, context, numServersQueried);
+            (TimeSeriesExchangeNode) inputNode, context, numServersQueried);
         newInputs.add(exchangeReceivePlanNode);
       } else {
-        newInputs.add(initExchangeReceivePlanNode(childNode, context, numServersQueried));
+        newInputs.add(initExchangeReceivePlanNode(inputNode, context, numServersQueried));
       }
     }
     return planNode.withInputs(newInputs);

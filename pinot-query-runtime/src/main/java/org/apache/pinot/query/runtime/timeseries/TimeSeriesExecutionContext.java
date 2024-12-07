@@ -40,9 +40,9 @@ public class TimeSeriesExecutionContext {
       Map<String, BlockingQueue<Object>> exchangeReceiverByPlanId) {
     _language = language;
     _initialTimeBuckets = initialTimeBuckets;
-    _planIdToSegmentsMap = planIdToSegmentsMap;
     _deadlineMs = deadlineMs;
     _metadataMap = metadataMap;
+    _planIdToSegmentsMap = planIdToSegmentsMap;
     _exchangeReceiverByPlanId = exchangeReceiverByPlanId;
     _seriesBuilderFactory = TimeSeriesBuilderFactoryProvider.getSeriesBuilderFactory(language);
   }
@@ -55,16 +55,16 @@ public class TimeSeriesExecutionContext {
     return _initialTimeBuckets;
   }
 
-  public Map<String, String> getMetadataMap() {
-    return _metadataMap;
-  }
-
   public long getDeadlineMs() {
     return _deadlineMs;
   }
 
   public long getRemainingTimeMs() {
     return _deadlineMs - System.currentTimeMillis();
+  }
+
+  public Map<String, String> getMetadataMap() {
+    return _metadataMap;
   }
 
   public Map<String, List<String>> getPlanIdToSegmentsMap() {

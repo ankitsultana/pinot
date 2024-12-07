@@ -58,7 +58,7 @@ public class TableScanVisitor {
       for (var entry : routingTable.getServerInstanceToSegmentsMap().entrySet()) {
         ServerInstance serverInstance = entry.getKey();
         List<String> segments = entry.getValue().getLeft();
-        context.getPlanIdToSegmentMap().computeIfAbsent(serverInstance.getInstanceId(), (x) -> new HashMap<>())
+        context.getPlanIdToSegmentsByServer().computeIfAbsent(serverInstance.getInstanceId(), (x) -> new HashMap<>())
             .put(sfpNode.getId(), segments);
       }
     }
@@ -79,7 +79,7 @@ public class TableScanVisitor {
       _requestId = requestId;
     }
 
-    public Map<String, Map<String, List<String>>> getPlanIdToSegmentMap() {
+    public Map<String, Map<String, List<String>>> getPlanIdToSegmentsByServer() {
       return _planIdToSegmentsByServer;
     }
   }
