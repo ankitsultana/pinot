@@ -39,7 +39,7 @@ public class PhysicalTimeSeriesBrokerPlanVisitor {
 
   public BaseTimeSeriesOperator compile(BaseTimeSeriesPlanNode rootNode, TimeSeriesExecutionContext context,
       Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
-    // Step-1: Replace scan filter project with our physical plan node with Pinot Core and Runtime context
+    // Step-1: Replace time series exchange node with its Physical Plan Node.
     rootNode = initExchangeReceivePlanNode(rootNode, context, serverToSegmentsByPlanId);
     // Step-2: Trigger recursive operator generation
     return rootNode.run();
@@ -47,16 +47,17 @@ public class PhysicalTimeSeriesBrokerPlanVisitor {
 
   public BaseTimeSeriesPlanNode initExchangeReceivePlanNode(BaseTimeSeriesPlanNode planNode,
       TimeSeriesExecutionContext context, Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
-    Map<String, List<String>> serverToSegments = serverToSegmentsByPlanId.get(planNode.getId());
     if (planNode instanceof LeafTimeSeriesPlanNode) {
       throw new IllegalStateException("Found leaf time series plan node in broker");
     } else if (planNode instanceof TimeSeriesExchangeNode) {
+      Map<String, List<String>> serverToSegments = serverToSegmentsByPlanId.get(planNode.getId());
       return compileToPhysicalReceiveNode((TimeSeriesExchangeNode) planNode, context, serverToSegments.size());
     }
     List<BaseTimeSeriesPlanNode> newInputs = new ArrayList<>();
     for (int index = 0; index < planNode.getInputs().size(); index++) {
       BaseTimeSeriesPlanNode inputNode = planNode.getInputs().get(index);
       if (inputNode instanceof TimeSeriesExchangeNode) {
+        Map<String, List<String>> serverToSegments = serverToSegmentsByPlanId.get(inputNode.getId());
         TimeSeriesExchangeReceivePlanNode exchangeReceivePlanNode = compileToPhysicalReceiveNode(
             (TimeSeriesExchangeNode) inputNode, context, serverToSegments.size());
         newInputs.add(exchangeReceivePlanNode);
