@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -487,12 +488,12 @@ public class QueryDispatcher {
     BaseTimeSeriesPlanNode brokerFragment = plan.getBrokerFragment();
     // Get consumers for leafs
     Map<String, BlockingQueue<Object>> receiversByPlanId = new HashMap<>();
-    populateConsumers(brokerFragment, receiversByPlanId, plan.getServerToSegmentsByPlanId());
+    populateConsumers(brokerFragment, receiversByPlanId);
     // Compile brokerFragment to get operators
     TimeSeriesExecutionContext brokerExecutionContext = new TimeSeriesExecutionContext(plan.getLanguage(),
         plan.getTimeBuckets(), deadlineMs, Collections.emptyMap(), Collections.emptyMap(), receiversByPlanId);
     BaseTimeSeriesOperator brokerOperator = _timeSeriesBrokerPlanVisitor.compile(brokerFragment,
-        brokerExecutionContext, plan.getServerToSegmentsByPlanId());
+        brokerExecutionContext, plan.getNumInputServersForExchangePlanNode());
     // Create dispatch observer for each query server
     for (TimeSeriesQueryServerInstance serverInstance : plan.getQueryServerInstances()) {
       String serverId = serverInstance.getInstanceId();
@@ -512,14 +513,12 @@ public class QueryDispatcher {
     return brokerOperator.nextBlock();
   }
 
-  private void populateConsumers(BaseTimeSeriesPlanNode planNode, Map<String, BlockingQueue<Object>> receiverMap,
-      Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
+  private void populateConsumers(BaseTimeSeriesPlanNode planNode, Map<String, BlockingQueue<Object>> receiverMap) {
     if (planNode instanceof TimeSeriesExchangeNode) {
-      Map<String, List<String>> serverToSegments = serverToSegmentsByPlanId.get(planNode.getId());
-      receiverMap.put(planNode.getId(), new ArrayBlockingQueue<>(serverToSegments.size()));
+      receiverMap.put(planNode.getId(), new LinkedBlockingQueue<>(TimeSeriesDispatchObserver.MAX_QUEUE_CAPACITY));
     }
     for (BaseTimeSeriesPlanNode childNode : planNode.getInputs()) {
-      populateConsumers(childNode, receiverMap, serverToSegmentsByPlanId);
+      populateConsumers(childNode, receiverMap);
     }
   }
 

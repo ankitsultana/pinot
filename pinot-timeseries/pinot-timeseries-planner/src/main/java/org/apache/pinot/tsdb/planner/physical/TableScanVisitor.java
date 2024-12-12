@@ -90,19 +90,6 @@ public class TableScanVisitor {
       }
       return result;
     }
-
-    public Map<String, Map<String, List<String>>> computeServerToSegmentsByPlanId() {
-      Map<String, Map<String, List<String>>> result = new HashMap<>();
-      for (var entry : _planIdToSegmentsByServer.entrySet()) {
-        String instanceId = entry.getKey().getInstanceId();
-        for (var planIdAndSegments : entry.getValue().entrySet()) {
-          String planId = planIdAndSegments.getKey();
-          List<String> segments = planIdAndSegments.getValue();
-          result.computeIfAbsent(planId, (x) -> new HashMap<>()).put(instanceId, segments);
-        }
-      }
-      return result;
-    }
   }
 
   private BrokerRequest compileBrokerRequest(String tableName, Expression filterExpression) {

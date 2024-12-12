@@ -271,6 +271,8 @@ public class QueryRunner {
         errorMetadata.put(WorkerResponseMetadataKeys.ERROR_MESSAGE, t.getMessage() == null
             ? "Unknown error: no message" : t.getMessage());
         errorMetadata.put(WorkerResponseMetadataKeys.PLAN_ID, planId);
+        // TODO(timeseries): remove logging for failed queries.
+        LOGGER.warn("time-series query failed:", t);
         responseObserver.onNext(Worker.TimeSeriesResponse.newBuilder().putAllMetadata(errorMetadata).build());
         responseObserver.onCompleted();
       } catch (Throwable t2) {

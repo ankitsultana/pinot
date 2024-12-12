@@ -34,19 +34,19 @@ public class TimeSeriesDispatchablePlan {
   private final List<Pair<String, String>> _serializedPlanFragments;
   private final TimeBuckets _timeBuckets;
   private final Map<String, Map<String, List<String>>> _planIdToSegmentsByServer;
-  private final Map<String, Map<String, List<String>>> _serverToSegmentsByPlanId;
+  private final Map<String, Integer> _numInputServersForExchangePlanNode;
 
   public TimeSeriesDispatchablePlan(String language, List<TimeSeriesQueryServerInstance> queryServerInstances,
       BaseTimeSeriesPlanNode brokerFragment, List<Pair<String, String>> serializedPlanFragmentsByPlanId,
       TimeBuckets initialTimeBuckets, Map<String, Map<String, List<String>>> planIdToSegmentsByServer,
-      Map<String, Map<String, List<String>>> serverToSegmentsByPlanId) {
+      Map<String, Integer> numInputServersForExchangePlanNode) {
     _language = language;
     _queryServerInstances = queryServerInstances;
     _brokerFragment = brokerFragment;
     _serializedPlanFragments = serializedPlanFragmentsByPlanId;
     _timeBuckets = initialTimeBuckets;
     _planIdToSegmentsByServer = planIdToSegmentsByServer;
-    _serverToSegmentsByPlanId = serverToSegmentsByPlanId;
+    _numInputServersForExchangePlanNode = numInputServersForExchangePlanNode;
   }
 
   public String getLanguage() {
@@ -80,7 +80,7 @@ public class TimeSeriesDispatchablePlan {
     return _planIdToSegmentsByServer;
   }
 
-  public Map<String, Map<String, List<String>>> getServerToSegmentsByPlanId() {
-    return _serverToSegmentsByPlanId;
+  public Map<String, Integer> getNumInputServersForExchangePlanNode() {
+    return _numInputServersForExchangePlanNode;
   }
 }

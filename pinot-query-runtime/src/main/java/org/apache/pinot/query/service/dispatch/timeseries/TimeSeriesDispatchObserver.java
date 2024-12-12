@@ -35,6 +35,12 @@ import org.slf4j.LoggerFactory;
  *   engine integration.
  */
 public class TimeSeriesDispatchObserver implements StreamObserver<Worker.TimeSeriesResponse> {
+  /**
+   * Each server should send data for each leaf node once. This capacity controls the size of the queue we use to
+   * buffer the data sent by the sender. This is set large enough that we should never hit this for any practical
+   * use-case, while guarding us against bugs.
+   */
+  public static final int MAX_QUEUE_CAPACITY = 4096;
   private static final Logger LOGGER = LoggerFactory.getLogger(TimeSeriesDispatchObserver.class);
   private final Map<String, BlockingQueue<Object>> _exchangeReceiversByPlanId;
 
@@ -66,7 +72,8 @@ public class TimeSeriesDispatchObserver implements StreamObserver<Worker.TimeSer
       onError(new IllegalStateException(message));
     } else {
       if (!receiverForPlanId.offer(error != null ? error : block)) {
-        LOGGER.error("Offer to receiver queue for planId: {} failed", planId);
+        onError(new RuntimeException(String.format("Offer to receiver queue (capacity=%s) for planId: %s failed",
+            receiverForPlanId.remainingCapacity(), planId)));
       }
     }
   }
