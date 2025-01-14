@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.hint.RelHint;
+import org.apache.pinot.calcite.rel.PinotDataDistribution;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.query.planner.serde.PlanNodeDeserializer;
 import org.apache.pinot.query.planner.serde.PlanNodeSerializer;
@@ -54,6 +55,10 @@ public interface PlanNode {
   String explain();
 
   <T, C> T visit(PlanNodeVisitor<T, C> visitor, C context);
+
+  default PinotDataDistribution getDataDistribution() {
+    throw new UnsupportedOperationException("getDataDistribution not supported");
+  }
 
   /**
    * Returns a new plan node that is equal to the receiver in all aspects but the inputs, which will be replaced by the

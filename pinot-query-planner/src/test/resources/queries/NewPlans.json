@@ -1,0 +1,13 @@
+{
+  "ankitsultana_new_tests": {
+    "queries": [
+      {
+        "description": "Simple IN and NOT-IN",
+        "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts FROM a WHERE a.col1 IN (SELECT col2 FROM b) AND a.col1 NOT IN (SELECT col2 FROM b)",
+        "output": [
+          "\n"
+        ]
+      }
+    ]
+  }
+}

@@ -34,9 +34,11 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
+import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.query.planner.PlanFragment;
 import org.apache.pinot.query.planner.SubPlan;
 import org.apache.pinot.query.planner.SubPlanMetadata;
+import org.apache.pinot.query.planner.logical.rel2plan.NewRelToPlanNodeConverter;
 import org.apache.pinot.query.planner.plannode.BasePlanNode;
 import org.apache.pinot.query.planner.plannode.ExchangeNode;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
@@ -55,37 +57,16 @@ public class PinotLogicalQueryPlanner {
    * Converts a Calcite {@link RelRoot} into a Pinot {@link SubPlan}.
    */
   public static SubPlan makePlan(RelRoot relRoot,
-      @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker, boolean useSpools) {
+      @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker, boolean useSpools,
+      RoutingManager routingManager, long requestId) {
+    //
+    NewRelToPlanNodeConverter blah = new NewRelToPlanNodeConverter(routingManager, requestId);
+    blah.toPlanNode(relRoot.rel);
     PlanNode rootNode = new RelToPlanNodeConverter(tracker).toPlanNode(relRoot.rel);
 
     PlanFragment rootFragment = planNodeToPlanFragment(rootNode, tracker, useSpools);
     return new SubPlan(rootFragment,
         new SubPlanMetadata(RelToPlanNodeConverter.getTableNamesFromRelRoot(relRoot.rel), relRoot.fields), List.of());
-
-    // TODO: Currently we don't support multiple sub-plans. Revisit the following logic when we add the support.
-    // Fragment the stage tree into multiple SubPlans.
-//    SubPlanFragmenter.Context subPlanContext = new SubPlanFragmenter.Context();
-//    subPlanContext._subPlanIdToRootNodeMap.put(0, rootNode);
-//    subPlanContext._subPlanIdToMetadataMap.put(0,
-//        new SubPlanMetadata(RelToPlanNodeConverter.getTableNamesFromRelRoot(relRoot.rel), relRoot.fields));
-//    rootNode.visit(SubPlanFragmenter.INSTANCE, subPlanContext);
-//
-//    Map<Integer, SubPlan> subPlanMap = new HashMap<>();
-//    for (Map.Entry<Integer, PlanNode> subPlanEntry : subPlanContext._subPlanIdToRootNodeMap.entrySet()) {
-//      SubPlan subPlan =
-//          new SubPlan(planNodeToPlanFragment(subPlanEntry.getValue()), subPlanContext._subPlanIdToMetadataMap.get(0),
-//              new ArrayList<>());
-//      subPlanMap.put(subPlanEntry.getKey(), subPlan);
-//    }
-//    for (Map.Entry<Integer, List<Integer>> subPlanToChildrenEntry : subPlanContext._subPlanIdToChildrenMap.entrySet
-//    ()) {
-//      int subPlanId = subPlanToChildrenEntry.getKey();
-//      List<Integer> subPlanChildren = subPlanToChildrenEntry.getValue();
-//      for (int subPlanChild : subPlanChildren) {
-//        subPlanMap.get(subPlanId).getChildren().add(subPlanMap.get(subPlanChild));
-//      }
-//    }
-//    return subPlanMap.get(0);
   }
 
   private static PlanFragment planNodeToPlanFragment(

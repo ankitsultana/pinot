@@ -70,6 +70,8 @@ public class PinotHintOptions {
     public static final String DYNAMIC_BROADCAST_JOIN_STRATEGY = "dynamic_broadcast";
     // "lookup" can be used when the right table is a dimension table replicated to all workers
     public static final String LOOKUP_JOIN_STRATEGY = "lookup";
+    // "dynamic_filter" is the default strategy for SEMI joins
+    public static final String DYNAMIC_FILTER_JOIN_STRATEGY = "dynamic_filter";
 
     /**
      * Max rows allowed to build the right table hash collection.

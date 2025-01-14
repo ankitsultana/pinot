@@ -52,10 +52,9 @@ import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
-import org.apache.pinot.calcite.rel.rules.PinotImplicitTableHintRule;
 import org.apache.pinot.calcite.rel.rules.PinotQueryRuleSets;
-import org.apache.pinot.calcite.rel.rules.PinotRelDistributionTraitRule;
 import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
+import org.apache.pinot.calcite.rel.rules.PinotTraitConstraintRule;
 import org.apache.pinot.calcite.sql.fun.PinotOperatorTable;
 import org.apache.pinot.calcite.sql2rel.PinotConvertletTable;
 import org.apache.pinot.common.config.provider.TableCache;
@@ -392,7 +391,8 @@ public class QueryEnvironment {
 
   private DispatchableSubPlan toDispatchableSubPlan(RelRoot relRoot, PlannerContext plannerContext, long requestId,
       @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker) {
-    SubPlan plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker, useSpools(plannerContext.getOptions()));
+    SubPlan plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker, useSpools(plannerContext.getOptions()),
+        _envConfig.getWorkerManager().getRoutingManager(), requestId);
     PinotDispatchPlanner pinotDispatchPlanner =
         new PinotDispatchPlanner(plannerContext, _envConfig.getWorkerManager(), requestId, _envConfig.getTableCache());
     return pinotDispatchPlanner.createDispatchableSubPlan(plan);
@@ -445,10 +445,7 @@ public class QueryEnvironment {
     }
 
     // apply RelDistribution trait to all nodes
-    if (workerManager != null) {
-      hepProgramBuilder.addRuleInstance(PinotImplicitTableHintRule.withWorkerManager(workerManager));
-    }
-    hepProgramBuilder.addRuleInstance(PinotRelDistributionTraitRule.INSTANCE);
+    hepProgramBuilder.addRuleInstance(PinotTraitConstraintRule.INSTANCE);
 
     return hepProgramBuilder.build();
   }
