@@ -30,27 +30,25 @@ public class LeafWorkerAssignment {
     _routingManager = routingManager;
   }
 
-  public Map<Integer, PinotDataDistribution> compute(RelNode relNode, long requestId) {
+  public Map<Integer, PinotDataDistribution> compute(WrappedRelNode wrappedRelNode, long requestId) {
     Context context = new Context();
     context._requestId = requestId;
-    assignWorkersToLeaf(relNode, context);
+    assignWorkersToLeaf(wrappedRelNode, context);
     return context._pinotDataDistributionMap;
   }
 
-  private void assignWorkersToLeaf(RelNode relNode, Context context) {
-    if (relNode instanceof TableScan) {
-      assignWorkersToLeafInternal(context, (TableScan) relNode);
+  private void assignWorkersToLeaf(WrappedRelNode wrappedRelNode, Context context) {
+    if (wrappedRelNode.getRelNode() instanceof TableScan) {
+      assignWorkersToLeafInternal(context, wrappedRelNode);
       return;
     }
-    context._currentIndex++;
-    context._parentNodeList.add(relNode);
-    for (RelNode input : relNode.getInputs()) {
+    for (WrappedRelNode input : wrappedRelNode.getInputs()) {
       assignWorkersToLeaf(input, context);
     }
-    context._parentNodeList.remove(context._parentNodeList.size() - 1);
   }
 
-  private void assignWorkersToLeafInternal(Context context, TableScan tableScan) {
+  private void assignWorkersToLeafInternal(Context context, WrappedRelNode wrappedRelNode) {
+    TableScan tableScan = (TableScan) wrappedRelNode.getRelNode();
     String tableName = tableScan.getTable().getQualifiedName().get(1);
     String filter = "";
     // TODO: Support server pruning.
@@ -104,7 +102,8 @@ public class LeafWorkerAssignment {
     }
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
         workers, workers.hashCode(), null);
-    context._pinotDataDistributionMap.put(context._currentIndex, pinotDataDistribution);
+    wrappedRelNode.setPinotDataDistribution(pinotDataDistribution);
+    context._pinotDataDistributionMap.put(wrappedRelNode.getNodeId(), pinotDataDistribution);
   }
 
   /**
@@ -145,8 +144,6 @@ public class LeafWorkerAssignment {
 
   public static class Context {
     long _requestId = 0;
-    int _currentIndex = 0;
-    List<RelNode> _parentNodeList = new ArrayList<>(32);
     Map<Integer, PinotDataDistribution> _pinotDataDistributionMap = new HashMap<>();
   }
 

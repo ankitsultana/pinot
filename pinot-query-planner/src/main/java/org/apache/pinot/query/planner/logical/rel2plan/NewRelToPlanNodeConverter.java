@@ -1,10 +1,12 @@
 package org.apache.pinot.query.planner.logical.rel2plan;
 
 import com.google.common.collect.Sets;
+import groovy.util.logging.Log;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelDistribution;
@@ -52,19 +54,27 @@ public class NewRelToPlanNodeConverter {
   }
 
   /**
-   * Leaf-stage: [agg] + [project] + [filter] + table scan.
-   * Step-0: Wrap rel-nodes in WrappedRelNode.
+   * Leaf-stage: ([agg] + [project] + [filter] + table scan). many more cases like lookup-join.
+   * Step-0: [done] Wrap rel-nodes in WrappedRelNode.
    * Step-1: Identify leaf-stage cut-off ==> required for implicit exchange.
-   * Step-2: Assign workers to leaves.
-   * Step-3: Recursively handle each node. Ideally a separate class for each rel node.
+   * Step-2: [done] Assign workers to leaves.
+   * Step-3: Assign workers, and add exchange to other nodes.
+   *
+   *
+   * Step-3:
+   * - for each node, 
    */
   public PlanNode toPlanNode(RelNode relNode) {
+    PlanIdGenerator generator = new PlanIdGenerator();
+    WrappedRelNode wrappedRelNode = WrappedRelNode.wrapRelTree(relNode, generator);
     Context context = new Context();
-    context._pdd = _leafWorkerAssignment.compute(relNode, _requestId);
+    context._pdd = _leafWorkerAssignment.compute(wrappedRelNode, _requestId);
     return null;
   }
 
-  public WrappedPlanNode handleTableScan(LogicalTableScan node, Context context) {
+  // done
+  WrappedPlanNode handleTableScan(WrappedRelNode wrappedRelNode, Context context) {
+    LogicalTableScan node = (LogicalTableScan) wrappedRelNode.getRelNode();
     // assumption: parallelism doesn't change.
     String tableName = getTableNameFromTableScan(node);
     List<RelDataTypeField> fields = node.getRowType().getFieldList();
@@ -78,7 +88,10 @@ public class NewRelToPlanNodeConverter {
     return new WrappedPlanNode(context.getNextPlanId(), tableScanNode, leafDistribution);
   }
 
-  public WrappedPlanNode handleFilter(LogicalFilter node, WrappedPlanNode inputNode, Context context) {
+
+  // done
+  public WrappedPlanNode handleFilter(WrappedRelNode wrappedRelNode, WrappedPlanNode inputNode, Context context) {
+    LogicalFilter node = (LogicalFilter) wrappedRelNode.getRelNode();
     // assumption: parallelism doesn't change.
     FilterNode filterNode = new FilterNode(DEFAULT_STAGE_ID, toDataSchema(node.getRowType()),
         PlanNode.NodeHint.fromRelHints(node.getHints()),  convertInputs(node.getInputs()),
@@ -102,21 +115,6 @@ public class NewRelToPlanNodeConverter {
     }
   }
 
-  public PinotDataDistribution inferDataDistribution(PinotLogicalAggregate logicalAggregate, PinotDataDistribution inputDistribution) {
-  }
-
-  public PinotDataDistribution inferDataDistribution(LogicalSort logicalSort, PinotDataDistribution inputDistribution) {
-  }
-
-  public PinotDataDistribution inferDataDistribution(LogicalJoin logicalJoin) {
-  }
-
-  public PinotDataDistribution inferDataDistribution(LogicalWindow window, PinotDataDistribution pinotDataDistribution) {
-  }
-
-  public PinotDataDistribution inferDataDistribution(SetOp setOp) {
-  }
-
   private static DataSchema toDataSchema(RelDataType rowType) {
     if (rowType instanceof RelRecordType) {
       RelRecordType recordType = (RelRecordType) rowType;
@@ -131,7 +129,7 @@ public class NewRelToPlanNodeConverter {
     }
   }
 
-  private List<PlanNode> convertInputs(List<RelNode> inputs) {
+  private List<PlanNode> convertInputs(List<WrappedRelNode> inputs) {
     // NOTE: Inputs can be modified in place. Do not create immutable List here.
     int numInputs = inputs.size();
     List<PlanNode> planNodes = new ArrayList<>(numInputs);
@@ -143,15 +141,6 @@ public class NewRelToPlanNodeConverter {
 
   public static String getTableNameFromTableScan(TableScan tableScan) {
     return getTableNameFromRelTable(tableScan.getTable());
-  }
-
-  public static Set<String> getTableNamesFromRelRoot(RelNode relRoot) {
-    List<RelOptTable> tables = RelOptUtil.findAllTables(relRoot);
-    Set<String> tableNames = Sets.newHashSetWithExpectedSize(tables.size());
-    for (RelOptTable table : tables) {
-      tableNames.add(getTableNameFromRelTable(table));
-    }
-    return tableNames;
   }
 
   public static String getTableNameFromRelTable(RelOptTable table) {
@@ -247,10 +236,10 @@ public class NewRelToPlanNodeConverter {
   static class Context {
     int _currentIndex = 0;
     Map<Integer, PinotDataDistribution> _pdd;
-    long _currentPlanId = 0;
+    PlanIdGenerator _planIdGenerator;
 
     long getNextPlanId() {
-      return _currentPlanId++;
+      return _planIdGenerator.get();
     }
   }
 }
