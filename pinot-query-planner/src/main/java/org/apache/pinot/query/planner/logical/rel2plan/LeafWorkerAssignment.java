@@ -30,11 +30,10 @@ public class LeafWorkerAssignment {
     _routingManager = routingManager;
   }
 
-  public Map<Integer, PinotDataDistribution> compute(WrappedRelNode wrappedRelNode, long requestId) {
+  public void compute(WrappedRelNode wrappedRelNode, long requestId) {
     Context context = new Context();
     context._requestId = requestId;
     assignWorkersToLeaf(wrappedRelNode, context);
-    return context._pinotDataDistributionMap;
   }
 
   private void assignWorkersToLeaf(WrappedRelNode wrappedRelNode, Context context) {
@@ -101,9 +100,8 @@ public class LeafWorkerAssignment {
       workerId++;
     }
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
-        workers, workers.hashCode(), null);
+        workers, workers.hashCode(), null, null, null);
     wrappedRelNode.setPinotDataDistribution(pinotDataDistribution);
-    context._pinotDataDistributionMap.put(wrappedRelNode.getNodeId(), pinotDataDistribution);
   }
 
   /**
@@ -144,7 +142,6 @@ public class LeafWorkerAssignment {
 
   public static class Context {
     long _requestId = 0;
-    Map<Integer, PinotDataDistribution> _pinotDataDistributionMap = new HashMap<>();
   }
 
   private static BrokerRequest createBrokerRequest(String tableName, String filter) {

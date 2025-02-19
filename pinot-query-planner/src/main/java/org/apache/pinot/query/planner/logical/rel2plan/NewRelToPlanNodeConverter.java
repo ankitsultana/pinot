@@ -1,33 +1,20 @@
 package org.apache.pinot.query.planner.logical.rel2plan;
 
-import com.google.common.collect.Sets;
-import groovy.util.logging.Log;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
 import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.rel.RelDistribution;
-import org.apache.calcite.rel.RelDistributionTraitDef;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.SetOp;
 import org.apache.calcite.rel.core.TableScan;
-import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
-import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
-import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelRecordType;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
 import org.apache.pinot.calcite.rel.PinotDataDistribution.HashDistributionDesc;
-import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
 import org.apache.pinot.common.utils.DatabaseUtils;
@@ -56,19 +43,18 @@ public class NewRelToPlanNodeConverter {
   /**
    * Leaf-stage: ([agg] + [project] + [filter] + table scan). many more cases like lookup-join.
    * Step-0: [done] Wrap rel-nodes in WrappedRelNode.
-   * Step-1: Identify leaf-stage cut-off ==> required for implicit exchange.
+   * Step-1: [done] Identify leaf-stage cut-off ==> required for implicit exchange.
+   * Step-1.1 Assign parallelism to each node.
    * Step-2: [done] Assign workers to leaves.
    * Step-3: Assign workers, and add exchange to other nodes.
-   *
-   *
-   * Step-3:
-   * - for each node, 
    */
   public PlanNode toPlanNode(RelNode relNode) {
     PlanIdGenerator generator = new PlanIdGenerator();
     WrappedRelNode wrappedRelNode = WrappedRelNode.wrapRelTree(relNode, generator);
-    Context context = new Context();
-    context._pdd = _leafWorkerAssignment.compute(wrappedRelNode, _requestId);
+    LeafStageBoundaryComputer leafStageBoundaryComputer = new LeafStageBoundaryComputer();
+    leafStageBoundaryComputer.compute(wrappedRelNode);
+    Context context = new Context(generator);
+    _leafWorkerAssignment.compute(wrappedRelNode, _requestId);
     return null;
   }
 
@@ -84,7 +70,7 @@ public class NewRelToPlanNodeConverter {
     }
     TableScanNode tableScanNode = new TableScanNode(DEFAULT_STAGE_ID, toDataSchema(node.getRowType()),
         PlanNode.NodeHint.fromRelHints(node.getHints()), convertInputs(node.getInputs()), tableName, columns);
-    PinotDataDistribution leafDistribution = context._pdd.get(context._currentIndex);
+    PinotDataDistribution leafDistribution = wrappedRelNode.getPinotDataDistribution().get();
     return new WrappedPlanNode(context.getNextPlanId(), tableScanNode, leafDistribution);
   }
 
@@ -234,9 +220,11 @@ public class NewRelToPlanNodeConverter {
   }
 
   static class Context {
-    int _currentIndex = 0;
-    Map<Integer, PinotDataDistribution> _pdd;
     PlanIdGenerator _planIdGenerator;
+
+    public Context(PlanIdGenerator planIdGenerator) {
+      _planIdGenerator = planIdGenerator;
+    }
 
     long getNextPlanId() {
       return _planIdGenerator.get();

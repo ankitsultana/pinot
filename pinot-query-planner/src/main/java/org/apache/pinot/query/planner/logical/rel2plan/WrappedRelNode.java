@@ -11,17 +11,10 @@ import org.apache.pinot.calcite.rel.PinotDataDistribution;
 
 
 public class WrappedRelNode {
-  public static final Supplier<Integer> DEFAULT_NODE_ID_SUPPLIER = new Supplier<Integer>() {
-    private int _nodeId = 0;
-
-    @Override
-    public Integer get() {
-      return _nodeId++;
-    }
-  };
   private final int _nodeId;
   private final RelNode _relNode;
   private Optional<PinotDataDistribution> _pinotDataDistribution;
+  private boolean _leafStage = false;
   private boolean _leafStageBoundary = false;
   private final List<WrappedRelNode> _inputs = new ArrayList<>();
 
@@ -46,6 +39,14 @@ public class WrappedRelNode {
   public void setPinotDataDistribution(PinotDataDistribution dataDistribution) {
     Preconditions.checkState(_pinotDataDistribution.isEmpty(), "attempted to re-assign distribution to node");
     _pinotDataDistribution = Optional.of(dataDistribution);
+  }
+
+  public boolean isLeafStage() {
+    return _leafStage;
+  }
+
+  public void setLeafStage(boolean leafStage) {
+    _leafStage = leafStage;
   }
 
   public boolean isLeafStageBoundary() {

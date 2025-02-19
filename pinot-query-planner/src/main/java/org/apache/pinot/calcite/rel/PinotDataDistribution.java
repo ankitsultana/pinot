@@ -19,13 +19,19 @@
 package org.apache.pinot.calcite.rel;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
+import org.apache.calcite.rel.RelFieldCollation;
+import org.apache.calcite.util.Util;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 public class PinotDataDistribution {
@@ -34,13 +40,20 @@ public class PinotDataDistribution {
   private final long _workerHash;
   @Nullable
   private final Set<HashDistributionDesc> _hashDistributionDesc;
+  @Nullable
+  private final List<Integer> _collationKeys;
+  @Nullable
+  private final List<RelFieldCollation> _fieldCollationDirection;
 
   public PinotDataDistribution(Type type, List<String> workers, long workerHash,
-      @Nullable Set<HashDistributionDesc> desc) {
+      @Nullable Set<HashDistributionDesc> desc, @Nullable List<Integer> collationKeys,
+      @Nullable List<RelFieldCollation> fieldCollationDirection) {
     _type = type;
     _workers = workers;
     _workerHash = workerHash;
     _hashDistributionDesc = desc;
+    _collationKeys = collationKeys;
+    _fieldCollationDirection = fieldCollationDirection;
     validate();
   }
 
@@ -61,13 +74,26 @@ public class PinotDataDistribution {
     return _hashDistributionDesc;
   }
 
+  @Nullable
+  public List<Integer> getCollationKeys() {
+    return _collationKeys;
+  }
+
+  @Nullable
+  public List<RelFieldCollation> getFieldCollationDirection() {
+    return _fieldCollationDirection;
+  }
+
   /**
    * <pre>
    *   Input: distribution required logically for correctness.
    *   Output: whether this physical distribution meets the input constraint.
    * </pre>
    */
-  public boolean satisfies(RelDistribution distributionConstraint) {
+  public boolean satisfies(@Nullable RelDistribution distributionConstraint) {
+    if (distributionConstraint == null) {
+      return true;
+    }
     if (distributionConstraint == RelDistributions.ANY
         || distributionConstraint == RelDistributions.RANDOM_DISTRIBUTED) {
       return true;
@@ -87,6 +113,23 @@ public class PinotDataDistribution {
     return false;
   }
 
+  public boolean satisfies(@Nullable RelCollation relCollation) {
+    if (relCollation == null) {
+      return true;
+    }
+    if (relCollation.getKeys().isEmpty()) {
+      return true;
+    }
+    if (_collationKeys == null || _collationKeys.isEmpty()) {
+      return false;
+    }
+    if (_fieldCollationDirection == null) {
+      return false;
+    }
+    return Util.startsWith(_collationKeys, relCollation.getKeys()) && Util.startsWith(
+        _fieldCollationDirection, relCollation.getFieldCollations()));
+  }
+
   public boolean satisfies(RelDistribution... distributionConstraints) {
     for (RelDistribution distributionConstraint : distributionConstraints) {
       if (!satisfies(distributionConstraint)) {
@@ -94,6 +137,13 @@ public class PinotDataDistribution {
       }
     }
     return true;
+  }
+
+  public PinotDataDistribution apply(Map<Integer, Integer> mapping) {
+    if (_hashDistributionDesc != null) {
+      for (HashDistributionDesc desc : _hashDistributionDesc) {
+      }
+    }
   }
 
   @Nullable
@@ -108,6 +158,17 @@ public class PinotDataDistribution {
     return null;
   }
 
+  @Nullable
+  private Pair<List<Integer>, List<RelFieldCollation>> apply(Map<Integer, Integer> mapping) {
+    if (_collationKeys == null) {
+      return null;
+    }
+    for (Integer currentCollationIndex : _collationKeys) {
+      if (!mapping.containsKey(currentCollationIndex)) {
+      }
+    }
+  }
+
   public enum Type {
     SINGLETON,
     HASH_PARTITIONED,
@@ -120,11 +181,32 @@ public class PinotDataDistribution {
     String _hashFunction;
     int _numPartitions;
     int _subPartitioningFactor;
+
+    @Nullable
+    HashDistributionDesc apply(Map<Integer, Integer> mapping) {
+      List<Integer> result = new ArrayList<>(_keyIndexes.size());
+      for (Integer currentKeyIndex : _keyIndexes) {
+        if (!mapping.containsKey(currentKeyIndex)) {
+          return null;
+        }
+        result.add(mapping.get(currentKeyIndex));
+      }
+      HashDistributionDesc desc = new HashDistributionDesc();
+      desc._keyIndexes = result;
+      desc._hashFunction = _hashFunction;
+      desc._numPartitions = _numPartitions;
+      desc._subPartitioningFactor = _subPartitioningFactor;
+      return desc;
+    }
   }
 
   private void validate() {
     if (_type == Type.SINGLETON && _workers.size() > 1) {
       throw new IllegalStateException(String.format("Singleton distribution with %s workers", _workers.size()));
+    }
+    if (_collationKeys != null) {
+      Preconditions.checkNotNull(_fieldCollationDirection);
+      Preconditions.checkState(_collationKeys.size() == _fieldCollationDirection.size());
     }
   }
 }
