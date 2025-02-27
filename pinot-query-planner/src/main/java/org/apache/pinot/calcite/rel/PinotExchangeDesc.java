@@ -19,6 +19,7 @@
 package org.apache.pinot.calcite.rel;
 
 public enum PinotExchangeDesc {
+  SINGLETON_EXCHANGE(""),
   /**
    * Worker-ID with value x, sends data to Worker-ID with value x.
    */

@@ -41,6 +41,15 @@ public class LeafWorkerAssignment {
       assignWorkersToLeafInternal(context, wrappedRelNode);
       return;
     }
+    if (wrappedRelNode.isLeafStage()) {
+      Preconditions.checkState(wrappedRelNode.getInputs().size() == 1, "Expected exactly 1 input in leaf stage nodes except table scan");
+      Preconditions.checkState(wrappedRelNode.getRelNode().getTraitSet().isEmpty() || wrappedRelNode.isLeafStageBoundary(),
+          "Leaf stage can only have traits on boundaries");
+      PinotDataDistribution inputDistribution = wrappedRelNode.getInputs().get(0).getPinotDataDistribution().get();
+      // compute mapping from source to destination.
+      wrappedRelNode.setPinotDataDistribution(inputDistribution.apply(MappingGen.compute(
+          wrappedRelNode.getInputs().get(0).getRelNode(), wrappedRelNode.getRelNode(), null)));
+    }
     for (WrappedRelNode input : wrappedRelNode.getInputs()) {
       assignWorkersToLeaf(input, context);
     }

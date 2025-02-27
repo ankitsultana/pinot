@@ -1,30 +1,21 @@
 package org.apache.pinot.query.planner.logical.rel2plan;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
-import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalProject;
-import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelRecordType;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.pinot.calcite.rel.PinotDataDistribution;
-import org.apache.pinot.calcite.rel.PinotDataDistribution.HashDistributionDesc;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
 import org.apache.pinot.common.utils.DatabaseUtils;
 import org.apache.pinot.core.routing.RoutingManager;
-import org.apache.pinot.query.planner.logical.RexExpression;
-import org.apache.pinot.query.planner.logical.RexExpressionUtils;
-import org.apache.pinot.query.planner.plannode.FilterNode;
+import org.apache.pinot.query.context.PlannerContext;
+import org.apache.pinot.query.planner.logical.rel2plan.workers.BaseWorkerExchangeAssignment;
+import org.apache.pinot.query.planner.logical.rel2plan.workers.LiteModeWorkerExchangeAssignment;
+import org.apache.pinot.query.planner.logical.rel2plan.workers.WorkerExchangeAssignment;
 import org.apache.pinot.query.planner.plannode.PlanNode;
-import org.apache.pinot.query.planner.plannode.ProjectNode;
-import org.apache.pinot.query.planner.plannode.TableScanNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,12 +23,14 @@ import org.slf4j.LoggerFactory;
 public class NewRelToPlanNodeConverter {
   private static final Logger LOGGER = LoggerFactory.getLogger(NewRelToPlanNodeConverter.class);
   private static final int DEFAULT_STAGE_ID = -1;
-  private LeafWorkerAssignment _leafWorkerAssignment;
-  private long _requestId;
+  private final LeafWorkerAssignment _leafWorkerAssignment;
+  private final long _requestId;
+  private final boolean _useLiteMode;
 
-  public NewRelToPlanNodeConverter(RoutingManager routingManager, long requestId) {
+  public NewRelToPlanNodeConverter(RoutingManager routingManager, long requestId, PlannerContext plannerContext) {
     _leafWorkerAssignment = new LeafWorkerAssignment(routingManager);
     _requestId = requestId;
+    _useLiteMode = plannerContext.getOptions().containsKey("useLiteMode");
   }
 
   /**
@@ -54,12 +47,21 @@ public class NewRelToPlanNodeConverter {
     LeafStageBoundaryComputer leafStageBoundaryComputer = new LeafStageBoundaryComputer();
     leafStageBoundaryComputer.compute(wrappedRelNode);
     Context context = new Context(generator);
+    // Assign PDD to all leaf stage nodes
     _leafWorkerAssignment.compute(wrappedRelNode, _requestId);
+    BaseWorkerExchangeAssignment workerExchangeAssignment;
+    if (!_useLiteMode) {
+      workerExchangeAssignment = new WorkerExchangeAssignment(generator);
+    } else {
+      workerExchangeAssignment = new LiteModeWorkerExchangeAssignment(generator);
+    }
+    wrappedRelNode = workerExchangeAssignment.assign(wrappedRelNode);
+    WrappedRelNode.printWrappedRelNode(wrappedRelNode, 0);
     return null;
   }
 
   // done
-  WrappedPlanNode handleTableScan(WrappedRelNode wrappedRelNode, Context context) {
+  /* WrappedPlanNode handleTableScan(WrappedRelNode wrappedRelNode, Context context) {
     LogicalTableScan node = (LogicalTableScan) wrappedRelNode.getRelNode();
     // assumption: parallelism doesn't change.
     String tableName = getTableNameFromTableScan(node);
@@ -99,7 +101,7 @@ public class NewRelToPlanNodeConverter {
     for (HashDistributionDesc desc: inputDistribution.getHashDistributionDesc()) {
       // all of the key indexes should exist as RexInputRef
     }
-  }
+  } */
 
   private static DataSchema toDataSchema(RelDataType rowType) {
     if (rowType instanceof RelRecordType) {
@@ -113,16 +115,6 @@ public class NewRelToPlanNodeConverter {
     } else {
       throw new IllegalArgumentException("Unsupported RelDataType: " + rowType);
     }
-  }
-
-  private List<PlanNode> convertInputs(List<WrappedRelNode> inputs) {
-    // NOTE: Inputs can be modified in place. Do not create immutable List here.
-    int numInputs = inputs.size();
-    List<PlanNode> planNodes = new ArrayList<>(numInputs);
-    for (RelNode input : inputs) {
-      planNodes.add(toPlanNode(input));
-    }
-    return planNodes;
   }
 
   public static String getTableNameFromTableScan(TableScan tableScan) {

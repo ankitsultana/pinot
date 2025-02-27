@@ -78,4 +78,17 @@ public class WrappedRelNode {
     }
     return wrappedRelNode;
   }
+
+  public static void printWrappedRelNode(WrappedRelNode currentNode, int level) {
+    if (level > 0) {
+      System.err.print("|");
+    }
+    for (int i = 0; i < level * 4; i++) {
+      System.err.print("-");
+    }
+    System.err.printf("%s (nodeId=%d) %n", currentNode.getRelNode().getRelTypeName(), currentNode.getNodeId());
+    for (WrappedRelNode input : currentNode.getInputs()) {
+      printWrappedRelNode(input, level + 1);
+    }
+  }
 }

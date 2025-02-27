@@ -6,6 +6,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelFieldCollation;
+import org.apache.pinot.calcite.rel.PinotExchangeDesc;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.common.utils.DataSchema;
 
@@ -13,6 +14,7 @@ import org.apache.pinot.common.utils.DataSchema;
 public class NewExchangeNode extends BasePlanNode {
   private final PinotRelExchangeType _exchangeType;
   private final RelDistribution.Type _distributionType;
+  private final PinotExchangeDesc _pinotExchangeDesc;
   private final List<Integer> _keys;
   private final List<RelFieldCollation> _collations;
   private final boolean _sortOnSender;
@@ -23,7 +25,7 @@ public class NewExchangeNode extends BasePlanNode {
   public NewExchangeNode(int stageId, DataSchema dataSchema, List<PlanNode> inputs, PinotRelExchangeType exchangeType,
       RelDistribution.Type distributionType, @Nullable List<Integer> keys,
       @Nullable List<RelFieldCollation> collations, boolean sortOnSender, boolean sortOnReceiver,
-      @Nullable Set<String> tableNames) {
+      @Nullable Set<String> tableNames, @Nullable PinotExchangeDesc desc) {
     super(stageId, dataSchema, null, inputs);
     _exchangeType = exchangeType;
     _distributionType = distributionType;
@@ -32,6 +34,7 @@ public class NewExchangeNode extends BasePlanNode {
     _sortOnSender = sortOnSender;
     _sortOnReceiver = sortOnReceiver;
     _tableNames = tableNames;
+    _pinotExchangeDesc = desc;
   }
 
   public PinotRelExchangeType getExchangeType() {
@@ -77,8 +80,8 @@ public class NewExchangeNode extends BasePlanNode {
 
   @Override
   public PlanNode withInputs(List<PlanNode> inputs) {
-    return new NewExchangeNode(_stageId, _dataSchema, inputs, _exchangeType, _distributionType, _keys, _prePartitioned,
-        _collations, _sortOnSender, _sortOnReceiver, _tableNames);
+    return new NewExchangeNode(_stageId, _dataSchema, inputs, _exchangeType, _distributionType, _keys,
+        _collations, _sortOnSender, _sortOnReceiver, _tableNames, _pinotExchangeDesc);
   }
 
   @Override

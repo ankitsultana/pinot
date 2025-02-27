@@ -21,12 +21,12 @@ package org.apache.pinot.calcite.rel;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelFieldCollation;
@@ -114,7 +114,7 @@ public class PinotDataDistribution {
   }
 
   public boolean satisfies(@Nullable RelCollation relCollation) {
-    if (relCollation == null) {
+    if (relCollation == null || relCollation == RelCollations.EMPTY) {
       return true;
     }
     if (relCollation.getKeys().isEmpty()) {
@@ -149,13 +149,14 @@ public class PinotDataDistribution {
   @Nullable
   public HashDistributionDesc satisfiesHashDistributionConstraint(RelDistribution hashConstraint) {
     Preconditions.checkNotNull(_hashDistributionDesc, "Found hashDistributionDesc null in satisfies");
-    // Calcite considers ordering of keys un-important. But now we only do ordered comparison.
+    /* // once we add support for non-strict distributions, we can just check partial distributions.
     for (HashDistributionDesc desc : _hashDistributionDesc) {
       if (new HashSet<>(desc._keyIndexes).containsAll(hashConstraint.getKeys())) {
         return desc;
       }
-    }
-    return null;
+    } */
+    return _hashDistributionDesc.stream().filter(x -> x.getKeyIndexes().equals(hashConstraint.getKeys())).findFirst().orElse(null);
+    // Calcite considers ordering of keys un-important. But now we only do ordered comparison.
   }
 
   @Nullable
@@ -181,6 +182,32 @@ public class PinotDataDistribution {
     String _hashFunction;
     int _numPartitions;
     int _subPartitioningFactor;
+
+    public HashDistributionDesc() {
+    }
+
+    public HashDistributionDesc(List<Integer> keyIndexes, String hashFunction, int numPartitions, int subPartitioningFactor) {
+      _keyIndexes = keyIndexes;
+      _hashFunction = hashFunction;
+      _numPartitions = numPartitions;
+      _subPartitioningFactor = subPartitioningFactor;
+    }
+
+    public List<Integer> getKeyIndexes() {
+      return _keyIndexes;
+    }
+
+    public String getHashFunction() {
+      return _hashFunction;
+    }
+
+    public int getNumPartitions() {
+      return _numPartitions;
+    }
+
+    public int getSubPartitioningFactor() {
+      return _subPartitioningFactor;
+    }
 
     @Nullable
     HashDistributionDesc apply(Map<Integer, Integer> mapping) {
