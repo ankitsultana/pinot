@@ -34,7 +34,6 @@ import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalJoin;
-import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -21,6 +21,7 @@ package org.apache.pinot.calcite.rel;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,7 +32,6 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.util.Util;
-import org.apache.commons.lang3.tuple.Pair;
 
 
 public class PinotDataDistribution {
@@ -127,7 +127,7 @@ public class PinotDataDistribution {
       return false;
     }
     return Util.startsWith(_collationKeys, relCollation.getKeys()) && Util.startsWith(
-        _fieldCollationDirection, relCollation.getFieldCollations()));
+        _fieldCollationDirection, relCollation.getFieldCollations());
   }
 
   public boolean satisfies(RelDistribution... distributionConstraints) {
@@ -140,10 +140,39 @@ public class PinotDataDistribution {
   }
 
   public PinotDataDistribution apply(Map<Integer, Integer> mapping) {
+    // TODO: This is wrong.
+    Set<HashDistributionDesc> newHashDesc =  new HashSet<>();
+    List<Integer> newCollationKeys = new ArrayList<>();
     if (_hashDistributionDesc != null) {
       for (HashDistributionDesc desc : _hashDistributionDesc) {
+        List<Integer> newKeys = new ArrayList<>();
+        for (Integer currentKey : desc.getKeyIndexes()) {
+          if (mapping.containsKey(currentKey) && mapping.get(currentKey) >= 0) {
+            newKeys.add(mapping.get(currentKey));
+          }
+        }
+        if (newKeys.size() == desc.getKeyIndexes().size()) {
+          newHashDesc.add(new HashDistributionDesc(newKeys, desc._hashFunction, desc.getNumPartitions(), desc._subPartitioningFactor));
+        }
       }
     }
+    if (_collationKeys != null && _collationKeys.size() > 0) {
+      List<Integer> temp = new ArrayList<>();
+      for (Integer currentKey : _collationKeys) {
+        if (mapping.containsKey(currentKey) && mapping.get(currentKey) >= 0) {
+          temp.add(mapping.get(currentKey));
+        }
+      }
+      if (temp.size() == _collationKeys.size()) {
+        newCollationKeys.addAll(temp);
+      }
+    }
+    Type newType = _type;
+    if (newType == Type.HASH_PARTITIONED && newHashDesc.isEmpty()) {
+      newType = Type.RANDOM;
+    }
+    List<RelFieldCollation> newFieldCollations = new ArrayList<>();
+    return new PinotDataDistribution(newType, _workers, _workerHash, newHashDesc, newCollationKeys, null);
   }
 
   @Nullable
@@ -157,17 +186,6 @@ public class PinotDataDistribution {
     } */
     return _hashDistributionDesc.stream().filter(x -> x.getKeyIndexes().equals(hashConstraint.getKeys())).findFirst().orElse(null);
     // Calcite considers ordering of keys un-important. But now we only do ordered comparison.
-  }
-
-  @Nullable
-  private Pair<List<Integer>, List<RelFieldCollation>> apply(Map<Integer, Integer> mapping) {
-    if (_collationKeys == null) {
-      return null;
-    }
-    for (Integer currentCollationIndex : _collationKeys) {
-      if (!mapping.containsKey(currentCollationIndex)) {
-      }
-    }
   }
 
   public enum Type {

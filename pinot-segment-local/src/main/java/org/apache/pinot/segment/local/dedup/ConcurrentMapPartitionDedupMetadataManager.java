@@ -128,7 +128,7 @@ class ConcurrentMapPartitionDedupMetadataManager extends BasePartitionDedupMetad
             if (segmentAndTime == null || isOutOfMetadataTTL(segmentAndTime.getRight())) {
               return Pair.of(indexSegment, dedupRecordInfo.getDedupTime());
             }
-            present.settrue);
+            present.set(true);
             return segmentAndTime;
           });
       if (!present.get()) {

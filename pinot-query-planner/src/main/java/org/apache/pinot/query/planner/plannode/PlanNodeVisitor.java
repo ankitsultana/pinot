@@ -62,7 +62,9 @@ public interface PlanNodeVisitor<T, C> {
 
   T visitExchange(ExchangeNode node, C context);
 
-  T visitNewExchange(NewExchangeNode node, C context);
+  default T visitNewExchange(NewExchangeNode node, C context) {
+    throw new IllegalStateException("Implement visitor");
+  }
 
   T visitExplained(ExplainedNode node, C context);
 
