@@ -54,9 +54,9 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
     }
     // Step-2: Assign to current node
     boolean isStageBoundary = currentNode.isLeafStageBoundary();
-    PinotDataDistribution inputDataDistribution = currentNode.getInputs().get(0).getPinotDataDistribution().get();
+    PinotDataDistribution inputDataDistribution = newInputs.get(0).getPinotDataDistribution().get();
     PinotDataDistribution currentNodeDistribution =
-        inputDataDistribution.apply(MappingGen.compute(currentNode.getRelNode(), newInputs.get(0).getRelNode(), null));
+        inputDataDistribution.apply(MappingGen.compute( newInputs.get(0).getRelNode(), currentNode.getRelNode(), null));
     RelDistribution relDistribution = coalesceDistribution(currentNode.getRelNode().getTraitSet().getDistribution());
     RelCollation relCollation = coalesceCollation(currentNode.getRelNode().getTraitSet().getCollation());
     boolean isDistributionSatisfied = currentNodeDistribution.satisfies(relDistribution);
@@ -98,7 +98,8 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
     // Step-4: Return the correct node above.
     if (currentNodeExchange != null) {
       WrappedRelNode currentNodeWithNewInputs = currentNode.copy(currentNode.getNodeId(), newInputs, currentNodeDistribution);
-      return currentNodeExchange.copy(currentNodeExchange.getNodeId(), ImmutableList.of(currentNodeWithNewInputs), null);
+      currentNodeExchange.addInput(currentNodeWithNewInputs);
+      return currentNodeExchange;
     }
     return currentNode.copy(currentNode.getNodeId(), newInputs, currentNodeDistribution);
   }
@@ -206,7 +207,15 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
       return new WrappedRelNode(_idGenerator.get(), physicalExchange, pinotDataDistribution);
     }
     if (relDistribution.getType() == RelDistribution.Type.ANY) {
-      // TODO: random assignment.
+      // When workers of parent are different.
+      // TODO: This distributes on index-0, but that may cause heavy skew.
+      PinotDataDistribution.HashDistributionDesc desc = new PinotDataDistribution.HashDistributionDesc(
+          ImmutableList.of(0), "murmur", parentDistribution.getWorkers().size(), 1);
+      PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.HASH_PARTITIONED,
+          parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), ImmutableSet.of(desc), null, null);
+      PinotPhysicalExchange physicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
+          ImmutableList.of(0), PinotExchangeDesc.PARTITIONING_EXCHANGE);
+      return new WrappedRelNode(_idGenerator.get(), physicalExchange, pinotDataDistribution);
     }
     if (relDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
       int numDesiredPartitions = parentDistribution.getWorkers().size();

@@ -24,7 +24,7 @@ public class PinotPhysicalExchange extends Exchange {
   }
 
   public PinotPhysicalExchange(RelNode input, List<Integer> keys, PinotExchangeDesc desc, boolean sortByKeys, RelFieldCollation.Direction direction) {
-    super(input.getCluster(), RelTraitSet.createEmpty(), input, RelDistributions.ANY);
+    super(input.getCluster(), RelTraitSet.createEmpty(), input, RelDistributions.RANDOM_DISTRIBUTED);
     _keys = keys;
     _exchangeStrategy = desc;
     _sortByKeys = sortByKeys;
@@ -47,5 +47,10 @@ public class PinotPhysicalExchange extends Exchange {
   @Nullable
   public RelFieldCollation.Direction getDirection() {
     return _direction;
+  }
+
+  @Override
+  public String getRelTypeName() {
+    return String.format("PinotPhysicalExchange(strategy=%s, keys=%s)", _exchangeStrategy, _keys);
   }
 }

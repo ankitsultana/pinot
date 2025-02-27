@@ -249,7 +249,7 @@ public class PinotDataDistribution {
     if (_type == Type.SINGLETON && _workers.size() > 1) {
       throw new IllegalStateException(String.format("Singleton distribution with %s workers", _workers.size()));
     }
-    if (_collationKeys != null) {
+    if (_collationKeys != null && !_collationKeys.isEmpty()) {
       Preconditions.checkNotNull(_fieldCollationDirection);
       Preconditions.checkState(_collationKeys.size() == _fieldCollationDirection.size());
     }

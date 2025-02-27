@@ -54,7 +54,6 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.pinot.calcite.rel.rules.PinotQueryRuleSets;
 import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
-import org.apache.pinot.calcite.rel.rules.PinotTraitConstraintRule;
 import org.apache.pinot.calcite.sql.fun.PinotOperatorTable;
 import org.apache.pinot.calcite.sql2rel.PinotConvertletTable;
 import org.apache.pinot.common.config.provider.TableCache;
@@ -63,6 +62,7 @@ import org.apache.pinot.query.catalog.PinotCatalog;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.SubPlan;
+import org.apache.pinot.query.planner.TraitShuttle;
 import org.apache.pinot.query.planner.explain.AskingServerStageExplainer;
 import org.apache.pinot.query.planner.explain.MultiStageExplainAskingServersUtils;
 import org.apache.pinot.query.planner.explain.PhysicalExplainPlanVisitor;
@@ -329,6 +329,8 @@ public class QueryEnvironment {
     SqlNode validated = validate(sqlNode, plannerContext);
     RelRoot relation = toRelation(validated, plannerContext);
     RelNode optimized = optimize(relation, plannerContext);
+    // assign trait constraints.
+    optimized.accept(TraitShuttle.INSTANCE);
     return relation.withRel(optimized);
   }
 
@@ -445,7 +447,7 @@ public class QueryEnvironment {
     }
 
     // apply RelDistribution trait to all nodes
-    hepProgramBuilder.addRuleInstance(PinotTraitConstraintRule.INSTANCE);
+    // hepProgramBuilder.addRuleInstance(PinotTraitConstraintRule.INSTANCE);
 
     return hepProgramBuilder.build();
   }
