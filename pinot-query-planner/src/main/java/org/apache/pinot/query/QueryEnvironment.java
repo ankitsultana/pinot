@@ -195,6 +195,15 @@ public class QueryEnvironment {
     return planQuery(sqlQuery, CalciteSqlParser.compileToSqlNodeAndOptions(sqlQuery), 0).getQueryPlan();
   }
 
+  public RelRoot planQueryCalciteOnly(String sqlQuery, long requestId) {
+    SqlNodeAndOptions sqlNodeAndOptions = CalciteSqlParser.compileToSqlNodeAndOptions(sqlQuery);
+    try (PlannerContext plannerContext = getPlannerContext(sqlNodeAndOptions)) {
+      SqlExplain explain = (SqlExplain) sqlNodeAndOptions.getSqlNode();
+      RelRoot relRoot = compileQuery(explain.getExplicandum(), plannerContext);
+      return relRoot;
+    }
+  }
+
   /**
    * Explain a SQL query.
    *
@@ -330,7 +339,7 @@ public class QueryEnvironment {
     RelRoot relation = toRelation(validated, plannerContext);
     RelNode optimized = optimize(relation, plannerContext);
     // assign trait constraints.
-    optimized.accept(TraitShuttle.INSTANCE);
+    optimized = optimized.accept(TraitShuttle.INSTANCE);
     return relation.withRel(optimized);
   }
 

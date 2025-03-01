@@ -31,9 +31,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.sql.SqlExplainFormat;
+import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.query.QueryEnvironmentTestBase;
+import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.physical.DispatchableSubPlan;
+import org.apache.pinot.sql.parsers.SqlNodeAndOptions;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -64,6 +69,21 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
       Assert.assertNotNull(dispatchableSubPlan,
           String.format("Test case %s for query %s should not have a null QueryPlan",
               testCaseName, queryWithoutExplainPlan)); */
+    } catch (Exception e) {
+      Assert.fail("Test case: " + testCaseName + " failed to explain query: " + query, e);
+    }
+  }
+
+  @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderHappyPath")
+  public void testQueryTraitConstraints(String testCaseName, String description, String query, String output) {
+    try {
+      long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
+      RelRoot relRoot  = _queryEnvironment.planQueryCalciteOnly(query, requestId);
+      String explainedPlanWithTraits = PlannerUtils.explainPlanWithTraits(relRoot.rel);
+      // printSampleOutputToStderr(explainedPlanWithTraits);
+      System.err.println(explainedPlanWithTraits);
+      System.err.println(query);
+      Assert.assertEquals(explainedPlanWithTraits, output);
     } catch (Exception e) {
       Assert.fail("Test case: " + testCaseName + " failed to explain query: " + query, e);
     }
@@ -195,5 +215,15 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
       }
     }
     return testCaseMap;
+  }
+
+  private static void printSampleOutputToStderr(String fullOutput) {
+    String[] broken = fullOutput.split("\\n");
+    for (int index = 1; index < broken.length; index++) {
+      broken[index] = "\\n" + broken[index];
+    }
+    for (int index = 0; index < broken.length; index++) {
+      System.err.println("\"" + broken[index] + "\",");
+    }
   }
 }

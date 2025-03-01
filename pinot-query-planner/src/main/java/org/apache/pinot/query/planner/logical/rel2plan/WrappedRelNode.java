@@ -61,6 +61,10 @@ public class WrappedRelNode {
     return _inputs;
   }
 
+  public WrappedRelNode getInput(int index) {
+    return _inputs.get(index);
+  }
+
   public void addInput(WrappedRelNode input) {
     _inputs.add(input);
   }

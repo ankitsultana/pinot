@@ -5,6 +5,127 @@
         "description": "Simple IN and NOT-IN",
         "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts FROM a WHERE a.col1 IN (SELECT col2 FROM b) AND a.col1 NOT IN (SELECT col2 FROM b)",
         "output": [
+          "LogicalProject([col1, ts] traits(dist=null, collation=null))",
+          "\n  LogicalFilter([col1, ts, col10, col2, $f1] traits(dist=null, collation=null))",
+          "\n    LogicalJoin([col1, ts, col10, col2, $f1] traits(dist=null, collation=null))",
+          "\n      LogicalProject([col1, ts, col10] traits(dist=hash[2], collation=null))",
+          "\n        LogicalJoin([col1, ts] traits(dist=null, collation=null))",
+          "\n          LogicalProject([col1, ts] traits(dist=null, collation=null))",
+          "\n            LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n          LogicalProject([col2] traits(dist=broadcast, collation=null))",
+          "\n            LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n      LogicalAggregate([col2, $f1] traits(dist=hash[0], collation=null))",
+          "\n        LogicalProject([col2, $f1] traits(dist=hash[0], collation=null))",
+          "\n          LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "Simple IN and NOT-IN",
+        "sql": "EXPLAIN PLAN FOR SELECT a.col1, a.ts FROM a WHERE a.col1 IN (SELECT col2 FROM b) AND a.col1 IN (SELECT col2 FROM b) AND a.col1 NOT IN (SELECT col2 FROM b)",
+        "output": [
+          "LogicalProject([col1, ts] traits(dist=null, collation=null))",
+          "\n  LogicalFilter([col1, ts, col10, col2, $f1] traits(dist=null, collation=null))",
+          "\n    LogicalJoin([col1, ts, col10, col2, $f1] traits(dist=null, collation=null))",
+          "\n      LogicalProject([col1, ts, col10] traits(dist=hash[2], collation=null))",
+          "\n        LogicalJoin([col1, ts] traits(dist=null, collation=null))",
+          "\n          LogicalJoin([col1, ts] traits(dist=null, collation=null))",
+          "\n            LogicalProject([col1, ts] traits(dist=null, collation=null))",
+          "\n              LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n            LogicalProject([col2] traits(dist=broadcast, collation=null))",
+          "\n              LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n          LogicalProject([col2] traits(dist=broadcast, collation=null))",
+          "\n            LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n      LogicalAggregate([col2, $f1] traits(dist=hash[0], collation=null))",
+          "\n        LogicalProject([col2, $f1] traits(dist=hash[0], collation=null))",
+          "\n          LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "Join with order by",
+        "sql": "EXPLAIN PLAN FOR SELECT a.col1 AS value1, a.ts AS ts1, b.col3 FROM a JOIN b ON a.col1 = b.col2 ORDER BY a.col1",
+        "output": [
+          "LogicalSort([value1, ts1, col3] traits(dist=single, collation=[0]))",
+          "\n  LogicalProject([value1, ts1, col3] traits(dist=null, collation=null))",
+          "\n    LogicalJoin([col1, ts, col2, col3] traits(dist=null, collation=null))",
+          "\n      LogicalProject([col1, ts] traits(dist=hash[0], collation=null))",
+          "\n        LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n      LogicalProject([col2, col3] traits(dist=hash[0], collation=null))",
+          "\n        LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "Sub-query order-by limit",
+        "sql": "EXPLAIN PLAN FOR SELECT count(*) as cnt, avg(value1) FROM (SELECT a.col1 as value1 FROM a ORDER BY a.col1 LIMIT 10000)",
+        "output": [
+          "LogicalProject([cnt, EXPR$1] traits(dist=null, collation=null))",
+          "\n  LogicalAggregate([cnt, $f1] traits(dist=null, collation=null))",
+          "\n    LogicalProject([$f0] traits(dist=single, collation=null))",
+          "\n      LogicalSort([value1] traits(dist=single, collation=[0]))",
+          "\n        LogicalProject([value1] traits(dist=null, collation=null))",
+          "\n          LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "sub-query with window",
+        "sql": "EXPLAIN PLAN FOR WITH deduped_data AS (SELECT a.col1 as value1, a.col2 as value2 FROM a WHERE a.col1 > 0 GROUP BY a.col1, a.col2 LIMIT 1000), ranked_data AS (SELECT value1, ROW_NUMBER() OVER (PARTITION BY value2 ORDER BY value2 DESC) as rnk FROM deduped_data) SELECT value1, rnk FROM ranked_data WHERE rnk < 3",
+        "output": [
+          "LogicalProject([col1, w0$o0] traits(dist=null, collation=null))",
+          "\n  LogicalFilter([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n    LogicalWindow([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n      LogicalSort([col1, col2] traits(dist=hash[1], collation=[1 DESC]))",
+          "\n        LogicalSort([col1, col2] traits(dist=single, collation=[]))",
+          "\n          LogicalAggregate([col1, col2] traits(dist=null, collation=null))",
+          "\n            LogicalFilter([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=hash[0, 1], collation=null))",
+          "\n              LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "sub-query with window. first sub-query has an order-by on the same column as the one used for partition and order-by in window function",
+        "sql": "EXPLAIN PLAN FOR WITH deduped_data AS (SELECT a.col1 as value1, a.col2 as value2 FROM a WHERE a.col1 > 0 GROUP BY a.col1, a.col2 ORDER BY a.col2 DESC LIMIT 1000), ranked_data AS (SELECT value1, ROW_NUMBER() OVER (PARTITION BY value2 ORDER BY value2 DESC) as rnk FROM deduped_data) SELECT value1, rnk FROM ranked_data WHERE rnk < 3",
+        "output": [
+          "LogicalProject([col1, w0$o0] traits(dist=null, collation=null))",
+          "\n  LogicalFilter([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n    LogicalWindow([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n      LogicalSort([col1, col2] traits(dist=hash[1], collation=[1 DESC]))",
+          "\n        LogicalSort([col1, col2] traits(dist=single, collation=[1 DESC]))",
+          "\n          LogicalAggregate([col1, col2] traits(dist=null, collation=null))",
+          "\n            LogicalFilter([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=hash[0, 1], collation=null))",
+          "\n              LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "same as previous example, but the first sub-query has ASC order-by and the window function has DESC order-by",
+        "sql": "EXPLAIN PLAN FOR WITH deduped_data AS (SELECT a.col1 as value1, a.col2 as value2 FROM a WHERE a.col1 > 0 GROUP BY a.col1, a.col2 ORDER BY a.col2 ASC LIMIT 1000), ranked_data AS (SELECT value1, ROW_NUMBER() OVER (PARTITION BY value2 ORDER BY value2 DESC) as rnk FROM deduped_data) SELECT value1, rnk FROM ranked_data WHERE rnk < 3",
+        "output": [
+          "LogicalProject([col1, w0$o0] traits(dist=null, collation=null))",
+          "\n  LogicalFilter([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n    LogicalWindow([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n      LogicalSort([col1, col2] traits(dist=hash[1], collation=[1 DESC]))",
+          "\n        LogicalSort([col1, col2] traits(dist=single, collation=[1]))",
+          "\n          LogicalAggregate([col1, col2] traits(dist=null, collation=null))",
+          "\n            LogicalFilter([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=hash[0, 1], collation=null))",
+          "\n              LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
+          "\n"
+        ]
+      },
+      {
+        "description": "sub-query with window. first sub-query has an order-by on the same column as the one used for partition and order-by in window function",
+        "sql": "EXPLAIN PLAN FOR WITH deduped_data AS (SELECT a.col1 as value1, a.col2 as value2 FROM a WHERE a.col1 > 0 GROUP BY a.col1, a.col2 ORDER BY a.col1 ASC LIMIT 1000), ranked_data AS (SELECT value1, ROW_NUMBER() OVER (PARTITION BY value2 ORDER BY value2 DESC) as rnk FROM deduped_data) SELECT value1, rnk FROM ranked_data WHERE rnk < 3",
+        "output": [
+          "LogicalProject([col1, w0$o0] traits(dist=null, collation=null))",
+          "\n  LogicalFilter([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n    LogicalWindow([col1, col2, w0$o0] traits(dist=null, collation=null))",
+          "\n      LogicalSort([col1, col2] traits(dist=hash[1], collation=[1 DESC]))",
+          "\n        LogicalSort([col1, col2] traits(dist=single, collation=[0]))",
+          "\n          LogicalAggregate([col1, col2] traits(dist=null, collation=null))",
+          "\n            LogicalFilter([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=hash[0, 1], collation=null))",
+          "\n              LogicalTableScan([col1, col2, col3, col4, col5, col6, ts, ts_timestamp] traits(dist=null, collation=null))",
           "\n"
         ]
       }

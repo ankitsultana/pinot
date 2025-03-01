@@ -56,6 +56,9 @@ public class NewRelToPlanNodeConverter {
       workerExchangeAssignment = new LiteModeWorkerExchangeAssignment(generator);
     }
     wrappedRelNode = workerExchangeAssignment.assign(wrappedRelNode);
+    wrappedRelNode = new PhysicalPushDownOptimizer(generator).pushDown(wrappedRelNode);
+    // add partial aggregates when exchange input.
+    // add sort push down when exchange input.
     WrappedRelNode.printWrappedRelNode(wrappedRelNode, 0);
     return null;
   }
