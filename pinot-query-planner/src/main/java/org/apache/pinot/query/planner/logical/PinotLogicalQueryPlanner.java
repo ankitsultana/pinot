@@ -62,8 +62,7 @@ public class PinotLogicalQueryPlanner {
       RoutingManager routingManager, long requestId, PlannerContext plannerContext) {
     //
     NewRelToPlanNodeConverter blah = new NewRelToPlanNodeConverter(routingManager, requestId, plannerContext);
-    blah.toPlanNode(relRoot.rel);
-    PlanNode rootNode = new RelToPlanNodeConverter(tracker).toPlanNode(relRoot.rel);
+    PlanNode rootNode = blah.toPlanNode(relRoot.rel);
 
     PlanFragment rootFragment = planNodeToPlanFragment(rootNode, tracker, useSpools);
     return new SubPlan(rootFragment,

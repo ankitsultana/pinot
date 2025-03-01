@@ -17,33 +17,34 @@ public class PhysicalPushDownOptimizer {
     _idGenerator = idGenerator;
   }
 
-  public WrappedRelNode pushDown(WrappedRelNode rootNode) {
-    List<WrappedRelNode> newInputs = new ArrayList<>();
-    for (WrappedRelNode input : rootNode.getInputs()) {
+  public PRelNode pushDown(PRelNode rootNode) {
+    List<PRelNode> newInputs = new ArrayList<>();
+    for (PRelNode input : rootNode.getInputs()) {
       newInputs.add(pushDown(input));
     }
     boolean isInputExchange = !rootNode.getInputs().isEmpty() && rootNode.getInputs().get(0).getRelNode() instanceof PinotPhysicalExchange;
     if (rootNode.getRelNode() instanceof Aggregate && isInputExchange) {
-      WrappedRelNode oldExchange = rootNode.getInput(0);
-      WrappedRelNode inputWrappedRelNode = rootNode.getInput(0).getInput(0);
-      PinotDataDistribution inputDistribution = inputWrappedRelNode.getPinotDataDistribution().get();
-      Map<Integer, Integer> mp = MappingGen.compute(inputWrappedRelNode.getRelNode(), rootNode.getRelNode(), null);
+      PRelNode oldExchange = rootNode.getInput(0);
+      PRelNode inputPRelNode = rootNode.getInput(0).getInput(0);
+      PinotDataDistribution inputDistribution = inputPRelNode.getPinotDataDistribution().get();
+      Map<Integer, Integer> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
       PinotDataDistribution partialAggregateDistribution = inputDistribution.apply(mp);
-      WrappedRelNode wrappedPartialAggregate = new WrappedRelNode(_idGenerator.get(), rootNode.getRelNode(),
+      PRelNode wrappedPartialAggregate = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
           partialAggregateDistribution);
-      wrappedPartialAggregate.addInput(inputWrappedRelNode);
-      WrappedRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialAggregate), oldExchange.getPinotDataDistribution().get());
+      wrappedPartialAggregate.addInput(inputPRelNode);
+      PRelNode
+          newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialAggregate), oldExchange.getPinotDataDistribution().get());
       return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange), rootNode.getPinotDataDistribution().get());
     } else if (rootNode.getRelNode() instanceof Sort && isInputExchange) {
-      WrappedRelNode oldExchange = rootNode.getInput(0);
-      WrappedRelNode inputWrappedRelNode = rootNode.getInput(0).getInput(0);
-      PinotDataDistribution inputDistribution = inputWrappedRelNode.getPinotDataDistribution().get();
-      Map<Integer, Integer> mp = MappingGen.compute(inputWrappedRelNode.getRelNode(), rootNode.getRelNode(), null);
+      PRelNode oldExchange = rootNode.getInput(0);
+      PRelNode inputPRelNode = rootNode.getInput(0).getInput(0);
+      PinotDataDistribution inputDistribution = inputPRelNode.getPinotDataDistribution().get();
+      Map<Integer, Integer> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
       PinotDataDistribution partialSortDistribution = inputDistribution.apply(mp);
-      WrappedRelNode wrappedPartialSort = new WrappedRelNode(_idGenerator.get(), rootNode.getRelNode(),
+      PRelNode wrappedPartialSort = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
           partialSortDistribution);
-      wrappedPartialSort.addInput(inputWrappedRelNode);
-      WrappedRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialSort), oldExchange.getPinotDataDistribution().get());
+      wrappedPartialSort.addInput(inputPRelNode);
+      PRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialSort), oldExchange.getPinotDataDistribution().get());
       return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange), rootNode.getPinotDataDistribution().get());
     }
     return rootNode.copy(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistribution().get());

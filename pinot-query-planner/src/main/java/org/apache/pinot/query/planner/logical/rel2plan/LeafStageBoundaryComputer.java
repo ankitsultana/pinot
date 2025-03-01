@@ -15,18 +15,19 @@ import org.apache.calcite.rel.core.TableScan;
 
 public class LeafStageBoundaryComputer {
   private final Map<Integer, Integer> _inputToCallerNodeId = new HashMap<>();
-  private final Map<Integer, WrappedRelNode> _nodeIdToWrappedRelNode = new HashMap<>();
-  private final Set<WrappedRelNode> _leafPlanNodes = new HashSet<>();
+  private final Map<Integer, PRelNode> _nodeIdToWrappedRelNode = new HashMap<>();
+  private final Set<PRelNode> _leafPlanNodes = new HashSet<>();
 
   public LeafStageBoundaryComputer() {
   }
 
-  public void compute(WrappedRelNode wrappedRelNode) {
-    precompute(wrappedRelNode, null);
-    for (WrappedRelNode leafPlanNode : _leafPlanNodes) {
+  public void compute(PRelNode pRelNode) {
+    // TODO(ankitsultana-correctness): Server sub-plans should be included in the boundary.
+    precompute(pRelNode, null);
+    for (PRelNode leafPlanNode : _leafPlanNodes) {
       Preconditions.checkState(leafPlanNode.getRelNode() instanceof TableScan, "only support table scan in leaf right now");
-      WrappedRelNode currentNode = leafPlanNode;
-      List<WrappedRelNode> currentLeafStage = new ArrayList<>();
+      PRelNode currentNode = leafPlanNode;
+      List<PRelNode> currentLeafStage = new ArrayList<>();
       int projectCount = 0;
       int filterCount = 0;
       while (true) {
@@ -51,14 +52,14 @@ public class LeafStageBoundaryComputer {
     }
   }
 
-  private void precompute(WrappedRelNode wrappedRelNode, @Nullable WrappedRelNode callerRelNode) {
-    _nodeIdToWrappedRelNode.put(wrappedRelNode.getNodeId(), wrappedRelNode);
-    if (wrappedRelNode.getInputs().isEmpty()) {
-      _leafPlanNodes.add(wrappedRelNode);
+  private void precompute(PRelNode pRelNode, @Nullable PRelNode callerRelNode) {
+    _nodeIdToWrappedRelNode.put(pRelNode.getNodeId(), pRelNode);
+    if (pRelNode.getInputs().isEmpty()) {
+      _leafPlanNodes.add(pRelNode);
     }
-    for (WrappedRelNode input : wrappedRelNode.getInputs()) {
-      _inputToCallerNodeId.put(input.getNodeId(), wrappedRelNode.getNodeId());
-      precompute(input, wrappedRelNode);
+    for (PRelNode input : pRelNode.getInputs()) {
+      _inputToCallerNodeId.put(input.getNodeId(), pRelNode.getNodeId());
+      precompute(input, pRelNode);
     }
   }
 }

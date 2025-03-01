@@ -19,7 +19,6 @@ import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalWindow;
-import org.apache.calcite.util.ImmutableIntList;
 
 
 public class TraitShuttle extends RelShuttleImpl {

@@ -15,7 +15,7 @@ import org.apache.pinot.calcite.rel.PinotDataDistribution;
 import org.apache.pinot.calcite.rel.PinotExchangeDesc;
 import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.query.planner.logical.rel2plan.PlanIdGenerator;
-import org.apache.pinot.query.planner.logical.rel2plan.WrappedRelNode;
+import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 import org.apache.pinot.query.type.TypeFactory;
 
 
@@ -33,14 +33,14 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
   }
 
   @Override
-  public WrappedRelNode assign(WrappedRelNode rootNode) {
+  public PRelNode assign(PRelNode rootNode) {
     // leaf stage boundary should be sort, otherwise insert sort.
     rootNode = insertLogicalSort(rootNode);
     _randomWorker.add(Objects.requireNonNull(pickRandomWorker(rootNode), "Unable to find any worker in leaf stage"));
     return assignInternal(rootNode);
   }
 
-  private WrappedRelNode assignInternal(WrappedRelNode currentNode) {
+  private PRelNode assignInternal(PRelNode currentNode) {
     if (currentNode.isLeafStage()) {
       if (currentNode.isLeafStageBoundary()) {
         // insert singleton exchange and use _randomWorker
@@ -56,23 +56,23 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
               PinotExchangeDesc.SINGLETON_EXCHANGE);
         }
         PinotDataDistribution newPinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.SINGLETON,
-            _randomWorker, _randomWorker.hashCode(), null, pinotPhysicalExchange.getKeys(), currentSort.getCollation().getFieldCollations());
-        WrappedRelNode newWrappedRelNode = new WrappedRelNode(_idGenerator.get(), pinotPhysicalExchange, newPinotDataDistribution);
-        newWrappedRelNode.addInput(currentNode);
-        return newWrappedRelNode;
+            _randomWorker, _randomWorker.hashCode(), null, null);
+        PRelNode newPRelNode = new PRelNode(_idGenerator.get(), pinotPhysicalExchange, newPinotDataDistribution);
+        newPRelNode.addInput(currentNode);
+        return newPRelNode;
       }
       return currentNode;
     }
-    List<WrappedRelNode> newInputs = new ArrayList<>();
-    for (WrappedRelNode input : currentNode.getInputs()) {
+    List<PRelNode> newInputs = new ArrayList<>();
+    for (PRelNode input : currentNode.getInputs()) {
       newInputs.add(assignInternal(input));
     }
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.SINGLETON,
-        _randomWorker, _randomWorker.hashCode(), null, null, null);
+        _randomWorker, _randomWorker.hashCode(), null, null);
     return currentNode.copy(currentNode.getNodeId(), newInputs, pinotDataDistribution);
   }
 
-  private WrappedRelNode insertLogicalSort(WrappedRelNode currentNode) {
+  private PRelNode insertLogicalSort(PRelNode currentNode) {
     if (currentNode.isLeafStage() && currentNode.isLeafStageBoundary()) {
       if (currentNode.getRelNode() instanceof Sort) {
         Sort currentSort = (Sort) currentNode.getRelNode();
@@ -85,25 +85,25 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
         // replace current sort with one that has the appropriate limit.
         Sort newSort = currentSort.copy(currentSort.getTraitSet(), currentSort.getInput(), currentSort.getCollation(),
             currentSort.offset, _fetchLiteral);
-        return new WrappedRelNode(currentNode.getNodeId(), newSort, currentNode.getPinotDataDistribution().get());
+        return new PRelNode(currentNode.getNodeId(), newSort, currentNode.getPinotDataDistribution().get());
       }
       Sort sort = LogicalSort.create(currentNode.getRelNode(), RelCollations.EMPTY, null, _fetchLiteral);
-      return new WrappedRelNode(_idGenerator.get(), sort, currentNode.getPinotDataDistribution().get());
+      return new PRelNode(_idGenerator.get(), sort, currentNode.getPinotDataDistribution().get());
     }
-    List<WrappedRelNode> newInputs = new ArrayList<>();
-    for (WrappedRelNode input : currentNode.getInputs()) {
+    List<PRelNode> newInputs = new ArrayList<>();
+    for (PRelNode input : currentNode.getInputs()) {
       newInputs.add(insertLogicalSort(input));
     }
     return currentNode.copy(_idGenerator.get(), newInputs, currentNode.getPinotDataDistribution().get());
   }
 
   @Nullable
-  private String pickRandomWorker(WrappedRelNode rootNode) {
+  private String pickRandomWorker(PRelNode rootNode) {
     if (rootNode.getPinotDataDistribution().isPresent()) {
       return rootNode.getPinotDataDistribution().get().getWorkers().get(0);
     }
     String result = null;
-    for (WrappedRelNode input : rootNode.getInputs()) {
+    for (PRelNode input : rootNode.getInputs()) {
       result = pickRandomWorker(input);
       if (result != null) {
         return result;

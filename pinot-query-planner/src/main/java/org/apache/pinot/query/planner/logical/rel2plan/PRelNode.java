@@ -10,15 +10,15 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
 
 
-public class WrappedRelNode {
+public class PRelNode {
   private final int _nodeId;
   private final RelNode _relNode;
   private Optional<PinotDataDistribution> _pinotDataDistribution;
   private boolean _leafStage = false;
   private boolean _leafStageBoundary = false;
-  private final List<WrappedRelNode> _inputs = new ArrayList<>();
+  private final List<PRelNode> _inputs = new ArrayList<>();
 
-  public WrappedRelNode(int nodeId, RelNode relNode, @Nullable PinotDataDistribution pinotDataDistribution) {
+  public PRelNode(int nodeId, RelNode relNode, @Nullable PinotDataDistribution pinotDataDistribution) {
     _nodeId = nodeId;
     _relNode = relNode;
     _pinotDataDistribution = Optional.ofNullable(pinotDataDistribution);
@@ -34,6 +34,11 @@ public class WrappedRelNode {
 
   public Optional<PinotDataDistribution> getPinotDataDistribution() {
     return _pinotDataDistribution;
+  }
+
+  public PinotDataDistribution getPinotDataDistributionOrThrow() {
+    Preconditions.checkState(_pinotDataDistribution.isPresent(), "PDD missing");
+    return _pinotDataDistribution.get();
   }
 
   public void setPinotDataDistribution(PinotDataDistribution dataDistribution) {
@@ -57,33 +62,33 @@ public class WrappedRelNode {
     _leafStageBoundary = leafStageBoundary;
   }
 
-  public List<WrappedRelNode> getInputs() {
+  public List<PRelNode> getInputs() {
     return _inputs;
   }
 
-  public WrappedRelNode getInput(int index) {
+  public PRelNode getInput(int index) {
     return _inputs.get(index);
   }
 
-  public void addInput(WrappedRelNode input) {
+  public void addInput(PRelNode input) {
     _inputs.add(input);
   }
 
-  public WrappedRelNode copy(int nodeId, List<WrappedRelNode> newInputs, PinotDataDistribution pinotDataDistribution) {
-    WrappedRelNode newNode = new WrappedRelNode(nodeId, _relNode, pinotDataDistribution);
+  public PRelNode copy(int nodeId, List<PRelNode> newInputs, PinotDataDistribution pinotDataDistribution) {
+    PRelNode newNode = new PRelNode(nodeId, _relNode, pinotDataDistribution);
     newInputs.forEach(newNode::addInput);
     return newNode;
   }
 
-  public static WrappedRelNode wrapRelTree(RelNode relNode, Supplier<Integer> nodeIdSupplier) {
-    WrappedRelNode wrappedRelNode = new WrappedRelNode(nodeIdSupplier.get(), relNode, null);
+  public static PRelNode wrapRelTree(RelNode relNode, Supplier<Integer> nodeIdSupplier) {
+    PRelNode pRelNode = new PRelNode(nodeIdSupplier.get(), relNode, null);
     for (RelNode input : relNode.getInputs()) {
-      wrappedRelNode.addInput(wrapRelTree(input, nodeIdSupplier));
+      pRelNode.addInput(wrapRelTree(input, nodeIdSupplier));
     }
-    return wrappedRelNode;
+    return pRelNode;
   }
 
-  public static void printWrappedRelNode(WrappedRelNode currentNode, int level) {
+  public static void printWrappedRelNode(PRelNode currentNode, int level) {
     if (level > 0) {
       System.err.print("|");
     }
@@ -91,7 +96,7 @@ public class WrappedRelNode {
       System.err.print("-");
     }
     System.err.printf("%s (nodeId=%d) %n", currentNode.getRelNode().getRelTypeName(), currentNode.getNodeId());
-    for (WrappedRelNode input : currentNode.getInputs()) {
+    for (PRelNode input : currentNode.getInputs()) {
       printWrappedRelNode(input, level + 1);
     }
   }

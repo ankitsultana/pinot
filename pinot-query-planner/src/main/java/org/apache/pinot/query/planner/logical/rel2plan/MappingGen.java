@@ -29,9 +29,7 @@ public class MappingGen {
    */
   @Nullable
   public static Map<Integer, Integer> compute(RelNode source, RelNode destination, @Nullable List<RelNode> leadingSiblings) {
-    if (source instanceof Exchange) {
-      return compute(source.getInput(0), destination, leadingSiblings);
-    } else if (destination instanceof Project) {
+    if (destination instanceof Project) {
       Project project = (Project) destination;
       Permutation permutation = project.getPermutation();
       if (permutation == null) {
@@ -43,17 +41,9 @@ public class MappingGen {
       }
       return result;
     } else if (destination instanceof Window) {
+      // Window preserves input fields, and appends a field for each window expr.
       Window window = (Window) destination;
-      Map<Integer, Integer> result = createEmptyMap(source.getRowType().getFieldCount());
-      Preconditions.checkState(window.groups.size() <= 1, "Support at most 1 grouping set");
-      for (int i = 0; i < window.groups.size(); i++) {
-        Window.Group group = window.groups.get(i);
-        List<Integer> groupKeys = group.keys.asList();
-        for (int j = 0; j < groupKeys.size(); j++) {
-          result.put(groupKeys.get(j), j);
-        }
-      }
-      return result;
+      return createIdentityMap(window.getInput().getRowType().getFieldCount());
     } else if (destination instanceof Aggregate) {
       Aggregate aggregate = (Aggregate) destination;
       Map<Integer, Integer> result = createEmptyMap(source.getRowType().getFieldCount());

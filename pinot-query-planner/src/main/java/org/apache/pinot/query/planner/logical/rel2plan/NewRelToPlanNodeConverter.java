@@ -34,32 +34,28 @@ public class NewRelToPlanNodeConverter {
   }
 
   /**
-   * Leaf-stage: ([agg] + [project] + [filter] + table scan). many more cases like lookup-join.
-   * Step-0: [done] Wrap rel-nodes in WrappedRelNode.
-   * Step-1: [done] Identify leaf-stage cut-off ==> required for implicit exchange.
-   * Step-1.1 Assign parallelism to each node.
-   * Step-2: [done] Assign workers to leaves.
-   * Step-3: Assign workers, and add exchange to other nodes.
    */
   public PlanNode toPlanNode(RelNode relNode) {
+    // TODO: Step-0: Identify sub-plans, divide between broker and server sub-plan.
+    // Step-1: Create Physical RelNode tree.
     PlanIdGenerator generator = new PlanIdGenerator();
-    WrappedRelNode wrappedRelNode = WrappedRelNode.wrapRelTree(relNode, generator);
+    PRelNode pRelNode = PRelNode.wrapRelTree(relNode, generator);
+    // Step-2: Compute primitive leaf stage boundary (only single project / filter / scan allowed).
     LeafStageBoundaryComputer leafStageBoundaryComputer = new LeafStageBoundaryComputer();
-    leafStageBoundaryComputer.compute(wrappedRelNode);
-    Context context = new Context(generator);
-    // Assign PDD to all leaf stage nodes
-    _leafWorkerAssignment.compute(wrappedRelNode, _requestId);
+    leafStageBoundaryComputer.compute(pRelNode);
+    // Step-3: Assign workers to leaf stage nodes.
+    _leafWorkerAssignment.compute(pRelNode, _requestId);
+    // Step-4: Assign workers to all nodes.
     BaseWorkerExchangeAssignment workerExchangeAssignment;
     if (!_useLiteMode) {
       workerExchangeAssignment = new WorkerExchangeAssignment(generator);
     } else {
       workerExchangeAssignment = new LiteModeWorkerExchangeAssignment(generator);
     }
-    wrappedRelNode = workerExchangeAssignment.assign(wrappedRelNode);
-    wrappedRelNode = new PhysicalPushDownOptimizer(generator).pushDown(wrappedRelNode);
-    // add partial aggregates when exchange input.
-    // add sort push down when exchange input.
-    WrappedRelNode.printWrappedRelNode(wrappedRelNode, 0);
+    pRelNode = workerExchangeAssignment.assign(pRelNode);
+    // Step-5: Push down sort and aggregate.
+    pRelNode = new PhysicalPushDownOptimizer(generator).pushDown(pRelNode);
+    PRelNode.printWrappedRelNode(pRelNode, 0);
     return null;
   }
 

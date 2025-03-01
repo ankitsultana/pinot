@@ -29,36 +29,37 @@ public class LeafWorkerAssignment {
     _routingManager = routingManager;
   }
 
-  public void compute(WrappedRelNode wrappedRelNode, long requestId) {
+  public void compute(PRelNode pRelNode, long requestId) {
     Context context = new Context();
     context._requestId = requestId;
-    assignWorkersToLeaf(wrappedRelNode, context);
+    assignWorkersToLeaf(pRelNode, context);
   }
 
-  private void assignWorkersToLeaf(WrappedRelNode wrappedRelNode, Context context) {
-    if (wrappedRelNode.getRelNode() instanceof TableScan) {
-      assignWorkersToLeafInternal(context, wrappedRelNode);
+  private void assignWorkersToLeaf(PRelNode pRelNode, Context context) {
+    if (pRelNode.getRelNode() instanceof TableScan) {
+      // TODO: For dim-tables, start with broadcast.
+      assignWorkersToLeafInternal(context, pRelNode);
       return;
     }
-    for (WrappedRelNode input : wrappedRelNode.getInputs()) {
+    for (PRelNode input : pRelNode.getInputs()) {
       assignWorkersToLeaf(input, context);
     }
-    if (wrappedRelNode.isLeafStage()) {
-      Preconditions.checkState(wrappedRelNode.getInputs().size() == 1, "Expected exactly 1 input in leaf stage nodes except table scan");
-      Preconditions.checkState(wrappedRelNode.getRelNode().getTraitSet().isEmpty() || wrappedRelNode.isLeafStageBoundary(),
+    if (pRelNode.isLeafStage()) {
+      Preconditions.checkState(pRelNode.getInputs().size() == 1, "Expected exactly 1 input in leaf stage nodes except table scan");
+      Preconditions.checkState(pRelNode.getRelNode().getTraitSet().isEmpty() || pRelNode.isLeafStageBoundary(),
           "Leaf stage can only have traits on boundaries");
-      PinotDataDistribution inputDistribution = wrappedRelNode.getInputs().get(0).getPinotDataDistribution().get();
+      PinotDataDistribution inputDistribution = pRelNode.getInputs().get(0).getPinotDataDistribution().get();
       // compute mapping from source to destination.
-      wrappedRelNode.setPinotDataDistribution(inputDistribution.apply(MappingGen.compute(
-          wrappedRelNode.getInputs().get(0).getRelNode(), wrappedRelNode.getRelNode(), null)));
+      pRelNode.setPinotDataDistribution(inputDistribution.apply(MappingGen.compute(
+          pRelNode.getInputs().get(0).getRelNode(), pRelNode.getRelNode(), null)));
     }
   }
 
-  private void assignWorkersToLeafInternal(Context context, WrappedRelNode wrappedRelNode) {
-    TableScan tableScan = (TableScan) wrappedRelNode.getRelNode();
+  private void assignWorkersToLeafInternal(Context context, PRelNode pRelNode) {
+    TableScan tableScan = (TableScan) pRelNode.getRelNode();
     String tableName = tableScan.getTable().getQualifiedName().get(1);
-    String filter = "";
     // TODO: Support server pruning.
+    String filter = "";
     Map<String, RoutingTable> routingTableMap = getRoutingTable(tableName, context._requestId);
     Preconditions.checkState(!routingTableMap.isEmpty(), "Unable to find routing entries for table: %s", tableName);
 
@@ -108,8 +109,8 @@ public class LeafWorkerAssignment {
       workerId++;
     }
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
-        workers, workers.hashCode(), null, null, null);
-    wrappedRelNode.setPinotDataDistribution(pinotDataDistribution);
+        workers, workers.hashCode(), null, null);
+    pRelNode.setPinotDataDistribution(pinotDataDistribution);
   }
 
   /**
