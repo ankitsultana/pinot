@@ -36,6 +36,10 @@ public class NewExchangeNode extends BasePlanNode {
     _pinotExchangeDesc = desc;
   }
 
+  public PinotExchangeDesc getPinotExchangeDesc() {
+    return _pinotExchangeDesc;
+  }
+
   public PinotRelExchangeType getExchangeType() {
     return _exchangeType;
   }

@@ -46,6 +46,7 @@ import org.apache.pinot.query.planner.plannode.BasePlanNode;
 import org.apache.pinot.query.planner.plannode.ExchangeNode;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
 import org.apache.pinot.query.planner.plannode.MailboxSendNode;
+import org.apache.pinot.query.planner.plannode.NewExchangeNode;
 import org.apache.pinot.query.planner.plannode.PlanNode;
 
 
@@ -112,13 +113,13 @@ public class PinotLogicalQueryPlanner {
       RelNode rootRelNode = tracker.getCreatorOf(node);
       Preconditions.checkState(rootRelNode != null, "Root RelNode not found for PlanNode: %s", node);
       tracker.trackCreation(rootRelNode, subPlanRootSenderNode);
-      Iterator<Map.Entry<? extends BasePlanNode, ExchangeNode>> it = Iterators.concat(
+      Iterator<Map.Entry<? extends BasePlanNode, NewExchangeNode>> it = Iterators.concat(
           fragmenter.getMailboxSendToExchangeNodeMap().entrySet().iterator(),
           fragmenter.getMailboxReceiveToExchangeNodeMap().entrySet().iterator()
       );
       while (it.hasNext()) {
-        Map.Entry<? extends BasePlanNode, ExchangeNode> entry = it.next();
-        ExchangeNode exchangeNode = entry.getValue();
+        Map.Entry<? extends BasePlanNode, NewExchangeNode> entry = it.next();
+        NewExchangeNode exchangeNode = entry.getValue();
         RelNode originalNode = tracker.getCreatorOf(exchangeNode);
         if (originalNode == null) {
           throw new IllegalStateException("Original node not found for exchange node: " + exchangeNode);
