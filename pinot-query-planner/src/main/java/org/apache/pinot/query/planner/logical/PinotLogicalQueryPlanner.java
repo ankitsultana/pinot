@@ -39,7 +39,9 @@ import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.PlanFragment;
 import org.apache.pinot.query.planner.SubPlan;
 import org.apache.pinot.query.planner.SubPlanMetadata;
-import org.apache.pinot.query.planner.logical.rel2plan.NewRelToPlanNodeConverter;
+import org.apache.pinot.query.planner.logical.rel2plan.NewRelToPRelConverter;
+import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
+import org.apache.pinot.query.planner.logical.rel2plan.PRelToPlanNodeConverter;
 import org.apache.pinot.query.planner.plannode.BasePlanNode;
 import org.apache.pinot.query.planner.plannode.ExchangeNode;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
@@ -60,10 +62,13 @@ public class PinotLogicalQueryPlanner {
   public static SubPlan makePlan(RelRoot relRoot,
       @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker, boolean useSpools,
       RoutingManager routingManager, long requestId, PlannerContext plannerContext) {
-    //
-    NewRelToPlanNodeConverter blah = new NewRelToPlanNodeConverter(routingManager, requestId, plannerContext);
-    PlanNode rootNode = blah.toPlanNode(relRoot.rel);
-
+    // Step-1: Convert RelNode tree to a PRelNode
+    NewRelToPRelConverter relToPrelConverter = new NewRelToPRelConverter(routingManager, requestId, plannerContext);
+    PRelNode pRelNode = relToPrelConverter.toPRelNode(relRoot.rel);
+    // Step-2: Convert PRelNode tree to a PlanNode tree.
+    PRelToPlanNodeConverter pRelToPlanNodeConverter = new PRelToPlanNodeConverter(tracker);
+    PlanNode rootNode = pRelToPlanNodeConverter.toPlanNode(pRelNode);
+    // Step-3: Create plan fragments.
     PlanFragment rootFragment = planNodeToPlanFragment(rootNode, tracker, useSpools);
     return new SubPlan(rootFragment,
         new SubPlanMetadata(RelToPlanNodeConverter.getTableNamesFromRelRoot(relRoot.rel), relRoot.fields), List.of());
