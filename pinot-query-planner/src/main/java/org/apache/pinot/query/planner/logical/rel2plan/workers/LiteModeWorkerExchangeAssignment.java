@@ -50,7 +50,7 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
         if (currentSort.getCollation() != null && currentSort.getCollation() != RelCollations.EMPTY) {
           keys = currentSort.getCollation().getKeys();
           pinotPhysicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(), keys,
-              PinotExchangeDesc.SINGLETON_EXCHANGE, true, currentSort.getCollation().getFieldCollations().get(0).getDirection());
+              PinotExchangeDesc.SINGLETON_EXCHANGE, null);
         } else {
           pinotPhysicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(), Collections.emptyList(),
               PinotExchangeDesc.SINGLETON_EXCHANGE);

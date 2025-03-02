@@ -54,6 +54,10 @@ public class PinotDataDistribution {
     validate();
   }
 
+  public PinotDataDistribution withCollation(RelCollation collation) {
+    return new PinotDataDistribution(_type, _workers, _workerHash, _hashDistributionDesc, collation);
+  }
+
   public Type getType() {
     return _type;
   }
@@ -118,7 +122,10 @@ public class PinotDataDistribution {
     return _collation.satisfies(relCollation);
   }
 
-  public PinotDataDistribution apply(Map<Integer, Integer> mapping) {
+  public PinotDataDistribution apply(@Nullable Map<Integer, Integer> mapping) {
+    if (mapping == null) {
+      return new PinotDataDistribution(Type.RANDOM, _workers, _workerHash, null, null);
+    }
     // TODO(ankitsultana-correctness): Review this.
     Set<HashDistributionDesc> newHashDesc =  new HashSet<>();
     if (_hashDistributionDesc != null) {
@@ -135,7 +142,7 @@ public class PinotDataDistribution {
       }
     }
     List<Integer> mpListKeys = createMappingList(mapping);
-    int targetCount = mpListKeys.stream().max(Comparator.naturalOrder()).orElse(0);
+    int targetCount = mpListKeys.stream().max(Comparator.naturalOrder()).orElse(-1) + 1;
     RelCollation newCollation = _collation.apply(Mappings.source(mpListKeys, targetCount));
     Type newType = _type;
     if (newType == Type.HASH_PARTITIONED && newHashDesc.isEmpty()) {

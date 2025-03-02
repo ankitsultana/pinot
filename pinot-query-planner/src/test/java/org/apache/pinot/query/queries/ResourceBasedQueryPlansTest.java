@@ -75,6 +75,14 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
   }
 
   @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderHappyPath")
+  public void testNewRelToPlanNodeConverter(String testCaseName, String description, String query, String output) {
+    long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
+    String queryWithoutExplainPlan = query.replaceFirst(EXPLAIN_REGEX, "");
+    DispatchableSubPlan subPlan = _queryEnvironment.planQuery(queryWithoutExplainPlan);
+    Assert.assertNotNull(subPlan);
+  }
+
+  @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderHappyPath")
   public void testQueryTraitConstraints(String testCaseName, String description, String query, String output) {
     try {
       long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
