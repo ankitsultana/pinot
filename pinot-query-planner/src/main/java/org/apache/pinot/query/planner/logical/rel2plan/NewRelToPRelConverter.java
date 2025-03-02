@@ -45,6 +45,9 @@ public class NewRelToPRelConverter {
     pRelNode = workerExchangeAssignment.assign(pRelNode);
     // Step-5: Push down sort and aggregate.
     pRelNode = new PhysicalPushDownOptimizer(generator).pushDown(pRelNode);
+    // Step-6: Replace logical aggregate with pinot logical aggregate.
+    LogicalAggregateConverter logicalAggregateConverter = new LogicalAggregateConverter();
+    pRelNode = logicalAggregateConverter.convert(pRelNode);
     PRelNode.printWrappedRelNode(pRelNode, 0);
     return pRelNode;
   }

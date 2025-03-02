@@ -38,6 +38,7 @@ import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
 import org.apache.pinot.calcite.rel.logical.PinotLogicalExchange;
 import org.apache.pinot.calcite.rel.logical.PinotLogicalSortExchange;
+import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 import org.apache.pinot.common.metrics.BrokerMeter;
@@ -53,6 +54,7 @@ import org.apache.pinot.query.planner.plannode.AggregateNode;
 import org.apache.pinot.query.planner.plannode.ExchangeNode;
 import org.apache.pinot.query.planner.plannode.FilterNode;
 import org.apache.pinot.query.planner.plannode.JoinNode;
+import org.apache.pinot.query.planner.plannode.NewExchangeNode;
 import org.apache.pinot.query.planner.plannode.PlanNode;
 import org.apache.pinot.query.planner.plannode.PlanNode.NodeHint;
 import org.apache.pinot.query.planner.plannode.ProjectNode;
@@ -61,6 +63,7 @@ import org.apache.pinot.query.planner.plannode.SortNode;
 import org.apache.pinot.query.planner.plannode.TableScanNode;
 import org.apache.pinot.query.planner.plannode.ValueNode;
 import org.apache.pinot.query.planner.plannode.WindowNode;
+import org.glassfish.jersey.jackson.internal.jackson.jaxrs.json.annotation.JSONP;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,7 +101,7 @@ public class PRelToPlanNodeConverter {
     } else if (node instanceof LogicalSort) {
       result = convertLogicalSort((LogicalSort) node, pRelNode);
     } else if (node instanceof Exchange) {
-      result = convertLogicalExchange((Exchange) node, pRelNode);
+      result = convertPhysicalExchange((PinotPhysicalExchange) node, pRelNode);
     } else if (node instanceof LogicalJoin) {
       _brokerMetrics.addMeteredGlobalValue(BrokerMeter.JOIN_COUNT, 1);
       if (!_joinFound) {
@@ -124,6 +127,14 @@ public class PRelToPlanNodeConverter {
       _tracker.trackCreation(node, result);
     }
     return result;
+  }
+
+  private NewExchangeNode convertPhysicalExchange(PinotPhysicalExchange node, PRelNode pRelNode) {
+    // TODO: Determine sortOnSender and sortOnReceiver.
+    NewExchangeNode newExchangeNode = new NewExchangeNode(DEFAULT_STAGE_ID, toDataSchema(node.getRowType()),
+        convertInputs(pRelNode.getInputs()), PinotRelExchangeType.PIPELINE_BREAKER, node.getKeys(),
+        node.getCollation(), false, false, null /* TODO */, node.getExchangeStrategy());
+    return newExchangeNode;
   }
 
   private ExchangeNode convertLogicalExchange(Exchange node, PRelNode pRelNode) {

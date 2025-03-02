@@ -22,6 +22,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
@@ -47,6 +48,16 @@ public class PinotLogicalAggregate extends Aggregate {
     _aggType = aggType;
     _leafReturnFinalResult = leafReturnFinalResult;
     _collations = collations;
+    _limit = limit;
+  }
+
+  public PinotLogicalAggregate(Aggregate aggRel, AggType aggType, boolean leafReturnFinalResult,
+      RelCollation relCollation, int limit) {
+    super(aggRel.getCluster(), aggRel.getTraitSet(), aggRel.getHints(), aggRel.getInput(), aggRel.getGroupSet(),
+        aggRel.groupSets, aggRel.getAggCallList());
+    _aggType = aggType;
+    _leafReturnFinalResult = leafReturnFinalResult;
+    _collations = relCollation.getFieldCollations();
     _limit = limit;
   }
 
