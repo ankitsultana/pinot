@@ -1,5 +1,6 @@
 package org.apache.pinot.calcite.rel.logical;
 
+import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.calcite.plan.RelTraitSet;
@@ -28,6 +29,14 @@ public class PinotPhysicalExchange extends Exchange {
     _keys = keys;
     _exchangeStrategy = desc;
     _collation = collation == null ? RelCollations.EMPTY : collation;
+  }
+
+  public static PinotPhysicalExchange broadcast(RelNode input) {
+    return new PinotPhysicalExchange(input, Collections.emptyList(), PinotExchangeDesc.BROADCAST_EXCHANGE, null);
+  }
+
+  public static PinotPhysicalExchange singleton(RelNode input) {
+    return new PinotPhysicalExchange(input, Collections.emptyList(), PinotExchangeDesc.SINGLETON_EXCHANGE, null);
   }
 
   @Override

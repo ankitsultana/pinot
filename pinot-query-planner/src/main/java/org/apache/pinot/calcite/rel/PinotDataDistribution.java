@@ -32,7 +32,6 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelFieldCollation;
-import org.apache.calcite.util.Util;
 import org.apache.calcite.util.mapping.Mappings;
 
 
@@ -40,7 +39,6 @@ public class PinotDataDistribution {
   private final Type _type;
   private final List<String> _workers;
   private final long _workerHash;
-  @Nullable
   private final Set<HashDistributionDesc> _hashDistributionDesc;
   private final RelCollation _collation;
 
@@ -49,7 +47,7 @@ public class PinotDataDistribution {
     _type = type;
     _workers = workers;
     _workerHash = workerHash;
-    _hashDistributionDesc = desc;
+    _hashDistributionDesc = desc == null ? Collections.emptySet() : desc;
     _collation = collation == null ? RelCollations.EMPTY : collation;
     validate();
   }
@@ -70,7 +68,6 @@ public class PinotDataDistribution {
     return _workerHash;
   }
 
-  @Nullable
   public Set<HashDistributionDesc> getHashDistributionDesc() {
     return _hashDistributionDesc;
   }
@@ -126,18 +123,12 @@ public class PinotDataDistribution {
     if (mapping == null) {
       return new PinotDataDistribution(Type.RANDOM, _workers, _workerHash, null, null);
     }
-    // TODO(ankitsultana-correctness): Review this.
     Set<HashDistributionDesc> newHashDesc =  new HashSet<>();
     if (_hashDistributionDesc != null) {
       for (HashDistributionDesc desc : _hashDistributionDesc) {
-        List<Integer> newKeys = new ArrayList<>();
-        for (Integer currentKey : desc.getKeyIndexes()) {
-          if (mapping.containsKey(currentKey) && mapping.get(currentKey) >= 0) {
-            newKeys.add(mapping.get(currentKey));
-          }
-        }
-        if (newKeys.size() == desc.getKeyIndexes().size()) {
-          newHashDesc.add(new HashDistributionDesc(newKeys, desc._hashFunction, desc.getNumPartitions(), desc._subPartitioningFactor));
+        HashDistributionDesc newDesc = desc.apply(mapping);
+        if (newDesc != null) {
+          newHashDesc.add(desc.apply(mapping));
         }
       }
     }
@@ -174,16 +165,14 @@ public class PinotDataDistribution {
     List<Integer> _keyIndexes = Collections.emptyList();
     String _hashFunction;
     int _numPartitions;
-    int _subPartitioningFactor;
 
     public HashDistributionDesc() {
     }
 
-    public HashDistributionDesc(List<Integer> keyIndexes, String hashFunction, int numPartitions, int subPartitioningFactor) {
+    public HashDistributionDesc(List<Integer> keyIndexes, String hashFunction, int numPartitions) {
       _keyIndexes = keyIndexes;
       _hashFunction = hashFunction;
       _numPartitions = numPartitions;
-      _subPartitioningFactor = subPartitioningFactor;
     }
 
     public List<Integer> getKeyIndexes() {
@@ -196,10 +185,6 @@ public class PinotDataDistribution {
 
     public int getNumPartitions() {
       return _numPartitions;
-    }
-
-    public int getSubPartitioningFactor() {
-      return _subPartitioningFactor;
     }
 
     @Nullable
@@ -215,7 +200,6 @@ public class PinotDataDistribution {
       desc._keyIndexes = result;
       desc._hashFunction = _hashFunction;
       desc._numPartitions = _numPartitions;
-      desc._subPartitioningFactor = _subPartitioningFactor;
       return desc;
     }
   }
