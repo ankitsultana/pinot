@@ -43,7 +43,6 @@ import org.apache.pinot.query.planner.logical.rel2plan.NewRelToPRelConverter;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelToPlanNodeConverter;
 import org.apache.pinot.query.planner.plannode.BasePlanNode;
-import org.apache.pinot.query.planner.plannode.ExchangeNode;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
 import org.apache.pinot.query.planner.plannode.MailboxSendNode;
 import org.apache.pinot.query.planner.plannode.NewExchangeNode;

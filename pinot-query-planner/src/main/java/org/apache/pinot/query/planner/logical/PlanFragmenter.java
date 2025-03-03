@@ -62,7 +62,8 @@ public class PlanFragmenter implements PlanNodeVisitor<PlanNode, PlanFragmenter.
   private final Int2ObjectOpenHashMap<PlanFragment> _planFragmentMap = new Int2ObjectOpenHashMap<>();
   private final Int2ObjectOpenHashMap<IntList> _childPlanFragmentIdsMap = new Int2ObjectOpenHashMap<>();
 
-  private final IdentityHashMap<MailboxSendNode, NewExchangeNode> _mailboxSendToExchangeNodeMap = new IdentityHashMap<>();
+  private final IdentityHashMap<MailboxSendNode, NewExchangeNode> _mailboxSendToExchangeNodeMap =
+      new IdentityHashMap<>();
   private final IdentityHashMap<MailboxReceiveNode, NewExchangeNode> _mailboxReceiveToExchangeNodeMap =
       new IdentityHashMap<>();
 
@@ -193,16 +194,16 @@ public class PlanFragmenter implements PlanNodeVisitor<PlanNode, PlanFragmenter.
     List<Integer> keys = node.getKeys();
     MailboxSendNode mailboxSendNode =
         new MailboxSendNode(senderPlanFragmentId, nextPlanFragmentRoot.getDataSchema(), List.of(nextPlanFragmentRoot),
-            receiverPlanFragmentId, exchangeType, distributionType, keys, false, node.getCollation().getFieldCollations(),
-            node.isSortOnSender());
+            receiverPlanFragmentId, exchangeType, distributionType, keys, false,
+            node.getCollation().getFieldCollations(), node.isSortOnSender());
     _planFragmentMap.put(senderPlanFragmentId,
         new PlanFragment(senderPlanFragmentId, mailboxSendNode, new ArrayList<>()));
     _mailboxSendToExchangeNodeMap.put(mailboxSendNode, node);
 
     // Return the MailboxReceiveNode as the leave node of the current PlanFragment.
     MailboxReceiveNode mailboxReceiveNode =
-        new MailboxReceiveNode(receiverPlanFragmentId, nextPlanFragmentRoot.getDataSchema(),
-            senderPlanFragmentId, exchangeType, distributionType, keys, node.getCollation().getFieldCollations(), node.isSortOnReceiver(),
+        new MailboxReceiveNode(receiverPlanFragmentId, nextPlanFragmentRoot.getDataSchema(), senderPlanFragmentId,
+            exchangeType, distributionType, keys, node.getCollation().getFieldCollations(), node.isSortOnReceiver(),
             node.isSortOnSender(), mailboxSendNode);
     _mailboxReceiveToExchangeNodeMap.put(mailboxReceiveNode, node);
     return mailboxReceiveNode;

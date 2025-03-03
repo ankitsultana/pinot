@@ -63,7 +63,6 @@ import org.apache.pinot.query.planner.plannode.SortNode;
 import org.apache.pinot.query.planner.plannode.TableScanNode;
 import org.apache.pinot.query.planner.plannode.ValueNode;
 import org.apache.pinot.query.planner.plannode.WindowNode;
-import org.glassfish.jersey.jackson.internal.jackson.jaxrs.json.annotation.JSONP;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

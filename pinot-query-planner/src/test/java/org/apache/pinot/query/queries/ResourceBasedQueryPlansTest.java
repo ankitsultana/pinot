@@ -32,13 +32,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.apache.calcite.rel.RelRoot;
-import org.apache.calcite.sql.SqlExplainFormat;
-import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.query.QueryEnvironmentTestBase;
 import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.physical.DispatchableSubPlan;
-import org.apache.pinot.sql.parsers.SqlNodeAndOptions;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -86,7 +83,7 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
   public void testQueryTraitConstraints(String testCaseName, String description, String query, String output) {
     try {
       long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
-      RelRoot relRoot  = _queryEnvironment.planQueryCalciteOnly(query, requestId);
+      RelRoot relRoot = _queryEnvironment.planQueryCalciteOnly(query, requestId);
       String explainedPlanWithTraits = PlannerUtils.explainPlanWithTraits(relRoot.rel);
       // printSampleOutputToStderr(explainedPlanWithTraits);
       System.err.println(explainedPlanWithTraits);

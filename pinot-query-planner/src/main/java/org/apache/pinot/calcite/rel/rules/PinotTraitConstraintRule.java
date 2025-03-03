@@ -93,8 +93,8 @@ public class PinotTraitConstraintRule extends RelOptRule {
   }
 
   private static RelTraitSet addTraits(RelTraitSet currentTraitSet, List<RelDistribution> newTraits) {
-    if (currentTraitSet.getTraits(RelDistributionTraitDef.INSTANCE) != null &&
-        !currentTraitSet.getTraits(RelDistributionTraitDef.INSTANCE).isEmpty()) {
+    if (currentTraitSet.getTraits(RelDistributionTraitDef.INSTANCE) != null
+        && !currentTraitSet.getTraits(RelDistributionTraitDef.INSTANCE).isEmpty()) {
       List<RelDistribution> traitsToAdd = new ArrayList<>(currentTraitSet.getTraits(RelDistributionTraitDef.INSTANCE));
       traitsToAdd.addAll(newTraits);
       return currentTraitSet.replace(traitsToAdd);

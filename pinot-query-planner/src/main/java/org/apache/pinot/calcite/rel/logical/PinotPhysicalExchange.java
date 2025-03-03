@@ -2,13 +2,11 @@ package org.apache.pinot.calcite.rel.logical;
 
 import java.util.Collections;
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
-import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.pinot.calcite.rel.PinotExchangeDesc;

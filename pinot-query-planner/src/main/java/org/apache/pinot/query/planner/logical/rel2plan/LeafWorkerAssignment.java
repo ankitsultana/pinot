@@ -45,7 +45,8 @@ public class LeafWorkerAssignment {
       assignWorkersToLeaf(input, context);
     }
     if (pRelNode.isLeafStage()) {
-      Preconditions.checkState(pRelNode.getInputs().size() == 1, "Expected exactly 1 input in leaf stage nodes except table scan");
+      Preconditions.checkState(pRelNode.getInputs().size() == 1,
+          "Expected exactly 1 input in leaf stage nodes except table scan");
       Preconditions.checkState(pRelNode.getRelNode().getTraitSet().isEmpty() || pRelNode.isLeafStageBoundary(),
           "Leaf stage can only have traits on boundaries");
       PinotDataDistribution inputDistribution = pRelNode.getInputs().get(0).getPinotDataDistribution().get();

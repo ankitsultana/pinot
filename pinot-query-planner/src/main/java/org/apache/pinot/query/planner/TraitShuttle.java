@@ -48,8 +48,10 @@ public class TraitShuttle extends RelShuttleImpl {
     RelNode leftInput = newInputs.get(0);
     RelNode rightInput = newInputs.get(1);
     if (join.isSemiJoin()) {
-      Preconditions.checkState(rightInput.getTraitSet().getDistribution() == null, "Found existing dist trait on right input of semi-join");
-      rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED), rightInput.getInputs());
+      Preconditions.checkState(rightInput.getTraitSet().getDistribution() == null,
+          "Found existing dist trait on right input of semi-join");
+      rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED),
+          rightInput.getInputs());
       return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
     }
     JoinInfo joinInfo = join.analyzeCondition();
@@ -64,29 +66,34 @@ public class TraitShuttle extends RelShuttleImpl {
       if (rightDistribution.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
         return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
       }
-      throw new IllegalStateException("Unexpected distribution trait on right input of join: " + rightDistribution.getType());
+      throw new IllegalStateException("Unexpected distribution trait on right input of join: "
+          + rightDistribution.getType());
     }
     Preconditions.checkState(leftInput.getTraitSet().getDistribution() == null,
         "Found distribution trait on left input of join");
     leftInput = leftInput.copy(leftInput.getTraitSet().plus(RelDistributions.hash(leftKeys)), leftInput.getInputs());
-    rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.hash(rightKeys)), rightInput.getInputs());
+    rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.hash(rightKeys)),
+        rightInput.getInputs());
     return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
   }
 
   @Override public RelNode visit(LogicalAggregate aggregate) {
-    Preconditions.checkState(aggregate.getInput(0).getTraitSet().getDistribution() == null, "aggregate input already has distribution trait");
+    Preconditions.checkState(aggregate.getInput(0).getTraitSet().getDistribution() == null,
+        "aggregate input already has distribution trait");
     aggregate = (LogicalAggregate) super.visit(aggregate);
     RelNode newInput = aggregate.getInput(0);
     if (aggregate.getGroupCount() == 0) {
       newInput = newInput.copy(newInput.getTraitSet().plus(RelDistributions.SINGLETON), newInput.getInputs());
     } else {
-      newInput = newInput.copy(newInput.getTraitSet().plus(RelDistributions.hash(aggregate.getGroupSet().asList())), newInput.getInputs());
+      newInput = newInput.copy(newInput.getTraitSet().plus(RelDistributions.hash(aggregate.getGroupSet().asList())),
+          newInput.getInputs());
     }
     return aggregate.copy(aggregate.getTraitSet(), ImmutableList.of(newInput));
   }
 
   private RelNode visitWindow(LogicalWindow window) {
-    Preconditions.checkState(window.groups.size() <= 1, "Different partition-by clause not allowed in window function yet");
+    Preconditions.checkState(window.groups.size() <= 1,
+        "Different partition-by clause not allowed in window function yet");
     window = (LogicalWindow) super.visit(window);
     RelCollation windowGroupCollation = getCollation(window);
     RelNode newInput = window.getInput(0);
@@ -96,7 +103,7 @@ public class TraitShuttle extends RelShuttleImpl {
         if (newInput instanceof Sort) {
           Sort sortInput = (Sort) newInput;
           if (!sortInput.getCollation().equals(windowGroupCollation)) {
-            newInput = LogicalSort.create(sortInput, windowGroupCollation,  null, null);
+            newInput = LogicalSort.create(sortInput, windowGroupCollation, null, null);
             newTraitSet = newInput.getTraitSet().plus(RelDistributions.SINGLETON);
           }
         } else {
@@ -109,7 +116,7 @@ public class TraitShuttle extends RelShuttleImpl {
       List<Integer> partitionKeys = group.keys.asList();
       if (newInput instanceof LogicalSort) {
         LogicalSort inputSort = (LogicalSort) newInput;
-        LogicalSort newSort = LogicalSort.create(inputSort, windowGroupCollation,  null, null);
+        LogicalSort newSort = LogicalSort.create(inputSort, windowGroupCollation, null, null);
         newSort = (LogicalSort) newSort.copy(newSort.getTraitSet().plus(RelDistributions.hash(partitionKeys)).plus(
                 newSort.collation), newSort.getInputs());
         newInput = newSort;

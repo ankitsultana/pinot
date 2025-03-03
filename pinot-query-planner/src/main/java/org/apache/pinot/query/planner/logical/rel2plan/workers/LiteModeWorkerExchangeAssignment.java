@@ -14,8 +14,8 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
 import org.apache.pinot.calcite.rel.PinotExchangeDesc;
 import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
-import org.apache.pinot.query.planner.logical.rel2plan.PlanIdGenerator;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
+import org.apache.pinot.query.planner.logical.rel2plan.PlanIdGenerator;
 import org.apache.pinot.query.type.TypeFactory;
 
 

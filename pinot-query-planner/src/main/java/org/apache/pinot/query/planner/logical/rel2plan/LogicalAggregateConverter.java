@@ -19,7 +19,8 @@ public class LogicalAggregateConverter {
       // TODO(ankitsultana-correctness): this is incorrect.
       PinotLogicalAggregate pinotLogicalAggregate = new PinotLogicalAggregate(logicalAggregate,
           AggregateNode.AggType.DIRECT, false, RelCollations.EMPTY, Integer.MAX_VALUE);
-      PRelNode newNode = new PRelNode(rootNode.getNodeId(), pinotLogicalAggregate, rootNode.getPinotDataDistributionOrThrow());
+      PRelNode newNode = new PRelNode(rootNode.getNodeId(), pinotLogicalAggregate,
+          rootNode.getPinotDataDistributionOrThrow());
       newInputs.forEach(newNode::addInput);
       return newNode;
     }

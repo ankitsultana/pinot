@@ -123,7 +123,7 @@ public class PinotDataDistribution {
     if (mapping == null) {
       return new PinotDataDistribution(Type.RANDOM, _workers, _workerHash, null, null);
     }
-    Set<HashDistributionDesc> newHashDesc =  new HashSet<>();
+    Set<HashDistributionDesc> newHashDesc = new HashSet<>();
     if (_hashDistributionDesc != null) {
       for (HashDistributionDesc desc : _hashDistributionDesc) {
         HashDistributionDesc newDesc = desc.apply(mapping);
@@ -151,7 +151,8 @@ public class PinotDataDistribution {
         return desc;
       }
     } */
-    return _hashDistributionDesc.stream().filter(x -> x.getKeyIndexes().equals(hashConstraint.getKeys())).findFirst().orElse(null);
+    return _hashDistributionDesc.stream().filter(x -> x.getKeyIndexes().equals(hashConstraint.getKeys())).findFirst()
+        .orElse(null);
   }
 
   public enum Type {

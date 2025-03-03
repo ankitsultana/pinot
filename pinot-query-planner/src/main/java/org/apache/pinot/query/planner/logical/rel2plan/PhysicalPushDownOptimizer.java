@@ -22,7 +22,8 @@ public class PhysicalPushDownOptimizer {
     for (PRelNode input : rootNode.getInputs()) {
       newInputs.add(pushDown(input));
     }
-    boolean isInputExchange = !rootNode.getInputs().isEmpty() && rootNode.getInputs().get(0).getRelNode() instanceof PinotPhysicalExchange;
+    boolean isInputExchange = !rootNode.getInputs().isEmpty()
+        && rootNode.getInputs().get(0).getRelNode() instanceof PinotPhysicalExchange;
     if (rootNode.getRelNode() instanceof Aggregate && isInputExchange) {
       PRelNode oldExchange = rootNode.getInput(0);
       PRelNode inputPRelNode = rootNode.getInput(0).getInput(0);
@@ -32,9 +33,10 @@ public class PhysicalPushDownOptimizer {
       PRelNode wrappedPartialAggregate = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
           partialAggregateDistribution);
       wrappedPartialAggregate.addInput(inputPRelNode);
-      PRelNode
-          newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialAggregate), oldExchange.getPinotDataDistribution().get());
-      return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange), rootNode.getPinotDataDistribution().get());
+      PRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialAggregate),
+              oldExchange.getPinotDataDistribution().get());
+      return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange),
+          rootNode.getPinotDataDistribution().get());
     } else if (rootNode.getRelNode() instanceof Sort && isInputExchange) {
       PRelNode oldExchange = rootNode.getInput(0);
       PRelNode inputPRelNode = rootNode.getInput(0).getInput(0);
@@ -44,8 +46,10 @@ public class PhysicalPushDownOptimizer {
       PRelNode wrappedPartialSort = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
           partialSortDistribution);
       wrappedPartialSort.addInput(inputPRelNode);
-      PRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialSort), oldExchange.getPinotDataDistribution().get());
-      return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange), rootNode.getPinotDataDistribution().get());
+      PRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialSort),
+          oldExchange.getPinotDataDistribution().get());
+      return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange),
+          rootNode.getPinotDataDistribution().get());
     }
     return rootNode.copy(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistribution().get());
   }

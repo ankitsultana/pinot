@@ -25,7 +25,8 @@ public class LeafStageBoundaryComputer {
     // TODO(ankitsultana-correctness): Server sub-plans should be included in the boundary.
     precompute(pRelNode, null);
     for (PRelNode leafPlanNode : _leafPlanNodes) {
-      Preconditions.checkState(leafPlanNode.getRelNode() instanceof TableScan, "only support table scan in leaf right now");
+      Preconditions.checkState(leafPlanNode.getRelNode() instanceof TableScan,
+          "only support table scan in leaf right now");
       PRelNode currentNode = leafPlanNode;
       List<PRelNode> currentLeafStage = new ArrayList<>();
       int projectCount = 0;

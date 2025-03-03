@@ -7,7 +7,6 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
-import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.Project;
@@ -28,7 +27,8 @@ public class MappingGen {
    * Source to destination mapping.
    */
   @Nullable
-  public static Map<Integer, Integer> compute(RelNode source, RelNode destination, @Nullable List<RelNode> leadingSiblings) {
+  public static Map<Integer, Integer> compute(RelNode source, RelNode destination,
+      @Nullable List<RelNode> leadingSiblings) {
     if (destination instanceof Project) {
       Project project = (Project) destination;
       Permutation permutation = project.getPermutation();
