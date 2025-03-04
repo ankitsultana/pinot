@@ -5,6 +5,7 @@ import java.util.List;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
+import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.query.planner.plannode.AggregateNode;
 
 
@@ -16,14 +17,30 @@ public class LogicalAggregateConverter {
     }
     if (rootNode.getRelNode() instanceof LogicalAggregate) {
       LogicalAggregate logicalAggregate = (LogicalAggregate) rootNode.getRelNode();
-      // TODO(ankitsultana-correctness): this is incorrect.
+      AggregateNode.AggType aggType = inferAggType(rootNode);
       PinotLogicalAggregate pinotLogicalAggregate = new PinotLogicalAggregate(logicalAggregate,
-          AggregateNode.AggType.DIRECT, false, RelCollations.EMPTY, Integer.MAX_VALUE);
+          aggType, false, RelCollations.EMPTY, Integer.MAX_VALUE);
       PRelNode newNode = new PRelNode(rootNode.getNodeId(), pinotLogicalAggregate,
           rootNode.getPinotDataDistributionOrThrow());
       newInputs.forEach(newNode::addInput);
       return newNode;
     }
     return rootNode.copy(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());
+  }
+
+  private AggregateNode.AggType inferAggType(PRelNode currentNode) {
+    // TODO: Add collation and limit.
+    // TODO(ankitsultana-correctness): incorrect.
+    // TODO: Port logic from aggregate exchange node insert rule.
+    if (currentNode.isLeafStage()) {
+      return AggregateNode.AggType.LEAF;
+    }
+    if (currentNode.getInput(0).getRelNode() instanceof PinotPhysicalExchange) {
+      if (currentNode.getInput(0).getInput(0).getRelNode() instanceof LogicalAggregate) {
+        return AggregateNode.AggType.FINAL;
+      }
+      return AggregateNode.AggType.DIRECT;
+    }
+    return AggregateNode.AggType.INTERMEDIATE;
   }
 }

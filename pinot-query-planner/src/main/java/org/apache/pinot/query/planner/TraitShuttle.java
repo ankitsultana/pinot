@@ -14,11 +14,13 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttleImpl;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.Sort;
+import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalWindow;
+import org.apache.pinot.calcite.rel.logical.PinotTableScan;
 
 
 public class TraitShuttle extends RelShuttleImpl {
@@ -28,10 +30,21 @@ public class TraitShuttle extends RelShuttleImpl {
   }
 
   @Override
+  public RelNode visit(TableScan tableScan) {
+    return new PinotTableScan(tableScan.getCluster(), tableScan.getTraitSet(), tableScan.getHints(),
+        tableScan.getTable());
+  }
+
+  @Override
   public RelNode visit(LogicalSort sort) {
     sort = (LogicalSort) super.visit(sort);
     // Current behavior is to always converge to a single server for Sort, so add the SINGLETON trait.
-    return sort.copy(sort.getTraitSet().plus(RelDistributions.SINGLETON).plus(sort.collation), sort.getInputs());
+    // Note: This is also required for correctness. In the future, it might make sense to add a hint to run local
+    //   order-by for performance in exchange for strict correctness.
+    RelNode newInput = sort.getInput();
+    newInput = newInput.copy(newInput.getTraitSet().plus(RelDistributions.SINGLETON).plus(sort.collation),
+        newInput.getInputs());
+    return sort.copy(sort.getTraitSet(), ImmutableList.of(newInput));
   }
 
   @Override

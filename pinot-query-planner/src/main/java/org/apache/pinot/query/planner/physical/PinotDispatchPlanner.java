@@ -67,7 +67,7 @@ public class PinotDispatchPlanner {
     // 4. compute the mailbox assignment for each stage.
     rootNode.visit(MailboxAssignmentVisitor.INSTANCE, context);
     // 5. Run physical optimizations
-    runPhysicalOptimizers(rootNode, context, _tableCache);
+    // runPhysicalOptimizers(rootNode, context, _tableCache);
     // 6. Run validations
     runValidations(rootFragment, context);
     // 7. convert it into query plan.
