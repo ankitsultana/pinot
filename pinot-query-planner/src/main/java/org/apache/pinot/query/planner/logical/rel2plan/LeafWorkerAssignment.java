@@ -3,11 +3,14 @@ package org.apache.pinot.query.planner.logical.rel2plan;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.hint.RelHint;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
+import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.PinotQuery;
@@ -15,6 +18,8 @@ import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.core.transport.ServerInstance;
+import org.apache.pinot.query.context.PhysicalPlannerContext;
+import org.apache.pinot.query.planner.plannode.PlanNode;
 import org.apache.pinot.query.routing.QueryServerInstance;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
@@ -23,10 +28,12 @@ import org.apache.pinot.sql.parsers.CalciteSqlParser;
 
 
 public class LeafWorkerAssignment {
+  private final PhysicalPlannerContext _physicalPlannerContext;
   private final RoutingManager _routingManager;
 
-  public LeafWorkerAssignment(RoutingManager routingManager) {
-    _routingManager = routingManager;
+  public LeafWorkerAssignment(PhysicalPlannerContext physicalPlannerContext) {
+    _physicalPlannerContext = physicalPlannerContext;
+    _routingManager = physicalPlannerContext.getRoutingManager();
   }
 
   public void compute(PRelNode pRelNode, long requestId) {
@@ -70,8 +77,7 @@ public class LeafWorkerAssignment {
           TableNameBuilder.forType(TableType.OFFLINE)
               .tableNameWithType(TableNameBuilder.extractRawTableName(tableName)));
       if (timeBoundaryInfo != null) {
-        // TODO: Do something.
-        // metadata.setTimeBoundaryInfo(timeBoundaryInfo);
+        _physicalPlannerContext.getTimeBoundaryInfoMap().put(pRelNode.getNodeId(), timeBoundaryInfo);
       } else {
         // remove offline table routing if no time boundary info is acquired.
         routingTableMap.remove(TableType.OFFLINE.name());
@@ -92,23 +98,30 @@ public class LeafWorkerAssignment {
         Preconditions.checkState(tableTypeToSegmentListMap.put(tableType, serverEntry.getValue().getLeft()) == null,
             "Entry for server {} and table type: {} already exist!", serverEntry.getKey(), tableType);
       }
-
-      // attach unavailable segments to metadata
       if (!routingTable.getUnavailableSegments().isEmpty()) {
-        // TODO: Do something.
-        // metadata.addUnavailableSegments(tableName, routingTable.getUnavailableSegments());
+        // Set unavailable segments in context, keyed by PRelNode ID.
+        _physicalPlannerContext.getUnavailableSegmentsMap()
+            .computeIfAbsent(pRelNode.getNodeId(), (x) -> new HashMap<>())
+            .put(tableName, new HashSet<>(routingTable.getUnavailableSegments()));
       }
     }
     int workerId = 0;
-    Map<Integer, QueryServerInstance> workerIdToServerInstanceMap = new HashMap<>();
     Map<Integer, Map<String, List<String>>> workerIdToSegmentsMap = new HashMap<>();
     List<String> workers = new ArrayList<>();
     for (Map.Entry<ServerInstance, Map<String, List<String>>> entry : serverInstanceToSegmentsMap.entrySet()) {
-      workerIdToServerInstanceMap.put(workerId, new QueryServerInstance(entry.getKey()));
+      String instanceId = entry.getKey().getInstanceId();
       workerIdToSegmentsMap.put(workerId, entry.getValue());
-      workers.add(String.format("%s@%s", workerId, entry.getKey().getInstanceId()));
+      workers.add(String.format("%s@%s", workerId, instanceId));
+      _physicalPlannerContext.getInstanceIdToQueryServerInstance().putIfAbsent(
+          instanceId, new QueryServerInstance(entry.getKey()));
       workerId++;
     }
+    _physicalPlannerContext.getWorkerIdToSegmentsMap().get(pRelNode.getNodeId()).putAll(workerIdToSegmentsMap);
+    List<RelHint> hints = ((TableScan) pRelNode.getRelNode()).getHints();
+    _physicalPlannerContext.getScannedTableMap().computeIfAbsent(pRelNode.getNodeId(), (x) -> new HashSet<>())
+        .add(tableName);
+    _physicalPlannerContext.getTableOptionsMap().put(pRelNode.getNodeId(),
+        PlanNode.NodeHint.fromRelHints(hints).getHintOptions().get(PinotHintOptions.TABLE_HINT_OPTIONS));
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
         workers, workers.hashCode(), null, null);
     pRelNode.setPinotDataDistribution(pinotDataDistribution);

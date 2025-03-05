@@ -52,6 +52,7 @@ import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.calcite.rel.rules.PinotQueryRuleSets;
 import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 import org.apache.pinot.calcite.sql.fun.PinotOperatorTable;
@@ -59,6 +60,7 @@ import org.apache.pinot.calcite.sql2rel.PinotConvertletTable;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.query.catalog.PinotCatalog;
+import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.SubPlan;
@@ -69,6 +71,7 @@ import org.apache.pinot.query.planner.explain.PhysicalExplainPlanVisitor;
 import org.apache.pinot.query.planner.logical.PinotLogicalQueryPlanner;
 import org.apache.pinot.query.planner.logical.RelToPlanNodeConverter;
 import org.apache.pinot.query.planner.logical.TransformationTracker;
+import org.apache.pinot.query.planner.physical.Blah;
 import org.apache.pinot.query.planner.physical.DispatchableSubPlan;
 import org.apache.pinot.query.planner.physical.PinotDispatchPlanner;
 import org.apache.pinot.query.planner.plannode.PlanNode;
@@ -138,7 +141,7 @@ public class QueryEnvironment {
     WorkerManager workerManager = getWorkerManager(sqlNodeAndOptions);
     HepProgram traitProgram = getTraitProgram(workerManager);
     return new PlannerContext(_config, _catalogReader, _typeFactory, _optProgram, traitProgram,
-        sqlNodeAndOptions.getOptions());
+        sqlNodeAndOptions.getOptions(), new PhysicalPlannerContext(_envConfig.getWorkerManager()));
   }
 
   @Nullable
@@ -402,11 +405,11 @@ public class QueryEnvironment {
 
   private DispatchableSubPlan toDispatchableSubPlan(RelRoot relRoot, PlannerContext plannerContext, long requestId,
       @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker) {
-    SubPlan plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker, useSpools(plannerContext.getOptions()),
+    Pair<SubPlan, Blah.Result> plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker, useSpools(plannerContext.getOptions()),
         _envConfig.getWorkerManager().getRoutingManager(), requestId, plannerContext);
     PinotDispatchPlanner pinotDispatchPlanner =
         new PinotDispatchPlanner(plannerContext, _envConfig.getWorkerManager(), requestId, _envConfig.getTableCache());
-    return pinotDispatchPlanner.createDispatchableSubPlan(plan);
+    return pinotDispatchPlanner.createDispatchableSubPlan(plan.getLeft(), plan.getRight());
   }
 
   // --------------------------------------------------------------------------

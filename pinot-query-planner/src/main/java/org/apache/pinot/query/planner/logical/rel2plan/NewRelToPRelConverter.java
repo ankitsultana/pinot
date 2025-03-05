@@ -17,8 +17,8 @@ public class NewRelToPRelConverter {
   private final long _requestId;
   private final boolean _useLiteMode;
 
-  public NewRelToPRelConverter(RoutingManager routingManager, long requestId, PlannerContext plannerContext) {
-    _leafWorkerAssignment = new LeafWorkerAssignment(routingManager);
+  public NewRelToPRelConverter(long requestId, PlannerContext plannerContext) {
+    _leafWorkerAssignment = new LeafWorkerAssignment(plannerContext.getPhysicalPlannerContext());
     _requestId = requestId;
     _useLiteMode = plannerContext.getOptions().containsKey("useLiteMode");
   }

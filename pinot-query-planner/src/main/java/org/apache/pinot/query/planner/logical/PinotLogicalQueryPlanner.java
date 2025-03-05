@@ -33,6 +33,7 @@ import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.query.context.PlannerContext;
@@ -42,6 +43,7 @@ import org.apache.pinot.query.planner.SubPlanMetadata;
 import org.apache.pinot.query.planner.logical.rel2plan.NewRelToPRelConverter;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelToPlanNodeConverter;
+import org.apache.pinot.query.planner.physical.Blah;
 import org.apache.pinot.query.planner.plannode.BasePlanNode;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
 import org.apache.pinot.query.planner.plannode.MailboxSendNode;
@@ -59,19 +61,19 @@ public class PinotLogicalQueryPlanner {
   /**
    * Converts a Calcite {@link RelRoot} into a Pinot {@link SubPlan}.
    */
-  public static SubPlan makePlan(RelRoot relRoot,
+  public static Pair<SubPlan, Blah.Result> makePlan(RelRoot relRoot,
       @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker, boolean useSpools,
       RoutingManager routingManager, long requestId, PlannerContext plannerContext) {
     // Step-1: Convert RelNode tree to a PRelNode
-    NewRelToPRelConverter relToPrelConverter = new NewRelToPRelConverter(routingManager, requestId, plannerContext);
+    NewRelToPRelConverter relToPrelConverter = new NewRelToPRelConverter(requestId, plannerContext);
     PRelNode pRelNode = relToPrelConverter.toPRelNode(relRoot.rel);
-    // Step-2: Convert PRelNode tree to a PlanNode tree.
-    PRelToPlanNodeConverter pRelToPlanNodeConverter = new PRelToPlanNodeConverter(tracker);
-    PlanNode rootNode = pRelToPlanNodeConverter.toPlanNode(pRelNode);
+    Blah blah = new Blah();
+    Blah.Result blahResult = blah.compute(pRelNode, plannerContext.getPhysicalPlannerContext());
+    PlanFragment rootFragment = blahResult._planFragmentMap.get(0);
     // Step-3: Create plan fragments.
-    PlanFragment rootFragment = planNodeToPlanFragment(rootNode, tracker, useSpools);
-    return new SubPlan(rootFragment,
+    SubPlan subPlan = new SubPlan(rootFragment,
         new SubPlanMetadata(RelToPlanNodeConverter.getTableNamesFromRelRoot(relRoot.rel), relRoot.fields), List.of());
+    return Pair.of(subPlan, blahResult);
   }
 
   private static PlanFragment planNodeToPlanFragment(
