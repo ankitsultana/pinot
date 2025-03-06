@@ -2,6 +2,7 @@ package org.apache.pinot.query.planner.logical.rel2plan;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -10,18 +11,43 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
 
 
+/**
+ * Wrapper around Calcite RelNodes to allow tracking metadata without having to deal with RelMetadataQuery and the
+ * like. The tree formed by PRelNode and RelNode should always be the same.
+ */
 public class PRelNode {
   private final int _nodeId;
   private final RelNode _relNode;
-  private Optional<PinotDataDistribution> _pinotDataDistribution;
+  private final Optional<PinotDataDistribution> _pinotDataDistribution;
+  private final List<PRelNode> _inputs = new ArrayList<>();
   private boolean _leafStage = false;
   private boolean _leafStageBoundary = false;
-  private final List<PRelNode> _inputs = new ArrayList<>();
 
   public PRelNode(int nodeId, RelNode relNode, @Nullable PinotDataDistribution pinotDataDistribution) {
     _nodeId = nodeId;
     _relNode = relNode;
     _pinotDataDistribution = Optional.ofNullable(pinotDataDistribution);
+  }
+
+  public PRelNode(int nodeId, RelNode relNode, @Nullable PinotDataDistribution pinotDataDistribution,
+      List<PRelNode> inputs) {
+    _nodeId = nodeId;
+    _relNode = relNode;
+    _pinotDataDistribution = Optional.ofNullable(pinotDataDistribution);
+    _inputs.addAll(inputs);
+  }
+
+  public PRelNode withPinotDataDistribution(PinotDataDistribution newDistribution) {
+    return new PRelNode(_nodeId, _relNode, newDistribution);
+  }
+
+  public PRelNode copy(int nodeId, List<PRelNode> newPRelInputs, PinotDataDistribution pinotDataDistribution) {
+    List<RelNode> newRelInputs = new ArrayList<>();
+    for (PRelNode newPRelInput : newPRelInputs) {
+      newRelInputs.add(newPRelInput.getRelNode());
+    }
+    RelNode relNode = _relNode.copy(_relNode.getTraitSet(), newRelInputs);
+    return new PRelNode(nodeId, relNode, pinotDataDistribution, newPRelInputs);
   }
 
   public int getNodeId() {
@@ -63,29 +89,19 @@ public class PRelNode {
   }
 
   public List<PRelNode> getInputs() {
-    return _inputs;
+    return Collections.unmodifiableList(_inputs);
   }
 
   public PRelNode getInput(int index) {
     return _inputs.get(index);
   }
 
-  public void addInput(PRelNode input) {
-    _inputs.add(input);
-  }
-
-  public PRelNode copy(int nodeId, List<PRelNode> newInputs, PinotDataDistribution pinotDataDistribution) {
-    PRelNode newNode = new PRelNode(nodeId, _relNode, pinotDataDistribution);
-    newInputs.forEach(newNode::addInput);
-    return newNode;
-  }
-
   public static PRelNode wrapRelTree(RelNode relNode, Supplier<Integer> nodeIdSupplier) {
-    PRelNode pRelNode = new PRelNode(nodeIdSupplier.get(), relNode, null);
+    List<PRelNode> newInputs = new ArrayList<>();
     for (RelNode input : relNode.getInputs()) {
-      pRelNode.addInput(wrapRelTree(input, nodeIdSupplier));
+      newInputs.add(wrapRelTree(input, nodeIdSupplier));
     }
-    return pRelNode;
+    return new PRelNode(nodeIdSupplier.get(), relNode, null, newInputs);
   }
 
   public static void printWrappedRelNode(PRelNode currentNode, int level) {

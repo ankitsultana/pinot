@@ -115,7 +115,9 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
     // Step-6: Return the correct node. If exchange is added, return that.
     if (currentNodeExchange != null) {
       PRelNode currentNodeWithNewInputs = currentNode.copy(currentNode.getNodeId(), newInputs, currentNodeDistribution);
-      currentNodeExchange.addInput(currentNodeWithNewInputs);
+      currentNodeExchange = currentNodeExchange.copy(
+          currentNodeExchange.getNodeId(), ImmutableList.of(currentNodeWithNewInputs),
+          currentNodeExchange.getPinotDataDistributionOrThrow());
       return currentNodeExchange;
     }
     return currentNode.copy(currentNode.getNodeId(), newInputs, currentNodeDistribution);

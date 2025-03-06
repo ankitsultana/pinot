@@ -21,8 +21,7 @@ public class LogicalAggregateConverter {
       PinotLogicalAggregate pinotLogicalAggregate = new PinotLogicalAggregate(logicalAggregate,
           aggType, false, RelCollations.EMPTY.getFieldCollations(), Integer.MAX_VALUE);
       PRelNode newNode = new PRelNode(rootNode.getNodeId(), pinotLogicalAggregate,
-          rootNode.getPinotDataDistributionOrThrow());
-      newInputs.forEach(newNode::addInput);
+          rootNode.getPinotDataDistributionOrThrow(), newInputs);
       return newNode;
     }
     return rootNode.copy(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());

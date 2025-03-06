@@ -56,7 +56,7 @@ public class LeafWorkerAssignment {
           "Expected exactly 1 input in leaf stage nodes except table scan");
       Preconditions.checkState(pRelNode.getRelNode().getTraitSet().isEmpty() || pRelNode.isLeafStageBoundary(),
           "Leaf stage can only have traits on boundaries");
-      PinotDataDistribution inputDistribution = pRelNode.getInputs().get(0).getPinotDataDistribution().get();
+      PinotDataDistribution inputDistribution = pRelNode.getInputs().get(0).getPinotDataDistributionOrThrow();
       // compute mapping from source to destination.
       pRelNode.setPinotDataDistribution(inputDistribution.apply(MappingGen.compute(
           pRelNode.getInputs().get(0).getRelNode(), pRelNode.getRelNode(), null)));

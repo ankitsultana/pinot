@@ -1,5 +1,6 @@
 package org.apache.pinot.query.planner.logical.rel2plan.workers;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,8 +58,8 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
         }
         PinotDataDistribution newPinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.SINGLETON,
             _randomWorker, _randomWorker.hashCode(), null, null);
-        PRelNode newPRelNode = new PRelNode(_idGenerator.get(), pinotPhysicalExchange, newPinotDataDistribution);
-        newPRelNode.addInput(currentNode);
+        PRelNode newPRelNode = new PRelNode(_idGenerator.get(), pinotPhysicalExchange, newPinotDataDistribution,
+            ImmutableList.of(currentNode));
         return newPRelNode;
       }
       return currentNode;
@@ -85,22 +86,22 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
         // replace current sort with one that has the appropriate limit.
         Sort newSort = currentSort.copy(currentSort.getTraitSet(), currentSort.getInput(), currentSort.getCollation(),
             currentSort.offset, _fetchLiteral);
-        return new PRelNode(currentNode.getNodeId(), newSort, currentNode.getPinotDataDistribution().get());
+        return new PRelNode(currentNode.getNodeId(), newSort, currentNode.getPinotDataDistributionOrThrow());
       }
       Sort sort = LogicalSort.create(currentNode.getRelNode(), RelCollations.EMPTY, null, _fetchLiteral);
-      return new PRelNode(_idGenerator.get(), sort, currentNode.getPinotDataDistribution().get());
+      return new PRelNode(_idGenerator.get(), sort, currentNode.getPinotDataDistributionOrThrow());
     }
     List<PRelNode> newInputs = new ArrayList<>();
     for (PRelNode input : currentNode.getInputs()) {
       newInputs.add(insertLogicalSort(input));
     }
-    return currentNode.copy(_idGenerator.get(), newInputs, currentNode.getPinotDataDistribution().get());
+    return currentNode.copy(_idGenerator.get(), newInputs, currentNode.getPinotDataDistributionOrThrow());
   }
 
   @Nullable
   private String pickRandomWorker(PRelNode rootNode) {
     if (rootNode.getPinotDataDistribution().isPresent()) {
-      return rootNode.getPinotDataDistribution().get().getWorkers().get(0);
+      return rootNode.getPinotDataDistributionOrThrow().getWorkers().get(0);
     }
     String result = null;
     for (PRelNode input : rootNode.getInputs()) {
