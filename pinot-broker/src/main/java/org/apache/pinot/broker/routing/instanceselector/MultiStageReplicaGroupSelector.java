@@ -99,7 +99,6 @@ public class MultiStageReplicaGroupSelector extends BaseInstanceSelector {
     } else {
       replicaGroupSelected = requestId % instancePartitions.getNumReplicaGroups();
     }
-    // TODO: Instead of switching replica-group if one node is down, switch instance partition.
     for (int iteration = 0; iteration < instancePartitions.getNumReplicaGroups(); iteration++) {
       int replicaGroup = (replicaGroupSelected + iteration) % instancePartitions.getNumReplicaGroups();
       try {

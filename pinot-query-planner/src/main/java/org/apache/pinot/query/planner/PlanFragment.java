@@ -23,9 +23,7 @@ import org.apache.pinot.query.planner.plannode.PlanNode;
 
 
 /**
- * The {@code PlanFragment} is the logical sub query plan that should be scheduled together from the result of
- * {@link org.apache.pinot.query.planner.logical.PlanFragmenter}.
- *
+ * The {@code PlanFragment} corresponds to a stage in the query.
  */
 public class PlanFragment {
 
