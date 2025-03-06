@@ -30,8 +30,8 @@ public class NewRelToPRelConverter {
     PlanIdGenerator generator = new PlanIdGenerator();
     PRelNode pRelNode = PRelNode.wrapRelTree(relNode, generator);
     // Step-2: Compute primitive leaf stage boundary (only single project / filter / scan allowed).
-    LeafStageBoundaryComputer leafStageBoundaryComputer = new LeafStageBoundaryComputer();
-    leafStageBoundaryComputer.compute(pRelNode);
+    LeafStageBoundaryComputer leafStageBoundaryComputer = new LeafStageBoundaryComputer(generator);
+    pRelNode = leafStageBoundaryComputer.compute(pRelNode);
     // Step-3: Assign workers to leaf stage nodes.
     _leafWorkerAssignment.compute(pRelNode, _requestId);
     // Step-4: Assign workers to all nodes.

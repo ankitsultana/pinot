@@ -7,23 +7,54 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nullable;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.TableScan;
 
 
 public class LeafStageBoundaryComputer {
+  private final PlanIdGenerator _idGenerator;
   private final Map<Integer, Integer> _inputToCallerNodeId = new HashMap<>();
   private final Map<Integer, PRelNode> _nodeIdToWrappedRelNode = new HashMap<>();
   private final Set<PRelNode> _leafPlanNodes = new HashSet<>();
+  private final Set<Integer> _leafPlanIds = new HashSet<>();
+  private final Set<Integer> _leafBoundaryPlanIds = new HashSet<>();
 
-  public LeafStageBoundaryComputer() {
+  public LeafStageBoundaryComputer(PlanIdGenerator idGenerator) {
+    _idGenerator = idGenerator;
   }
 
-  public void compute(PRelNode pRelNode) {
-    // TODO(ankitsultana-correctness): Server sub-plans should be included in the boundary.
-    precompute(pRelNode, null);
+  public PRelNode compute(PRelNode pRelNode) {
+    precompute(pRelNode);
+    return visit(pRelNode);
+  }
+
+  private PRelNode visit(PRelNode pRelNode) {
+    List<PRelNode> newInputs = new ArrayList<>();
+    for (PRelNode input : pRelNode.getInputs()) {
+      newInputs.add(visit(input));
+    }
+    return new PRelNode(_idGenerator.get(), pRelNode.getRelNode(), pRelNode.getPinotDataDistribution(),
+        newInputs, _leafPlanIds.contains(pRelNode.getNodeId()), _leafBoundaryPlanIds.contains(pRelNode.getNodeId()));
+  }
+
+  private void precompute(PRelNode pRelNode) {
+    precomputeLeafPlanNodesAndNodeIdMap(pRelNode);
+    precomputeLeafStageAndBoundary();
+  }
+
+  private void precomputeLeafPlanNodesAndNodeIdMap(PRelNode pRelNode) {
+    _nodeIdToWrappedRelNode.put(pRelNode.getNodeId(), pRelNode);
+    if (pRelNode.getInputs().isEmpty()) {
+      _leafPlanNodes.add(pRelNode);
+    }
+    for (PRelNode input : pRelNode.getInputs()) {
+      _inputToCallerNodeId.put(input.getNodeId(), pRelNode.getNodeId());
+      precomputeLeafPlanNodesAndNodeIdMap(input);
+    }
+  }
+
+  private void precomputeLeafStageAndBoundary() {
     for (PRelNode leafPlanNode : _leafPlanNodes) {
       Preconditions.checkState(leafPlanNode.getRelNode() instanceof TableScan,
           "only support table scan in leaf right now");
@@ -48,19 +79,8 @@ public class LeafStageBoundaryComputer {
           break;
         }
       }
-      currentLeafStage.forEach(x -> x.setLeafStage(true));
-      currentLeafStage.get(currentLeafStage.size() - 1).setLeafStageBoundary(true);
-    }
-  }
-
-  private void precompute(PRelNode pRelNode, @Nullable PRelNode callerRelNode) {
-    _nodeIdToWrappedRelNode.put(pRelNode.getNodeId(), pRelNode);
-    if (pRelNode.getInputs().isEmpty()) {
-      _leafPlanNodes.add(pRelNode);
-    }
-    for (PRelNode input : pRelNode.getInputs()) {
-      _inputToCallerNodeId.put(input.getNodeId(), pRelNode.getNodeId());
-      precompute(input, pRelNode);
+      currentLeafStage.forEach(x -> _leafPlanIds.add(x.getNodeId()));
+      _leafBoundaryPlanIds.add(currentLeafStage.get(currentLeafStage.size() - 1).getNodeId());
     }
   }
 }

@@ -18,8 +18,10 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalJoin;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalWindow;
+import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.logical.PinotTableScan;
 
 
@@ -60,6 +62,23 @@ public class TraitShuttle extends RelShuttleImpl {
     List<RelNode> newInputs = join.getInputs();
     RelNode leftInput = newInputs.get(0);
     RelNode rightInput = newInputs.get(1);
+    if (PinotHintOptions.JoinHintOptions.useLookupJoinStrategy(join)) {
+      // Lookup join expects right input to have project and table-scan nodes exactly.
+      // Add broadcast trait to both of them for correctness' sake. Worker assignment will have to handle this
+      // explicitly in any case.
+      Preconditions.checkState(rightInput instanceof LogicalProject, "Expected project as right input of table scan");
+      Preconditions.checkState(rightInput.getInput(0) instanceof PinotTableScan, "Expected table scan under project "
+          + "for right input of lookup join");
+      LogicalProject oldProject = (LogicalProject) rightInput;
+      PinotTableScan oldTableScan = (PinotTableScan) oldProject.getInput(0);
+      PinotTableScan newTableScan =
+          (PinotTableScan) oldTableScan.copy(oldTableScan.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED),
+              Collections.emptyList());
+      LogicalProject newProject =
+          (LogicalProject) oldProject.copy(oldProject.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED),
+              ImmutableList.of(newTableScan));
+      return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, newProject));
+    }
     if (join.isSemiJoin()) {
       Preconditions.checkState(rightInput.getTraitSet().getDistribution() == null,
           "Found existing dist trait on right input of semi-join");

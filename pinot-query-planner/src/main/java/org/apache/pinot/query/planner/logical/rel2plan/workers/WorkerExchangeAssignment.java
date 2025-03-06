@@ -48,7 +48,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
       Preconditions.checkState(currentNode.getPinotDataDistributionOrThrow().satisfies(relDistribution));
       Preconditions.checkState(currentNode.getPinotDataDistributionOrThrow().satisfies(relCollation));
       // For leaf-stage, everything under the boundary remains as is.
-      return currentNode.copy(currentNode.getNodeId(), newInputs, currentNode.getPinotDataDistributionOrThrow());
+      return currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNode.getPinotDataDistributionOrThrow());
     }
     // Step-2: Assign to current node. Workers are the same as the one used for the left input.
     PinotDataDistribution inputDataDistribution = null;
@@ -114,13 +114,13 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
     }
     // Step-6: Return the correct node. If exchange is added, return that.
     if (currentNodeExchange != null) {
-      PRelNode currentNodeWithNewInputs = currentNode.copy(currentNode.getNodeId(), newInputs, currentNodeDistribution);
-      currentNodeExchange = currentNodeExchange.copy(
+      PRelNode currentNodeWithNewInputs = currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNodeDistribution);
+      currentNodeExchange = currentNodeExchange.withNewInputs(
           currentNodeExchange.getNodeId(), ImmutableList.of(currentNodeWithNewInputs),
           currentNodeExchange.getPinotDataDistributionOrThrow());
       return currentNodeExchange;
     }
-    return currentNode.copy(currentNode.getNodeId(), newInputs, currentNodeDistribution);
+    return currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNodeDistribution);
   }
 
   /**

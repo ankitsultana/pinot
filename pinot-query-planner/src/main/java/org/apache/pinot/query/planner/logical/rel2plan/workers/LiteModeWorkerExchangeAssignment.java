@@ -70,7 +70,7 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
     }
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.SINGLETON,
         _randomWorker, _randomWorker.hashCode(), null, null);
-    return currentNode.copy(currentNode.getNodeId(), newInputs, pinotDataDistribution);
+    return currentNode.withNewInputs(currentNode.getNodeId(), newInputs, pinotDataDistribution);
   }
 
   private PRelNode insertLogicalSort(PRelNode currentNode) {
@@ -95,12 +95,12 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
     for (PRelNode input : currentNode.getInputs()) {
       newInputs.add(insertLogicalSort(input));
     }
-    return currentNode.copy(_idGenerator.get(), newInputs, currentNode.getPinotDataDistributionOrThrow());
+    return currentNode.withNewInputs(_idGenerator.get(), newInputs, currentNode.getPinotDataDistributionOrThrow());
   }
 
   @Nullable
   private String pickRandomWorker(PRelNode rootNode) {
-    if (rootNode.getPinotDataDistribution().isPresent()) {
+    if (rootNode.hasPinotDataDistribution()) {
       return rootNode.getPinotDataDistributionOrThrow().getWorkers().get(0);
     }
     String result = null;

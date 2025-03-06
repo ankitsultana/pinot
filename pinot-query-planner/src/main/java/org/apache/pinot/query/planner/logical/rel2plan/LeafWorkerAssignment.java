@@ -36,21 +36,22 @@ public class LeafWorkerAssignment {
     _routingManager = physicalPlannerContext.getRoutingManager();
   }
 
-  public void compute(PRelNode pRelNode, long requestId) {
+  public PRelNode compute(PRelNode pRelNode, long requestId) {
     Context context = new Context();
     context._requestId = requestId;
-    assignWorkersToLeaf(pRelNode, context);
+    return assignWorkersInternal(pRelNode, context);
   }
 
-  private void assignWorkersToLeaf(PRelNode pRelNode, Context context) {
+  private PRelNode assignWorkersInternal(PRelNode pRelNode, Context context) {
     if (pRelNode.getRelNode() instanceof TableScan) {
       // TODO: For dim-tables, start with broadcast.
-      assignWorkersToLeafInternal(context, pRelNode);
-      return;
+      return assignWorkersToLeafInternal(context, pRelNode);
     }
+    List<PRelNode> newInputs = new ArrayList<>();
     for (PRelNode input : pRelNode.getInputs()) {
-      assignWorkersToLeaf(input, context);
+      newInputs.add(assignWorkersInternal(input, context));
     }
+    PinotDataDistribution pinotDataDistribution = pRelNode.getPinotDataDistributionOrThrow();
     if (pRelNode.isLeafStage()) {
       Preconditions.checkState(pRelNode.getInputs().size() == 1,
           "Expected exactly 1 input in leaf stage nodes except table scan");
@@ -58,12 +59,13 @@ public class LeafWorkerAssignment {
           "Leaf stage can only have traits on boundaries");
       PinotDataDistribution inputDistribution = pRelNode.getInputs().get(0).getPinotDataDistributionOrThrow();
       // compute mapping from source to destination.
-      pRelNode.setPinotDataDistribution(inputDistribution.apply(MappingGen.compute(
-          pRelNode.getInputs().get(0).getRelNode(), pRelNode.getRelNode(), null)));
+      pinotDataDistribution = inputDistribution.apply(MappingGen.compute(
+          pRelNode.getInputs().get(0).getRelNode(), pRelNode.getRelNode(), null));
     }
+    return pRelNode.withNewInputs(pRelNode.getNodeId(), newInputs, pinotDataDistribution);
   }
 
-  private void assignWorkersToLeafInternal(Context context, PRelNode pRelNode) {
+  private PRelNode assignWorkersToLeafInternal(Context context, PRelNode pRelNode) {
     TableScan tableScan = (TableScan) pRelNode.getRelNode();
     String tableName = tableScan.getTable().getQualifiedName().get(1);
     // TODO: Support server pruning.
@@ -125,7 +127,7 @@ public class LeafWorkerAssignment {
         PlanNode.NodeHint.fromRelHints(hints).getHintOptions().get(PinotHintOptions.TABLE_HINT_OPTIONS));
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
         workers, workers.hashCode(), null, null);
-    pRelNode.setPinotDataDistribution(pinotDataDistribution);
+    return pRelNode.withPinotDataDistribution(pinotDataDistribution);
   }
 
   /**

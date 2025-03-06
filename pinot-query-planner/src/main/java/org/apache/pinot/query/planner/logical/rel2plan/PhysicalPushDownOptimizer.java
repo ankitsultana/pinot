@@ -35,11 +35,11 @@ public class PhysicalPushDownOptimizer {
       PinotDataDistribution partialSortDistribution = inputDistribution.apply(mp);
       PRelNode wrappedPartialSort = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
           partialSortDistribution, ImmutableList.of(inputPRelNode));
-      PRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialSort),
+      PRelNode newExchange = oldExchange.withNewInputs(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialSort),
           oldExchange.getPinotDataDistributionOrThrow());
-      return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange),
+      return rootNode.withNewInputs(rootNode.getNodeId(), ImmutableList.of(newExchange),
           rootNode.getPinotDataDistributionOrThrow());
     }
-    return rootNode.copy(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());
+    return rootNode.withNewInputs(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());
   }
 }

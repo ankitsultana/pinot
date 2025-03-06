@@ -24,7 +24,7 @@ public class LogicalAggregateConverter {
           rootNode.getPinotDataDistributionOrThrow(), newInputs);
       return newNode;
     }
-    return rootNode.copy(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());
+    return rootNode.withNewInputs(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());
   }
 
   private AggregateNode.AggType inferAggType(PRelNode currentNode) {
