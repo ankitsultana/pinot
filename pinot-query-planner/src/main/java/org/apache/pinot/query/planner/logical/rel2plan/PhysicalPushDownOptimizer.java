@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
@@ -27,19 +26,7 @@ public class PhysicalPushDownOptimizer {
     boolean isInputExchange = !rootNode.getInputs().isEmpty()
         && rootNode.getInputs().get(0).getRelNode() instanceof PinotPhysicalExchange;
     if (rootNode.getRelNode() instanceof Aggregate && isInputExchange) {
-      Aggregate aggregate = (Aggregate) rootNode.getRelNode();
-      PRelNode oldExchange = newInputs.get(0);
-      PRelNode inputPRelNode = newInputs.get(0).getInput(0);
-      PinotDataDistribution inputDistribution = inputPRelNode.getPinotDataDistribution().get();
-      Map<Integer, Integer> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
-      PinotDataDistribution partialAggregateDistribution = inputDistribution.apply(mp);
-      PRelNode wrappedPartialAggregate = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
-          partialAggregateDistribution);
-      wrappedPartialAggregate.addInput(inputPRelNode);
-      PRelNode newExchange = oldExchange.copy(oldExchange.getNodeId(), ImmutableList.of(wrappedPartialAggregate),
-              oldExchange.getPinotDataDistribution().get());
-      return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange),
-          rootNode.getPinotDataDistribution().get());
+      // TODO: Implement this. Slightly complicated because AggCallList will also change.
     } else if (rootNode.getRelNode() instanceof Sort && isInputExchange) {
       PRelNode oldExchange = newInputs.get(0);
       PRelNode inputPRelNode = newInputs.get(0).getInput(0);

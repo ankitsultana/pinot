@@ -122,7 +122,7 @@ public class PRelToPlanNodeConverter {
   public static NewExchangeNode convertPhysicalExchange(PinotPhysicalExchange node, PRelNode pRelNode) {
     // TODO: Determine sortOnSender and sortOnReceiver.
     return new NewExchangeNode(DEFAULT_STAGE_ID, toDataSchema(node.getRowType()),
-        convertInputs(pRelNode.getInputs()), PinotRelExchangeType.PIPELINE_BREAKER, node.getKeys(),
+        convertInputs(pRelNode.getInputs()), PinotRelExchangeType.getDefaultExchangeType(), node.getKeys(),
         node.getCollation(), false, false, null /* TODO */, node.getExchangeStrategy());
   }
 

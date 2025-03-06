@@ -104,10 +104,10 @@ public class Blah {
       RelDistribution.Type distributionType = inferDistributionType(physicalExchange.getExchangeStrategy());
       List<PlanNode> inputs = new ArrayList<>();
       MailboxSendNode sendNode = new MailboxSendNode(senderFragmentId, inputFragmentSchema, inputs, currentFragmentId,
-          PinotRelExchangeType.PIPELINE_BREAKER, distributionType, physicalExchange.getKeys(), false,
+          PinotRelExchangeType.getDefaultExchangeType(), distributionType, physicalExchange.getKeys(), false,
           physicalExchange.getCollation().getFieldCollations(), false /* todo: set sortOnSender */);
       MailboxReceiveNode receiveNode = new MailboxReceiveNode(currentFragmentId, inputFragmentSchema,
-          senderFragmentId, PinotRelExchangeType.PIPELINE_BREAKER, distributionType, physicalExchange.getKeys(),
+          senderFragmentId, PinotRelExchangeType.getDefaultExchangeType(), distributionType, physicalExchange.getKeys(),
           physicalExchange.getCollation().getFieldCollations(), false /* TODO: set sort on receiver */,
           false /* TODO: set sort on sender */, sendNode);
       PlanFragment newPlanFragment = createFragment(senderFragmentId, sendNode, new ArrayList<>(), context);
