@@ -9,20 +9,20 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Exchange;
-import org.apache.pinot.calcite.rel.PinotExchangeDesc;
+import org.apache.pinot.calcite.rel.PinotPhysicalExchangeType;
 
 
 public class PinotPhysicalExchange extends Exchange {
   private final List<Integer> _keys;
-  private final PinotExchangeDesc _exchangeStrategy;
+  private final PinotPhysicalExchangeType _exchangeStrategy;
   private final RelCollation _collation;
 
   public PinotPhysicalExchange(RelNode input, List<Integer> keys,
-      PinotExchangeDesc exchangeStrategy) {
+      PinotPhysicalExchangeType exchangeStrategy) {
     this(input, keys, exchangeStrategy, null);
   }
 
-  public PinotPhysicalExchange(RelNode input, List<Integer> keys, PinotExchangeDesc desc, RelCollation collation) {
+  public PinotPhysicalExchange(RelNode input, List<Integer> keys, PinotPhysicalExchangeType desc, RelCollation collation) {
     super(input.getCluster(), RelTraitSet.createEmpty(), input, RelDistributions.RANDOM_DISTRIBUTED);
     _keys = keys;
     _exchangeStrategy = desc;
@@ -30,11 +30,11 @@ public class PinotPhysicalExchange extends Exchange {
   }
 
   public static PinotPhysicalExchange broadcast(RelNode input) {
-    return new PinotPhysicalExchange(input, Collections.emptyList(), PinotExchangeDesc.BROADCAST_EXCHANGE, null);
+    return new PinotPhysicalExchange(input, Collections.emptyList(), PinotPhysicalExchangeType.BROADCAST_EXCHANGE, null);
   }
 
   public static PinotPhysicalExchange singleton(RelNode input) {
-    return new PinotPhysicalExchange(input, Collections.emptyList(), PinotExchangeDesc.SINGLETON_EXCHANGE, null);
+    return new PinotPhysicalExchange(input, Collections.emptyList(), PinotPhysicalExchangeType.SINGLETON_EXCHANGE, null);
   }
 
   @Override
@@ -46,7 +46,7 @@ public class PinotPhysicalExchange extends Exchange {
     return _keys;
   }
 
-  public PinotExchangeDesc getExchangeStrategy() {
+  public PinotPhysicalExchangeType getExchangeStrategy() {
     return _exchangeStrategy;
   }
 

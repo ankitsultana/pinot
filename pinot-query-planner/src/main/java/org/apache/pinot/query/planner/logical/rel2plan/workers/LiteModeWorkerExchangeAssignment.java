@@ -12,7 +12,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
-import org.apache.pinot.calcite.rel.PinotExchangeDesc;
+import org.apache.pinot.calcite.rel.PinotPhysicalExchangeType;
 import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 import org.apache.pinot.query.planner.logical.rel2plan.PlanIdGenerator;
@@ -50,10 +50,10 @@ public class LiteModeWorkerExchangeAssignment extends BaseWorkerExchangeAssignme
         if (currentSort.getCollation() != null && currentSort.getCollation() != RelCollations.EMPTY) {
           keys = currentSort.getCollation().getKeys();
           pinotPhysicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(), keys,
-              PinotExchangeDesc.SINGLETON_EXCHANGE, null);
+              PinotPhysicalExchangeType.SINGLETON_EXCHANGE, null);
         } else {
           pinotPhysicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(), Collections.emptyList(),
-              PinotExchangeDesc.SINGLETON_EXCHANGE);
+              PinotPhysicalExchangeType.SINGLETON_EXCHANGE);
         }
         PinotDataDistribution newPinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.SINGLETON,
             _randomWorker, _randomWorker.hashCode(), null, null);

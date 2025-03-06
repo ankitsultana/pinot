@@ -31,7 +31,6 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
-import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.util.mapping.Mappings;
 
 
@@ -70,14 +69,6 @@ public class PinotDataDistribution {
 
   public Set<HashDistributionDesc> getHashDistributionDesc() {
     return _hashDistributionDesc;
-  }
-
-  public List<Integer> getCollationKeys() {
-    return _collation.getKeys();
-  }
-
-  public List<RelFieldCollation> getFieldCollationDirection() {
-    return _collation.getFieldCollations();
   }
 
   /**

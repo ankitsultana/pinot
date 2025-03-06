@@ -12,7 +12,7 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
-import org.apache.pinot.calcite.rel.PinotExchangeDesc;
+import org.apache.pinot.calcite.rel.PinotPhysicalExchangeType;
 import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.calcite.rel.logical.PinotTableScan;
 import org.apache.pinot.query.planner.logical.rel2plan.MappingGen;
@@ -87,7 +87,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
       if (!currentNodeDistribution.satisfies(relCollation)) {
         // Add new identity exchange for sort.
         PinotPhysicalExchange newExchange = new PinotPhysicalExchange(newInputs.get(0).getRelNode(),
-            Collections.emptyList(), PinotExchangeDesc.IDENTITY_EXCHANGE, relCollation);
+            Collections.emptyList(), PinotPhysicalExchangeType.IDENTITY_EXCHANGE, relCollation);
         PinotDataDistribution newDataDistribution = currentNodeDistribution.withCollation(relCollation);
         currentNodeExchange = new PRelNode(_idGenerator.get(), newExchange, newDataDistribution);
       }
@@ -146,7 +146,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
     }
     if (distributionConstraint.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
       PinotPhysicalExchange physicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
-          distributionConstraint.getKeys(), PinotExchangeDesc.PARTITIONING_EXCHANGE);
+          distributionConstraint.getKeys(), PinotPhysicalExchangeType.PARTITIONING_EXCHANGE);
       PinotDataDistribution.HashDistributionDesc desc = new PinotDataDistribution.HashDistributionDesc(
           distributionConstraint.getKeys(), "murmur", currentNodeDistribution.getWorkers().size());
       PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(
@@ -169,7 +169,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
       // TODO: Can optimize this to reduce fanout by random sub-partitioning.
       List<Integer> distributionKeys = ImmutableList.of(0);
       PinotPhysicalExchange physicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
-          distributionKeys, PinotExchangeDesc.PARTITIONING_EXCHANGE);
+          distributionKeys, PinotPhysicalExchangeType.PARTITIONING_EXCHANGE);
       PinotDataDistribution newDistribution = new PinotDataDistribution(PinotDataDistribution.Type.HASH_PARTITIONED,
           parentDistribution.getWorkers(), parentDistribution.getWorkerHash(),
           ImmutableSet.of(new PinotDataDistribution.HashDistributionDesc(distributionKeys, "murmur",
@@ -191,7 +191,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
         }
       }
       PinotPhysicalExchange physicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
-          Collections.emptyList(), PinotExchangeDesc.BROADCAST_EXCHANGE);
+          Collections.emptyList(), PinotPhysicalExchangeType.BROADCAST_EXCHANGE);
       PinotDataDistribution newDistribution = new PinotDataDistribution(PinotDataDistribution.Type.BROADCAST,
           parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), null, null);
       return new PRelNode(_idGenerator.get(), physicalExchange, newDistribution);
@@ -200,7 +200,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
         return null;
       }
       PinotPhysicalExchange physicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
-          Collections.emptyList(), PinotExchangeDesc.SINGLETON_EXCHANGE);
+          Collections.emptyList(), PinotPhysicalExchangeType.SINGLETON_EXCHANGE);
       PinotDataDistribution newDistribution = new PinotDataDistribution(PinotDataDistribution.Type.SINGLETON,
           parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), null, null);
       return new PRelNode(_idGenerator.get(), physicalExchange, newDistribution);
@@ -234,7 +234,7 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
       numberOfPartitions = parentDistribution.getHashDistributionDesc().iterator().next().getNumPartitions();
     }
     PinotPhysicalExchange pinotPhysicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
-        relDistribution.getKeys(), PinotExchangeDesc.PARTITIONING_EXCHANGE, null);
+        relDistribution.getKeys(), PinotPhysicalExchangeType.PARTITIONING_EXCHANGE, null);
     PinotDataDistribution.HashDistributionDesc newDesc = new PinotDataDistribution.HashDistributionDesc(
         relDistribution.getKeys(), "murmur", numberOfPartitions);
     PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.HASH_PARTITIONED,

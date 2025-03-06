@@ -12,7 +12,7 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.pinot.calcite.rel.PinotExchangeDesc;
+import org.apache.pinot.calcite.rel.PinotPhysicalExchangeType;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
@@ -55,7 +55,7 @@ public class Blah {
         physicalPlannerContext.getPort(), physicalPlannerContext.getPort());
     computeMailboxInfos(FIRST_NON_ROOT_FRAGMENT_ID, ROOT_FRAGMENT_ID,
         createWorkerMap(rootPRelNode.getPinotDataDistributionOrThrow().getWorkers(), context),
-        ImmutableMap.of(0, brokerInstance), PinotExchangeDesc.SINGLETON_EXCHANGE, context);
+        ImmutableMap.of(0, brokerInstance), PinotPhysicalExchangeType.SINGLETON_EXCHANGE, context);
     // Traverse entire tree.
     context._fragmentMetadataMap.get(ROOT_FRAGMENT_ID).setWorkerIdToServerInstanceMap(ImmutableMap.of(
         0, brokerInstance));
@@ -141,7 +141,7 @@ public class Blah {
     return fragment;
   }
 
-  private RelDistribution.Type inferDistributionType(PinotExchangeDesc desc) {
+  private RelDistribution.Type inferDistributionType(PinotPhysicalExchangeType desc) {
     RelDistribution.Type distributionType;
     switch (desc) {
       case PARTITIONING_EXCHANGE:
@@ -174,7 +174,7 @@ public class Blah {
 
   private void computeMailboxInfos(int senderStageId, int receiverStageId,
       Map<Integer, QueryServerInstance> senderWorkers, Map<Integer, QueryServerInstance> receiverWorkers,
-      PinotExchangeDesc exchangeDesc, Context context) {
+      PinotPhysicalExchangeType exchangeDesc, Context context) {
     DispatchablePlanMetadata senderMetadata = context._fragmentMetadataMap.get(senderStageId);
     DispatchablePlanMetadata receiverMetadata = context._fragmentMetadataMap.get(receiverStageId);
     Map<Integer, Map<Integer, MailboxInfos>> senderMailboxMap = senderMetadata.getWorkerIdToMailboxesMap();

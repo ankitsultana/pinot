@@ -5,14 +5,14 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelCollation;
-import org.apache.pinot.calcite.rel.PinotExchangeDesc;
+import org.apache.pinot.calcite.rel.PinotPhysicalExchangeType;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.common.utils.DataSchema;
 
 
 public class NewExchangeNode extends BasePlanNode {
   private final PinotRelExchangeType _exchangeType;
-  private final PinotExchangeDesc _pinotExchangeDesc;
+  private final PinotPhysicalExchangeType _pinotPhysicalExchangeType;
   private final List<Integer> _keys;
   private final RelCollation _collation;
   private final boolean _sortOnSender;
@@ -23,7 +23,7 @@ public class NewExchangeNode extends BasePlanNode {
   public NewExchangeNode(int stageId, DataSchema dataSchema, List<PlanNode> inputs, PinotRelExchangeType exchangeType,
       @Nullable List<Integer> keys,
       @Nullable RelCollation collation, boolean sortOnSender, boolean sortOnReceiver,
-      @Nullable Set<String> tableNames, @Nullable PinotExchangeDesc desc) {
+      @Nullable Set<String> tableNames, @Nullable PinotPhysicalExchangeType desc) {
     super(stageId, dataSchema, null, inputs);
     _exchangeType = exchangeType;
     _keys = keys;
@@ -31,11 +31,11 @@ public class NewExchangeNode extends BasePlanNode {
     _sortOnSender = sortOnSender;
     _sortOnReceiver = sortOnReceiver;
     _tableNames = tableNames;
-    _pinotExchangeDesc = desc;
+    _pinotPhysicalExchangeType = desc;
   }
 
-  public PinotExchangeDesc getPinotExchangeDesc() {
-    return _pinotExchangeDesc;
+  public PinotPhysicalExchangeType getPinotExchangeDesc() {
+    return _pinotPhysicalExchangeType;
   }
 
   public PinotRelExchangeType getExchangeType() {
@@ -78,7 +78,7 @@ public class NewExchangeNode extends BasePlanNode {
   @Override
   public PlanNode withInputs(List<PlanNode> inputs) {
     return new NewExchangeNode(_stageId, _dataSchema, inputs, _exchangeType, _keys,
-        _collation, _sortOnSender, _sortOnReceiver, _tableNames, _pinotExchangeDesc);
+        _collation, _sortOnSender, _sortOnReceiver, _tableNames, _pinotPhysicalExchangeType);
   }
 
   @Override
