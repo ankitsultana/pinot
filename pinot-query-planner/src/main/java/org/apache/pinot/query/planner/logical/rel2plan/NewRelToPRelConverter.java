@@ -1,7 +1,6 @@
 package org.apache.pinot.query.planner.logical.rel2plan;
 
 import org.apache.calcite.rel.RelNode;
-import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.logical.rel2plan.workers.BaseWorkerExchangeAssignment;
 import org.apache.pinot.query.planner.logical.rel2plan.workers.LiteModeWorkerExchangeAssignment;

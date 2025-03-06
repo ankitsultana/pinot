@@ -36,9 +36,9 @@ class SingletonExchange extends BlockExchange {
 
   SingletonExchange(List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
     super(sendingMailboxes, splitter);
-    Preconditions.checkArgument(
+    /* Preconditions.checkArgument(
         sendingMailboxes.size() == 1 && sendingMailboxes.get(0) instanceof InMemorySendingMailbox,
-        "Expect single InMemorySendingMailbox for SingletonExchange");
+        "Expect single InMemorySendingMailbox for SingletonExchange"); */
   }
 
   @Override

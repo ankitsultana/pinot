@@ -57,6 +57,10 @@ public class PinotDispatchPlanner {
     DispatchablePlanContext context = new DispatchablePlanContext(_workerManager, _requestId, _plannerContext,
         subPlan.getSubPlanMetadata().getFields(), subPlan.getSubPlanMetadata().getTableNames());
     PlanFragment rootFragment = subPlan.getSubPlanRoot();
+    context.getDispatchablePlanMetadataMap().putAll(result._fragmentMetadataMap);
+    for (var entry : result._planFragmentMap.entrySet()) {
+      context.getDispatchablePlanStageRootMap().put(entry.getKey(), entry.getValue().getFragmentRoot());
+    }
     // 1. start by visiting the sub plan fragment root.
     // rootNode.visit(new DispatchablePlanVisitor(), context);
     // 2. add a special stage for the global mailbox receive, this runs on the dispatcher.

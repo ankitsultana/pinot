@@ -13,7 +13,6 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
-import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.SetOp;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Window;
@@ -26,9 +25,7 @@ import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelRecordType;
-import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlLiteral;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
@@ -36,8 +33,6 @@ import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
 import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.calcite.rel.logical.PinotTableScan;
-import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
-import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
@@ -81,7 +76,7 @@ public class PRelToPlanNodeConverter {
    * Converts a {@link RelNode} into its serializable counterpart.
    * NOTE: Stage ID is not determined yet.
    */
-  public static PlanNode toPlanNode(PRelNode pRelNode) {
+  public static PlanNode toPlanNode(PRelNode pRelNode, int stageId) {
     RelNode node = pRelNode.getRelNode();
     PlanNode result;
     if (node instanceof PinotTableScan) {
@@ -117,6 +112,7 @@ public class PRelToPlanNodeConverter {
     } else {
       throw new IllegalStateException("Unsupported RelNode: " + node);
     }
+    result.setStageId(stageId);
     /* if (_tracker != null) {
       _tracker.trackCreation(node, result);
     } */
@@ -243,13 +239,14 @@ public class PRelToPlanNodeConverter {
   }
 
   public static JoinNode convertLogicalJoin(LogicalJoin join, PRelNode pRelNode) {
+    // TODO: This is wrong. Right now we compute PlanNode top-down. This assumes bottom-up.
     JoinInfo joinInfo = join.analyzeCondition();
     DataSchema dataSchema = toDataSchema(join.getRowType());
     List<PlanNode> inputs = convertInputs(pRelNode.getInputs());
     JoinRelType joinType = join.getJoinType();
 
     // Run some validations for join
-    Preconditions.checkState(inputs.size() == 2, "Join should have exactly 2 inputs, got: %s", inputs.size());
+    /* Preconditions.checkState(inputs.size() == 2, "Join should have exactly 2 inputs, got: %s", inputs.size());
     PlanNode left = inputs.get(0);
     PlanNode right = inputs.get(1);
     int numLeftColumns = left.getDataSchema().size();
@@ -263,14 +260,13 @@ public class PRelToPlanNodeConverter {
       Preconditions.checkState(numLeftColumns == numResultColumns,
           "Invalid number of columns for join type: %s, left: %s, result: %s", joinType, numLeftColumns,
           numResultColumns);
-    }
+    } */
 
     // Check if the join hint specifies the join strategy
     JoinNode.JoinStrategy joinStrategy;
     if (PinotHintOptions.JoinHintOptions.useLookupJoinStrategy(join)) {
       joinStrategy = JoinNode.JoinStrategy.LOOKUP;
-
-      // Run some validations for lookup join
+      /* // Run some validations for lookup join
       Preconditions.checkArgument(!joinInfo.leftKeys.isEmpty(), "Lookup join requires join keys");
       // Right table should be a dimension table, and the right input should be an identifier only ProjectNode over
       // TableScanNode.
@@ -286,9 +282,8 @@ public class PRelToPlanNodeConverter {
       RelNode projectInput = PinotRuleUtils.unboxRel(project.getInput());
       Preconditions.checkState(projectInput instanceof TableScan,
           "Right input for lookup join must be a Project over TableScan, got Project over: %s",
-          projectInput.getClass().getSimpleName());
+          projectInput.getClass().getSimpleName()); */
     } else {
-      // TODO: Consider adding DYNAMIC_BROADCAST as a separate join strategy
       joinStrategy = JoinNode.JoinStrategy.HASH;
     }
 

@@ -42,7 +42,6 @@ import org.apache.pinot.query.planner.SubPlan;
 import org.apache.pinot.query.planner.SubPlanMetadata;
 import org.apache.pinot.query.planner.logical.rel2plan.NewRelToPRelConverter;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
-import org.apache.pinot.query.planner.logical.rel2plan.PRelToPlanNodeConverter;
 import org.apache.pinot.query.planner.physical.Blah;
 import org.apache.pinot.query.planner.plannode.BasePlanNode;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;

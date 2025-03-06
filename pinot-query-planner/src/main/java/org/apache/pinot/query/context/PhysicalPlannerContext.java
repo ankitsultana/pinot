@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.query.routing.QueryServerInstance;
@@ -21,10 +22,16 @@ public class PhysicalPlannerContext {
   private final String _hostName;
   private final int _port;
 
-  public PhysicalPlannerContext(WorkerManager workerManager) {
-    _routingManager = workerManager.getRoutingManager();
-    _hostName = workerManager.getHostName();
-    _port = workerManager.getPort();
+  public PhysicalPlannerContext(@Nullable WorkerManager workerManager) {
+    if (workerManager == null) {
+      _routingManager = null;
+      _hostName = null;
+      _port = 0;
+    } else {
+      _routingManager = workerManager.getRoutingManager();
+      _hostName = workerManager.getHostName();
+      _port = workerManager.getPort();
+    }
   }
 
   public int getPort() {

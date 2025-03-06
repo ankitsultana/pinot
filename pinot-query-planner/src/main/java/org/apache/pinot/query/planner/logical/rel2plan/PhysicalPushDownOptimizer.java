@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
@@ -18,6 +19,7 @@ public class PhysicalPushDownOptimizer {
   }
 
   public PRelNode pushDown(PRelNode rootNode) {
+    // TODO: Need to set isLeafStage.
     List<PRelNode> newInputs = new ArrayList<>();
     for (PRelNode input : rootNode.getInputs()) {
       newInputs.add(pushDown(input));
@@ -25,8 +27,9 @@ public class PhysicalPushDownOptimizer {
     boolean isInputExchange = !rootNode.getInputs().isEmpty()
         && rootNode.getInputs().get(0).getRelNode() instanceof PinotPhysicalExchange;
     if (rootNode.getRelNode() instanceof Aggregate && isInputExchange) {
-      PRelNode oldExchange = rootNode.getInput(0);
-      PRelNode inputPRelNode = rootNode.getInput(0).getInput(0);
+      Aggregate aggregate = (Aggregate) rootNode.getRelNode();
+      PRelNode oldExchange = newInputs.get(0);
+      PRelNode inputPRelNode = newInputs.get(0).getInput(0);
       PinotDataDistribution inputDistribution = inputPRelNode.getPinotDataDistribution().get();
       Map<Integer, Integer> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
       PinotDataDistribution partialAggregateDistribution = inputDistribution.apply(mp);
@@ -38,8 +41,8 @@ public class PhysicalPushDownOptimizer {
       return rootNode.copy(rootNode.getNodeId(), ImmutableList.of(newExchange),
           rootNode.getPinotDataDistribution().get());
     } else if (rootNode.getRelNode() instanceof Sort && isInputExchange) {
-      PRelNode oldExchange = rootNode.getInput(0);
-      PRelNode inputPRelNode = rootNode.getInput(0).getInput(0);
+      PRelNode oldExchange = newInputs.get(0);
+      PRelNode inputPRelNode = newInputs.get(0).getInput(0);
       PinotDataDistribution inputDistribution = inputPRelNode.getPinotDataDistribution().get();
       Map<Integer, Integer> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
       PinotDataDistribution partialSortDistribution = inputDistribution.apply(mp);

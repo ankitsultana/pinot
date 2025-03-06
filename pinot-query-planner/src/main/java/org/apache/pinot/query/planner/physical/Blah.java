@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +45,10 @@ public class Blah {
     // Create root receive node.
     MailboxReceiveNode rootReceiveNode = new MailboxReceiveNode(ROOT_FRAGMENT_ID, rootDataSchema,
         FIRST_NON_ROOT_FRAGMENT_ID, PinotRelExchangeType.getDefaultExchangeType(),
-        RelDistribution.Type.BROADCAST_DISTRIBUTED,  null, null, false, false, sendNode);
+        RelDistribution.Type.BROADCAST_DISTRIBUTED, null, null, false, false, sendNode);
     // Create the first two fragments.
     Context context = new Context(physicalPlannerContext);
-    PlanFragment rootFragment = createFragment(ROOT_FRAGMENT_ID, rootReceiveNode, Collections.emptyList(), context);
+    PlanFragment rootFragment = createFragment(ROOT_FRAGMENT_ID, rootReceiveNode, new ArrayList<>(), context);
     PlanFragment firstInputFragment = createFragment(FIRST_NON_ROOT_FRAGMENT_ID, sendNode, new ArrayList<>(), context);
     rootFragment.getChildren().add(firstInputFragment);
     QueryServerInstance brokerInstance = new QueryServerInstance(physicalPlannerContext.getHostName(),
@@ -58,6 +57,8 @@ public class Blah {
         createWorkerMap(rootPRelNode.getPinotDataDistributionOrThrow().getWorkers(), context),
         ImmutableMap.of(0, brokerInstance), PinotExchangeDesc.SINGLETON_EXCHANGE, context);
     // Traverse entire tree.
+    context._fragmentMetadataMap.get(ROOT_FRAGMENT_ID).setWorkerIdToServerInstanceMap(ImmutableMap.of(
+        0, brokerInstance));
     visit(rootPRelNode, sendNode, firstInputFragment, context);
     Result result = new Result();
     result._fragmentMetadataMap = context._fragmentMetadataMap;
@@ -81,24 +82,30 @@ public class Blah {
     if (pRelNode.getRelNode() instanceof TableScan) {
       String tableName = context._physicalPlannerContext.getScannedTableMap().get(currentPRelNodeId)
           .stream().findFirst().orElseThrow();
-      fragmentMetadata.addUnavailableSegments(tableName, context._physicalPlannerContext.getUnavailableSegmentsMap()
-          .get(currentPRelNodeId).get(tableName));
+      if (context._physicalPlannerContext.getUnavailableSegmentsMap().containsKey(currentPRelNodeId)) {
+        fragmentMetadata.addUnavailableSegments(tableName, context._physicalPlannerContext.getUnavailableSegmentsMap()
+            .get(currentPRelNodeId).get(tableName));
+      }
       fragmentMetadata.addScannedTable(tableName);
       fragmentMetadata.setWorkerIdToSegmentsMap(context._physicalPlannerContext.getWorkerIdToSegmentsMap()
           .get(currentPRelNodeId));
       NodeHint nodeHint = NodeHint.fromRelHints(((TableScan) pRelNode.getRelNode()).getHints());
       fragmentMetadata.setTableOptions(nodeHint.getHintOptions().get(PinotHintOptions.TABLE_HINT_OPTIONS));
-      fragmentMetadata.setTimeBoundaryInfo(context._physicalPlannerContext.getTimeBoundaryInfoMap().get(currentPRelNodeId));
+      if (context._physicalPlannerContext.getTimeBoundaryInfoMap().containsKey(currentPRelNodeId)) {
+        fragmentMetadata.setTimeBoundaryInfo(context._physicalPlannerContext.getTimeBoundaryInfoMap()
+            .get(currentPRelNodeId));
+      }
     }
     if (pRelNode.getRelNode() instanceof PinotPhysicalExchange) {
       PinotPhysicalExchange physicalExchange = (PinotPhysicalExchange) pRelNode.getRelNode();
       int senderFragmentId = context._planFragmentMap.size();
-      final DataSchema inputFragmentSchema = PRelToPlanNodeConverter.toDataSchema(pRelNode.getInput(0).getRelNode().getRowType());
+      final DataSchema inputFragmentSchema = PRelToPlanNodeConverter.toDataSchema(
+          pRelNode.getInput(0).getRelNode().getRowType());
       RelDistribution.Type distributionType = inferDistributionType(physicalExchange.getExchangeStrategy());
       List<PlanNode> inputs = new ArrayList<>();
-      MailboxSendNode sendNode = new MailboxSendNode(senderFragmentId, inputFragmentSchema, inputs, currentFragmentId, PinotRelExchangeType.PIPELINE_BREAKER,
-          distributionType, physicalExchange.getKeys(),
-          false, physicalExchange.getCollation().getFieldCollations(), false /* todo: set sortOnSender */);
+      MailboxSendNode sendNode = new MailboxSendNode(senderFragmentId, inputFragmentSchema, inputs, currentFragmentId,
+          PinotRelExchangeType.PIPELINE_BREAKER, distributionType, physicalExchange.getKeys(), false,
+          physicalExchange.getCollation().getFieldCollations(), false /* todo: set sortOnSender */);
       MailboxReceiveNode receiveNode = new MailboxReceiveNode(currentFragmentId, inputFragmentSchema,
           senderFragmentId, PinotRelExchangeType.PIPELINE_BREAKER, distributionType, physicalExchange.getKeys(),
           physicalExchange.getCollation().getFieldCollations(), false /* TODO: set sort on receiver */,
@@ -110,13 +117,14 @@ public class Blah {
           .getWorkers(), context);
       computeMailboxInfos(senderFragmentId, currentFragmentId, senderWorkers, receiverWorkers,
           physicalExchange.getExchangeStrategy(), context);
+      currentFragment.getChildren().add(newPlanFragment);
       visit(pRelNode.getInput(0), sendNode, newPlanFragment, context);
       if (parent != null) {
         parent.getInputs().add(receiveNode);
       }
       return;
     }
-    PlanNode planNode = PRelToPlanNodeConverter.toPlanNode(pRelNode);
+    PlanNode planNode = PRelToPlanNodeConverter.toPlanNode(pRelNode, currentFragmentId);
     for (PRelNode input : pRelNode.getInputs()) {
       visit(input, planNode, currentFragment, context);
     }
@@ -125,7 +133,8 @@ public class Blah {
     }
   }
 
-  private PlanFragment createFragment(int fragmentId, PlanNode planNode, List<PlanFragment> inputFragments, Context context) {
+  private PlanFragment createFragment(int fragmentId, PlanNode planNode, List<PlanFragment> inputFragments,
+      Context context) {
     PlanFragment fragment = new PlanFragment(fragmentId, planNode, inputFragments);
     context._planFragmentMap.put(fragmentId, fragment);
     context._fragmentMetadataMap.put(fragmentId, new DispatchablePlanMetadata());
@@ -181,8 +190,10 @@ public class Blah {
               receiverWorker.getQueryMailboxPort(), ImmutableList.of(workerId)));
           MailboxInfos mailboxInfosForReceiver = new SharedMailboxInfos(new MailboxInfo(senderWorker.getHostname(),
               senderWorker.getQueryMailboxPort(), ImmutableList.of(workerId)));
-          senderMailboxMap.computeIfAbsent(workerId, (x) -> new HashMap<>()).put(receiverStageId, mailboxInfosForSender);
-          receiverMailboxMap.computeIfAbsent(workerId, (x) -> new HashMap<>()).put(senderStageId, mailboxInfosForReceiver);
+          senderMailboxMap.computeIfAbsent(workerId, (x) -> new HashMap<>()).put(receiverStageId,
+              mailboxInfosForSender);
+          receiverMailboxMap.computeIfAbsent(workerId, (x) -> new HashMap<>()).put(
+              senderStageId, mailboxInfosForReceiver);
         }
         break;
       case SINGLETON_EXCHANGE: {
@@ -219,17 +230,13 @@ public class Blah {
   }
 
   private static List<MailboxInfo> createMailboxInfo(Map<Integer, QueryServerInstance> workers) {
-    Map<String, List<Integer>> workersByUniqueHostPort = new HashMap<>();
+    Map<QueryServerInstance, List<Integer>> workersByUniqueHostPort = new HashMap<>();
     for (var entry : workers.entrySet()) {
-      String instance = String.format("%s:%s", entry.getKey(), entry.getValue());
-      workersByUniqueHostPort.computeIfAbsent(instance, (x) -> new ArrayList<>()).add(entry.getKey());
+      workersByUniqueHostPort.computeIfAbsent(entry.getValue(), (x) -> new ArrayList<>()).add(entry.getKey());
     }
     List<MailboxInfo> result = new ArrayList<>();
     for (var entry : workersByUniqueHostPort.entrySet()) {
-      String hostPort = entry.getKey();
-      String host = hostPort.split(":")[0];
-      int port = Integer.parseInt(host.split(":")[1]);
-      result.add(new MailboxInfo(host, port, entry.getValue()));
+      result.add(new MailboxInfo(entry.getKey().getHostname(), entry.getKey().getQueryMailboxPort(), entry.getValue()));
     }
     return result;
   }

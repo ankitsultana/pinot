@@ -19,6 +19,7 @@
 package org.apache.pinot.query;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -114,6 +115,7 @@ public class QueryEnvironment {
   private final CalciteCatalogReader _catalogReader;
   private final HepProgram _optProgram;
   private final Config _envConfig;
+  private WorkerManager _workerManager = null;
 
   public QueryEnvironment(Config config) {
     _envConfig = config;
@@ -134,14 +136,23 @@ public class QueryEnvironment {
         .build());
   }
 
+  public void setWorkerManager(WorkerManager workerManager) {
+    Preconditions.checkNotNull(workerManager, "provided null worker manager");
+    if (_workerManager == null) {
+      _workerManager = workerManager;
+    }
+  }
+
   /**
    * Returns a planner context that can be used to either parse, explain or execute a query.
    */
   private PlannerContext getPlannerContext(SqlNodeAndOptions sqlNodeAndOptions) {
     WorkerManager workerManager = getWorkerManager(sqlNodeAndOptions);
     HepProgram traitProgram = getTraitProgram(workerManager);
+    // TODO: Can't do the following check because controller also uses this method.
+    // Preconditions.checkState(_workerManager != null, "Worker manager not initialized");
     return new PlannerContext(_config, _catalogReader, _typeFactory, _optProgram, traitProgram,
-        sqlNodeAndOptions.getOptions(), new PhysicalPlannerContext(_envConfig.getWorkerManager()));
+        sqlNodeAndOptions.getOptions(), new PhysicalPlannerContext(_workerManager));
   }
 
   @Nullable
@@ -405,8 +416,9 @@ public class QueryEnvironment {
 
   private DispatchableSubPlan toDispatchableSubPlan(RelRoot relRoot, PlannerContext plannerContext, long requestId,
       @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker) {
-    Pair<SubPlan, Blah.Result> plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker, useSpools(plannerContext.getOptions()),
-        _envConfig.getWorkerManager().getRoutingManager(), requestId, plannerContext);
+    Pair<SubPlan, Blah.Result> plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker,
+        useSpools(plannerContext.getOptions()), _envConfig.getWorkerManager().getRoutingManager(), requestId,
+        plannerContext);
     PinotDispatchPlanner pinotDispatchPlanner =
         new PinotDispatchPlanner(plannerContext, _envConfig.getWorkerManager(), requestId, _envConfig.getTableCache());
     return pinotDispatchPlanner.createDispatchableSubPlan(plan.getLeft(), plan.getRight());

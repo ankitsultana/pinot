@@ -116,7 +116,8 @@ public class LeafWorkerAssignment {
           instanceId, new QueryServerInstance(entry.getKey()));
       workerId++;
     }
-    _physicalPlannerContext.getWorkerIdToSegmentsMap().get(pRelNode.getNodeId()).putAll(workerIdToSegmentsMap);
+    _physicalPlannerContext.getWorkerIdToSegmentsMap().computeIfAbsent(
+        pRelNode.getNodeId(), (x) -> new HashMap<>()).putAll(workerIdToSegmentsMap);
     List<RelHint> hints = ((TableScan) pRelNode.getRelNode()).getHints();
     _physicalPlannerContext.getScannedTableMap().computeIfAbsent(pRelNode.getNodeId(), (x) -> new HashSet<>())
         .add(tableName);
