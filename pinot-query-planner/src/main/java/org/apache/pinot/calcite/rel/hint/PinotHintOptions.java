@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.calcite.rel.hint;
 
+import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.hint.RelHint;
@@ -93,6 +94,12 @@ public class PinotHintOptions {
       return LOOKUP_JOIN_STRATEGY.equalsIgnoreCase(
           PinotHintStrategyTable.getHintOption(join.getHints(), PinotHintOptions.JOIN_HINT_OPTIONS,
               PinotHintOptions.JoinHintOptions.JOIN_STRATEGY));
+    }
+
+    @Nullable
+    public static Boolean isColocatedByJoinKeys(Join join) {
+      String hint = PinotHintStrategyTable.getHintOption(join.getHints(), JOIN_HINT_OPTIONS, IS_COLOCATED_BY_JOIN_KEYS);
+      return hint != null ? Boolean.parseBoolean(hint) : null;
     }
   }
 

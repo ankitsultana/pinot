@@ -23,6 +23,8 @@ import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.logical.PinotTableScan;
+import org.apache.pinot.calcite.rel.logical.traits.PinotExecStrategyTrait;
+import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 
 
 public class TraitShuttle extends RelShuttleImpl {
@@ -62,6 +64,7 @@ public class TraitShuttle extends RelShuttleImpl {
     List<RelNode> newInputs = join.getInputs();
     RelNode leftInput = newInputs.get(0);
     RelNode rightInput = newInputs.get(1);
+    // TODO: Support explicit exchange strategies.
     if (PinotHintOptions.JoinHintOptions.useLookupJoinStrategy(join)) {
       // Lookup join expects right input to have project and table-scan nodes exactly.
       // Add broadcast trait to both of them for correctness' sake. Worker assignment will have to handle this
@@ -79,14 +82,27 @@ public class TraitShuttle extends RelShuttleImpl {
               ImmutableList.of(newTableScan));
       return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, newProject));
     }
-    if (join.isSemiJoin()) {
-      Preconditions.checkState(rightInput.getTraitSet().getDistribution() == null,
-          "Found existing dist trait on right input of semi-join");
-      rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED),
-          rightInput.getInputs());
-      return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
-    }
     JoinInfo joinInfo = join.analyzeCondition();
+    if (join.isSemiJoin()) {
+      if (joinInfo.nonEquiConditions.isEmpty() && joinInfo.leftKeys.size() == 1) {
+        if (PinotRuleUtils.canPushDynamicBroadcastToLeaf(join.getLeft())) {
+          /*
+           * When dynamic broadcast is enabled, push broadcast trait to right input along with the pipeline breaker
+           * trait. Use hash trait if a hint is given to indicate that left-input is partitioned.
+           */
+          Preconditions.checkState(rightInput.getTraitSet().getDistribution() == null,
+              "Found existing dist trait on right input of semi-join");
+          RelDistribution distribution = RelDistributions.BROADCAST_DISTRIBUTED;
+          if (Boolean.TRUE.equals(PinotHintOptions.JoinHintOptions.isColocatedByJoinKeys(join))) {
+            distribution = RelDistributions.hash(joinInfo.rightKeys);
+          }
+          RelTraitSet rightTraitSet = rightInput.getTraitSet().plus(distribution)
+              .plus(PinotExecStrategyTrait.PIPELINE_BREAKER);
+          rightInput = rightInput.copy(rightTraitSet, rightInput.getInputs());
+          return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
+        }
+      }
+    }
     Preconditions.checkState(joinInfo.isEqui(), "non-equi joins are not supported yet");
     if (!joinInfo.isEqui()) {
       return join.copy(join.getTraitSet(), newInputs);
