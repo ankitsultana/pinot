@@ -353,7 +353,7 @@ public class QueryEnvironment {
     RelRoot relation = toRelation(validated, plannerContext);
     RelNode optimized = optimize(relation, plannerContext);
     // assign trait constraints.
-    optimized = optimized.accept(TraitShuttle.INSTANCE);
+    optimized = optimized.accept(TraitShuttle.create(plannerContext.getOptions()));
     return relation.withRel(optimized);
   }
 

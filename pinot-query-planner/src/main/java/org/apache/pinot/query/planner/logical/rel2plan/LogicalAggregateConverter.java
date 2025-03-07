@@ -20,9 +20,8 @@ public class LogicalAggregateConverter {
       AggregateNode.AggType aggType = inferAggType(rootNode);
       PinotLogicalAggregate pinotLogicalAggregate = new PinotLogicalAggregate(logicalAggregate,
           aggType, false, RelCollations.EMPTY.getFieldCollations(), Integer.MAX_VALUE);
-      PRelNode newNode = new PRelNode(rootNode.getNodeId(), pinotLogicalAggregate,
+      return new PRelNode(rootNode.getNodeId(), pinotLogicalAggregate,
           rootNode.getPinotDataDistributionOrThrow(), newInputs);
-      return newNode;
     }
     return rootNode.withNewInputs(rootNode.getNodeId(), newInputs, rootNode.getPinotDataDistributionOrThrow());
   }

@@ -1,5 +1,6 @@
 package org.apache.pinot.calcite.rel.logical;
 
+import com.google.common.base.Preconditions;
 import java.util.Collections;
 import java.util.List;
 import org.apache.calcite.plan.RelTraitSet;
@@ -22,8 +23,10 @@ public class PinotPhysicalExchange extends Exchange {
     this(input, keys, exchangeStrategy, null);
   }
 
+  // TODO: Using random distributed here is a hack.
   public PinotPhysicalExchange(RelNode input, List<Integer> keys, PinotPhysicalExchangeType desc, RelCollation collation) {
-    super(input.getCluster(), RelTraitSet.createEmpty(), input, RelDistributions.RANDOM_DISTRIBUTED);
+    super(input.getCluster(), RelTraitSet.createEmpty().plus(RelDistributions.RANDOM_DISTRIBUTED), input,
+        RelDistributions.RANDOM_DISTRIBUTED);
     _keys = keys;
     _exchangeStrategy = desc;
     _collation = collation == null ? RelCollations.EMPTY : collation;
@@ -39,7 +42,10 @@ public class PinotPhysicalExchange extends Exchange {
 
   @Override
   public Exchange copy(RelTraitSet traitSet, RelNode newInput, RelDistribution newDistribution) {
-    throw new IllegalStateException("copy shouldn't be called for PinotPhysicalExchange");
+    // TODO: I m dropping the trait set here. That's a hack.
+    Preconditions.checkState(traitSet.size() <= 1, "At most 1 trait allowed in PinotPhysicalExc");
+    Preconditions.checkState(traitSet.isEmpty() || traitSet.getDistribution() != null, "Only distribution trait allowed in PinotPhysicalExchange");
+    return new PinotPhysicalExchange(newInput, _keys, _exchangeStrategy, _collation);
   }
 
   public List<Integer> getKeys() {

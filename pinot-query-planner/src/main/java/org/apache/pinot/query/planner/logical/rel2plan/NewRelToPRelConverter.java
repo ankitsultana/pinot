@@ -33,7 +33,7 @@ public class NewRelToPRelConverter {
     LeafStageBoundaryComputer leafStageBoundaryComputer = new LeafStageBoundaryComputer(generator);
     pRelNode = leafStageBoundaryComputer.compute(pRelNode);
     // Step-3: Assign workers to leaf stage nodes.
-    _leafWorkerAssignment.compute(pRelNode, _requestId);
+    pRelNode = _leafWorkerAssignment.compute(pRelNode, _requestId);
     // Step-4: Assign workers to all nodes.
     BaseWorkerExchangeAssignment workerExchangeAssignment;
     if (!_useLiteMode) {

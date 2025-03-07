@@ -120,6 +120,13 @@ public class WorkerExchangeAssignment extends BaseWorkerExchangeAssignment {
           currentNodeExchange.getPinotDataDistributionOrThrow());
       return currentNodeExchange;
     }
+    if (currentNode.isLeafStageBoundary()) {
+      currentNode = currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNodeDistribution);
+      PinotPhysicalExchange physicalExchange = new PinotPhysicalExchange(currentNode.getRelNode(),
+          Collections.emptyList(), PinotPhysicalExchangeType.IDENTITY_EXCHANGE);
+      return new PRelNode(_idGenerator.get(), physicalExchange, currentNode.getPinotDataDistributionOrThrow(),
+          ImmutableList.of(currentNode));
+    }
     return currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNodeDistribution);
   }
 

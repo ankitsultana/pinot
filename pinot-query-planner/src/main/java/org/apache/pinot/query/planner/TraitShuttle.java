@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
@@ -28,9 +29,14 @@ import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 
 
 public class TraitShuttle extends RelShuttleImpl {
-  public static final TraitShuttle INSTANCE = new TraitShuttle();
+  private final Map<String, String> _queryOptions;
 
-  private TraitShuttle() {
+  private TraitShuttle(Map<String, String> queryOptions) {
+    _queryOptions = queryOptions;
+  }
+
+  public static TraitShuttle create(Map<String, String> queryOptions) {
+    return new TraitShuttle(queryOptions);
   }
 
   @Override
@@ -64,7 +70,6 @@ public class TraitShuttle extends RelShuttleImpl {
     List<RelNode> newInputs = join.getInputs();
     RelNode leftInput = newInputs.get(0);
     RelNode rightInput = newInputs.get(1);
-    // TODO: Support explicit exchange strategies.
     if (PinotHintOptions.JoinHintOptions.useLookupJoinStrategy(join)) {
       // Lookup join expects right input to have project and table-scan nodes exactly.
       // Add broadcast trait to both of them for correctness' sake. Worker assignment will have to handle this
@@ -83,7 +88,7 @@ public class TraitShuttle extends RelShuttleImpl {
       return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, newProject));
     }
     JoinInfo joinInfo = join.analyzeCondition();
-    if (join.isSemiJoin()) {
+    if (join.isSemiJoin() && !_queryOptions.getOrDefault("skipDynamicFilter", "false").equals("true")) {
       if (joinInfo.nonEquiConditions.isEmpty() && joinInfo.leftKeys.size() == 1) {
         if (PinotRuleUtils.canPushDynamicBroadcastToLeaf(join.getLeft())) {
           /*
@@ -103,13 +108,16 @@ public class TraitShuttle extends RelShuttleImpl {
         }
       }
     }
-    Preconditions.checkState(joinInfo.isEqui(), "non-equi joins are not supported yet");
     if (!joinInfo.isEqui()) {
-      return join.copy(join.getTraitSet(), newInputs);
+      rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED),
+          rightInput.getInputs());
+      return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
     }
+    // TODO: Support explicit left and right exchange strategies.
     List<Integer> leftKeys = joinInfo.leftKeys;
     List<Integer> rightKeys = joinInfo.rightKeys;
     if (rightInput.getTraitSet().getDistribution() != null) {
+      // if right input has a broadcast trait, no trait required on left input.
       RelDistribution rightDistribution = Objects.requireNonNull(rightInput.getTraitSet().getDistribution());
       if (rightDistribution.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
         return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
@@ -119,6 +127,7 @@ public class TraitShuttle extends RelShuttleImpl {
     }
     Preconditions.checkState(leftInput.getTraitSet().getDistribution() == null,
         "Found distribution trait on left input of join");
+    // TODO: Allow default join strategy to be configured.
     leftInput = leftInput.copy(leftInput.getTraitSet().plus(RelDistributions.hash(leftKeys)), leftInput.getInputs());
     rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.hash(rightKeys)),
         rightInput.getInputs());

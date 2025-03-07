@@ -64,6 +64,10 @@ public class LeafStageBoundaryComputer {
       int filterCount = 0;
       while (true) {
         currentLeafStage.add(currentNode);
+        if (!_inputToCallerNodeId.containsKey(currentNode.getNodeId())) {
+          // Reached root node.
+          break;
+        }
         currentNode = _nodeIdToWrappedRelNode.get(_inputToCallerNodeId.get(currentNode.getNodeId()));
         if (currentNode.getRelNode() instanceof Project) {
           if (projectCount > 0) {

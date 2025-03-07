@@ -180,6 +180,23 @@ public class MultiStageEngineIntegrationTest extends BaseClusterIntegrationTestS
   }
 
   @Test
+  public void testSimpleQuerySuccess()
+      throws Exception {
+    List<String> queries = new ArrayList<>();
+    queries.add("select ActualElapsedTime FROM mytable limit 10");
+    queries.add("select ActualElapsedTime FROM mytable order by OriginStateName limit 10");
+    queries.add("SELECT COUNT(*) FROM mytable GROUP BY OriginStateName");
+    queries.add("SELECT COUNT(*) FROM mytable GROUP BY OriginStateName limit 10");
+    queries.add("SELECT OriginStateName, COUNT(*) FROM mytable GROUP BY OriginStateName ORDER BY 2 limit 10");
+    for (String query : queries) {
+      JsonNode jsonNode = postQuery(query);
+      long expectedResult = jsonNode.get("resultTable").get("rows").size();
+      // The query of `SELECT avg(ActualElapsedTime) FROM mytable` is -1412.435033969449
+      assertTrue(expectedResult > 0, "No rows in response for query: " + query);
+    }
+  }
+
+  @Test
   public void testSingleValueQuery()
       throws Exception {
     String query = "select sum(ActualElapsedTime) from mytable WHERE ActualElapsedTime > "
