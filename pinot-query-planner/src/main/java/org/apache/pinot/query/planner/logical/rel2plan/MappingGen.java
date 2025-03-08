@@ -1,6 +1,7 @@
 package org.apache.pinot.query.planner.logical.rel2plan;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,8 @@ import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.rel.core.Window;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections4.CollectionUtils;
 
@@ -27,29 +30,21 @@ public class MappingGen {
    * Source to destination mapping.
    */
   @Nullable
-  public static Map<Integer, Integer> compute(RelNode source, RelNode destination,
+  public static Map<Integer, List<Integer>> compute(RelNode source, RelNode destination,
       @Nullable List<RelNode> leadingSiblings) {
     if (destination instanceof Project) {
       Project project = (Project) destination;
-      Mappings.TargetMapping targetMapping = project.getMapping();
-      if (targetMapping == null) {
-        return null;
-      }
-      Map<Integer, Integer> result = createEmptyMap(source.getRowType().getFieldCount());
-      for (int i = 0; i < result.size(); i++) {
-        result.put(i, targetMapping.getTargetOpt(i));
-      }
-      return result;
+      return computeExactInputRefMapping(project, source.getRowType().getFieldCount());
     } else if (destination instanceof Window) {
       // Window preserves input fields, and appends a field for each window expr.
       Window window = (Window) destination;
       return createIdentityMap(window.getInput().getRowType().getFieldCount());
     } else if (destination instanceof Aggregate) {
       Aggregate aggregate = (Aggregate) destination;
-      Map<Integer, Integer> result = createEmptyMap(source.getRowType().getFieldCount());
+      Map<Integer, List<Integer>> result = createEmptyMap(source.getRowType().getFieldCount());
       List<Integer> groupSet = aggregate.getGroupSet().asList();
       for (int j = 0; j < groupSet.size(); j++) {
-        result.put(groupSet.get(j), j);
+        result.get(groupSet.get(j)).add(j);
       }
       return result;
     } else if (destination instanceof Join) {
@@ -58,9 +53,9 @@ public class MappingGen {
       }
       Preconditions.checkState(leadingSiblings.size() == 1, "At most two nodes allowed in join right now");
       int leftFieldCount = leadingSiblings.get(0).getRowType().getFieldCount();
-      Map<Integer, Integer> result = createEmptyMap(source.getRowType().getFieldCount());
+      Map<Integer, List<Integer>> result = createEmptyMap(source.getRowType().getFieldCount());
       for (int i = 0; i < result.size(); i++) {
-        result.put(i, i + leftFieldCount);
+        result.get(i).add(i + leftFieldCount);
       }
       return result;
     } else if (destination instanceof Filter) {
@@ -80,18 +75,33 @@ public class MappingGen {
     throw new IllegalStateException("Unknown node type: " + destination.getClass());
   }
 
-  private static Map<Integer, Integer> createIdentityMap(int size) {
-    Map<Integer, Integer> result = new HashMap<>();
+  private static Map<Integer, List<Integer>> computeExactInputRefMapping(Project project, int sourceCount) {
+    Map<Integer, List<Integer>> mp = createEmptyMap(sourceCount);
+    int currentIndex = 0;
+    for (RexNode rexNode : project.getProjects()) {
+      if (rexNode instanceof RexInputRef) {
+        RexInputRef rexInputRef = (RexInputRef) rexNode;
+        mp.get(currentIndex).add(rexInputRef.getIndex());
+      }
+      currentIndex++;
+    }
+    return mp;
+  }
+
+  private static Map<Integer, List<Integer>> createIdentityMap(int size) {
+    Map<Integer, List<Integer>> result = new HashMap<>();
     for (int i = 0; i < size; i++) {
-      result.put(i, i);
+      List<Integer> ls = new ArrayList<>();
+      ls.add(i);
+      result.put(i, ls);
     }
     return result;
   }
 
-  private static Map<Integer, Integer> createEmptyMap(int size) {
-    Map<Integer, Integer> result = new HashMap<>();
+  private static Map<Integer, List<Integer>> createEmptyMap(int size) {
+    Map<Integer, List<Integer>> result = new HashMap<>();
     for (int i = 0; i < size; i++) {
-      result.put(i, -1);
+      result.put(i, new ArrayList<>());
     }
     return result;
   }

@@ -31,7 +31,7 @@ public class PhysicalPushDownOptimizer {
       PRelNode oldExchange = newInputs.get(0);
       PRelNode inputPRelNode = newInputs.get(0).getInput(0);
       PinotDataDistribution inputDistribution = inputPRelNode.getPinotDataDistributionOrThrow();
-      Map<Integer, Integer> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
+      Map<Integer, List<Integer>> mp = MappingGen.compute(inputPRelNode.getRelNode(), rootNode.getRelNode(), null);
       PinotDataDistribution partialSortDistribution = inputDistribution.apply(mp);
       PRelNode wrappedPartialSort = new PRelNode(_idGenerator.get(), rootNode.getRelNode(),
           partialSortDistribution, ImmutableList.of(inputPRelNode));

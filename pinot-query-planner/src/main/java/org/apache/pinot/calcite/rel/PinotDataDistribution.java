@@ -19,9 +19,11 @@
 package org.apache.pinot.calcite.rel;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -111,26 +113,25 @@ public class PinotDataDistribution {
     return _collation.satisfies(relCollation);
   }
 
-  public PinotDataDistribution apply(@Nullable Map<Integer, Integer> mapping) {
+  public PinotDataDistribution apply(@Nullable Map<Integer, List<Integer>> mapping) {
     if (mapping == null) {
       return new PinotDataDistribution(Type.RANDOM, _workers, _workerHash, null, null);
     }
     Set<HashDistributionDesc> newHashDesc = new HashSet<>();
     if (_hashDistributionDesc != null) {
       for (HashDistributionDesc desc : _hashDistributionDesc) {
-        HashDistributionDesc newDesc = desc.apply(mapping);
-        if (newDesc != null) {
-          newHashDesc.add(desc.apply(mapping));
+        Set<HashDistributionDesc> newDescs = desc.apply(mapping);
+        if (newDescs != null) {
+          newHashDesc.addAll(newDescs);
         }
       }
     }
-    List<Integer> mpListKeys = createMappingList(mapping);
-    int targetCount = mpListKeys.stream().max(Comparator.naturalOrder()).orElse(-1) + 1;
-    RelCollation newCollation = _collation.apply(Mappings.source(mpListKeys, targetCount));
     Type newType = _type;
     if (newType == Type.HASH_PARTITIONED && newHashDesc.isEmpty()) {
       newType = Type.RANDOM;
     }
+    // TODO: Preserve collation too.
+    RelCollation newCollation = RelCollations.EMPTY;
     return new PinotDataDistribution(newType, _workers, _workerHash, newHashDesc, newCollation);
   }
 
@@ -181,19 +182,23 @@ public class PinotDataDistribution {
     }
 
     @Nullable
-    HashDistributionDesc apply(Map<Integer, Integer> mapping) {
-      List<Integer> result = new ArrayList<>(_keyIndexes.size());
+    Set<HashDistributionDesc> apply(Map<Integer, List<Integer>> mapping) {
       for (Integer currentKeyIndex : _keyIndexes) {
-        if (!mapping.containsKey(currentKeyIndex)) {
+        if (!mapping.containsKey(currentKeyIndex) || mapping.get(currentKeyIndex).isEmpty()) {
           return null;
         }
-        result.add(mapping.get(currentKeyIndex));
       }
-      HashDistributionDesc desc = new HashDistributionDesc();
-      desc._keyIndexes = result;
-      desc._hashFunction = _hashFunction;
-      desc._numPartitions = _numPartitions;
-      return desc;
+      List<List<Integer>> allNewKeys = new ArrayList<>();
+      compute(0, _keyIndexes, mapping, new ArrayDeque<>(), allNewKeys);
+      Set<HashDistributionDesc> result = new HashSet<>();
+      for (List<Integer> newKey : allNewKeys) {
+        HashDistributionDesc desc = new HashDistributionDesc();
+        desc._keyIndexes = newKey;
+        desc._hashFunction = _hashFunction;
+        desc._numPartitions = _numPartitions;
+        result.add(desc);
+      }
+      return result;
     }
 
     @Override
@@ -221,6 +226,20 @@ public class PinotDataDistribution {
       result.add(mp.get(i));
     }
     return result;
+  }
+
+  private static void compute(int keyNum, List<Integer> existingKeys, Map<Integer, List<Integer>> mapping,
+      Deque<Integer> runningKey, List<List<Integer>> newKeys) {
+    if (keyNum == existingKeys.size()) {
+      newKeys.add(new ArrayList<>(runningKey));
+      return;
+    }
+    List<Integer> possibilities = mapping.get(existingKeys.get(keyNum));
+    for (int currentKeyPossibility : possibilities) {
+      runningKey.addLast(currentKeyPossibility);
+      compute(keyNum + 1, existingKeys, mapping, runningKey, newKeys);
+      runningKey.removeLast();
+    }
   }
 
   private void validate() {
