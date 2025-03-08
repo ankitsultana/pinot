@@ -15,7 +15,7 @@ import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.rel.core.Window;
-import org.apache.calcite.util.Permutation;
+import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections4.CollectionUtils;
 
 
@@ -31,13 +31,13 @@ public class MappingGen {
       @Nullable List<RelNode> leadingSiblings) {
     if (destination instanceof Project) {
       Project project = (Project) destination;
-      Permutation permutation = project.getPermutation();
-      if (permutation == null) {
+      Mappings.TargetMapping targetMapping = project.getMapping();
+      if (targetMapping == null) {
         return null;
       }
       Map<Integer, Integer> result = createEmptyMap(source.getRowType().getFieldCount());
       for (int i = 0; i < result.size(); i++) {
-        result.put(i, permutation.getTargetOpt(i));
+        result.put(i, targetMapping.getTargetOpt(i));
       }
       return result;
     } else if (destination instanceof Window) {

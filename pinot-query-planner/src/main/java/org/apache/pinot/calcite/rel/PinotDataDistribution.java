@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelCollation;
@@ -193,6 +194,24 @@ public class PinotDataDistribution {
       desc._hashFunction = _hashFunction;
       desc._numPartitions = _numPartitions;
       return desc;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      HashDistributionDesc that = (HashDistributionDesc) o;
+      return _numPartitions == that._numPartitions && Objects.equals(_keyIndexes, that._keyIndexes) && Objects.equals(
+          _hashFunction, that._hashFunction);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(_keyIndexes, _hashFunction, _numPartitions);
     }
   }
 
