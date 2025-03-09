@@ -18,7 +18,6 @@ import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.util.mapping.Mappings;
 import org.apache.commons.collections4.CollectionUtils;
 
 
@@ -81,7 +80,7 @@ public class MappingGen {
     for (RexNode rexNode : project.getProjects()) {
       if (rexNode instanceof RexInputRef) {
         RexInputRef rexInputRef = (RexInputRef) rexNode;
-        mp.get(currentIndex).add(rexInputRef.getIndex());
+        mp.get(rexInputRef.getIndex()).add(currentIndex);
       }
       currentIndex++;
     }
