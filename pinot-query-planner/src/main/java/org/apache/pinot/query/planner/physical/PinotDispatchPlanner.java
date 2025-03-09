@@ -52,22 +52,25 @@ public class PinotDispatchPlanner {
    * Entry point for attaching dispatch metadata to a {@link SubPlan}.
    * @param subPlan the entrypoint of the sub plan.
    */
-  public DispatchableSubPlan createDispatchableSubPlan(SubPlan subPlan) {
+  public DispatchableSubPlan createDispatchableSubPlan(SubPlan subPlan, Blah.Result result) {
     // perform physical plan conversion and assign workers to each stage.
     DispatchablePlanContext context = new DispatchablePlanContext(_workerManager, _requestId, _plannerContext,
         subPlan.getSubPlanMetadata().getFields(), subPlan.getSubPlanMetadata().getTableNames());
     PlanFragment rootFragment = subPlan.getSubPlanRoot();
-    PlanNode rootNode = rootFragment.getFragmentRoot();
+    context.getDispatchablePlanMetadataMap().putAll(result._fragmentMetadataMap);
+    for (var entry : result._planFragmentMap.entrySet()) {
+      context.getDispatchablePlanStageRootMap().put(entry.getKey(), entry.getValue().getFragmentRoot());
+    }
     // 1. start by visiting the sub plan fragment root.
-    rootNode.visit(new DispatchablePlanVisitor(), context);
+    // rootNode.visit(new DispatchablePlanVisitor(), context);
     // 2. add a special stage for the global mailbox receive, this runs on the dispatcher.
-    context.getDispatchablePlanStageRootMap().put(0, rootNode);
+    // context.getDispatchablePlanStageRootMap().put(0, rootNode);
     // 3. add worker assignment after the dispatchable plan context is fulfilled after the visit.
-    context.getWorkerManager().assignWorkers(rootFragment, context);
+    // context.getWorkerManager().assignWorkers(rootFragment, context);
     // 4. compute the mailbox assignment for each stage.
-    rootNode.visit(MailboxAssignmentVisitor.INSTANCE, context);
+    // rootNode.visit(MailboxAssignmentVisitor.INSTANCE, context);
     // 5. Run physical optimizations
-    runPhysicalOptimizers(rootNode, context, _tableCache);
+    // runPhysicalOptimizers(rootNode, context, _tableCache);
     // 6. Run validations
     runValidations(rootFragment, context);
     // 7. convert it into query plan.

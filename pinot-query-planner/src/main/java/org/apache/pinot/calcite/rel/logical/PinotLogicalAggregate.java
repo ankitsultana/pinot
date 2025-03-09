@@ -50,6 +50,16 @@ public class PinotLogicalAggregate extends Aggregate {
     _limit = limit;
   }
 
+  public PinotLogicalAggregate(Aggregate aggRel, AggType aggType, boolean leafReturnFinalResult,
+      List<RelFieldCollation> collations, int limit) {
+    super(aggRel.getCluster(), aggRel.getTraitSet(), aggRel.getHints(), aggRel.getInput(), aggRel.getGroupSet(),
+        aggRel.groupSets, aggRel.getAggCallList());
+    _aggType = aggType;
+    _leafReturnFinalResult = leafReturnFinalResult;
+    _collations = collations;
+    _limit = limit;
+  }
+
   public PinotLogicalAggregate(Aggregate aggRel, RelNode input, ImmutableBitSet groupSet,
       @Nullable List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls, AggType aggType,
       boolean leafReturnFinalResult, @Nullable List<RelFieldCollation> collations, int limit) {
