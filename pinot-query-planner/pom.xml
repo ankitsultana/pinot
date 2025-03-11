@@ -64,5 +64,11 @@
       <artifactId>mockito-core</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.rnorth.duct-tape</groupId>
+      <artifactId>duct-tape</artifactId>
+      <version>1.0.8</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 </project>

@@ -48,7 +48,8 @@ import org.apache.pinot.segment.spi.AggregationFunctionType;
 
 
 /**
- * Creates PinotLogicalAggregate, assuming DIRECT AggType. Also propagates group-trim.
+ * Creates PinotLogicalAggregate, assuming DIRECT AggType. This also propagates group-trim info to the aggregate.
+ * Does NOT impact traits and does NOT rewrite agg calls.
  */
 public class PinotLogicalAggregateRule {
   public static class SortProjectAggregate extends RelOptRule {
@@ -162,8 +163,10 @@ public class PinotLogicalAggregateRule {
 
   private static PinotLogicalAggregate createPlan(RelOptRuleCall call, Aggregate aggRel, boolean hasGroupBy,
       Map<String, String> hintOptions, @Nullable List<RelFieldCollation> collations, int limit) {
+    boolean leafReturnFinalResult =
+        Boolean.parseBoolean(hintOptions.get(PinotHintOptions.AggregateOptions.IS_LEAF_RETURN_FINAL_RESULT));
     return new PinotLogicalAggregate(aggRel, aggRel.getInput(), aggRel.getAggCallList(), AggType.DIRECT,
-        false, collations, limit);
+        leafReturnFinalResult, collations, limit);
     /* if (withinGroupCollation != null || (hasGroupBy && Boolean.parseBoolean(
         hintOptions.get(PinotHintOptions.AggregateOptions.IS_SKIP_LEAF_STAGE_GROUP_BY)))) {
       return createPlanWithExchangeDirectAggregation(call, aggRel, withinGroupCollation, collations, limit);
@@ -172,8 +175,6 @@ public class PinotLogicalAggregateRule {
       return new PinotLogicalAggregate(aggRel, aggRel.getInput(), buildAggCalls(aggRel, AggType.DIRECT, false),
           AggType.DIRECT, false, collations, limit);
     } else {
-      boolean leafReturnFinalResult =
-          Boolean.parseBoolean(hintOptions.get(PinotHintOptions.AggregateOptions.IS_LEAF_RETURN_FINAL_RESULT));
       return createPlanWithLeafExchangeFinalAggregate(aggRel, leafReturnFinalResult, collations, limit);
     } */
   }
