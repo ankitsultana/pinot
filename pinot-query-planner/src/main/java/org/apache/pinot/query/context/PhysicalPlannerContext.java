@@ -37,7 +37,7 @@ public class PhysicalPlannerContext {
   private final Map<Integer, TimeBoundaryInfo> _timeBoundaryInfoMap = new HashMap<>();
   private final Map<Integer, Map<String, String>> _tableOptionsMap = new HashMap<>();
   private final Map<Integer, Set<String>> _scannedTableMap = new HashMap<>();
-  private final PlanIdGenerator _idGenerator;
+  private final PlanIdGenerator _idGenerator = new PlanIdGenerator();
   private final RoutingManager _routingManager;
   private final String _hostName;
   private final int _port;
@@ -55,6 +55,10 @@ public class PhysicalPlannerContext {
       _port = workerManager.getPort();
       _requestId = 0;
     }
+  }
+
+  public PlanIdGenerator getIdGenerator() {
+    return _idGenerator;
   }
 
   public int getNextId() {

@@ -75,8 +75,7 @@ public class NewRelToPRelConverter {
   }
 
   public PRelNode toPRelNodeV2(RelNode relNode, PhysicalPlannerContext context, Map<String, String> queryOptions) {
-    PlanIdGenerator generator = new PlanIdGenerator();
-    PRelNode pRelNode = PRelNode.wrapRelTree(relNode, generator);
+    PRelNode pRelNode = PRelNode.wrapRelTree(relNode, context.getIdGenerator());
     var rules = PhysicalQueryRuleSet.create(context, queryOptions);
     for (var ruleAndExecutor : rules) {
       PRelOptRule rule = ruleAndExecutor.getLeft();
