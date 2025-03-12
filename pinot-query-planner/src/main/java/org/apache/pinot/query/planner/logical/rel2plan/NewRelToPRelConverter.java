@@ -18,11 +18,16 @@
  */
 package org.apache.pinot.query.planner.logical.rel2plan;
 
+import java.util.Map;
 import org.apache.calcite.rel.RelNode;
+import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.logical.rel2plan.workers.BaseWorkerExchangeAssignment;
 import org.apache.pinot.query.planner.logical.rel2plan.workers.LiteModeWorkerExchangeAssignment;
 import org.apache.pinot.query.planner.logical.rel2plan.workers.WorkerExchangeAssignment;
+import org.apache.pinot.query.planner.physical.v2.PRelOptRule;
+import org.apache.pinot.query.planner.physical.v2.PhysicalQueryRuleSet;
+import org.apache.pinot.query.planner.physical.v2.RuleExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +71,18 @@ public class NewRelToPRelConverter {
     LogicalAggregateConverter logicalAggregateConverter = new LogicalAggregateConverter();
     pRelNode = logicalAggregateConverter.convert(pRelNode);
     PRelNode.printWrappedRelNode(pRelNode, 0);
+    return pRelNode;
+  }
+
+  public PRelNode toPRelNodeV2(RelNode relNode, PhysicalPlannerContext context, Map<String, String> queryOptions) {
+    PlanIdGenerator generator = new PlanIdGenerator();
+    PRelNode pRelNode = PRelNode.wrapRelTree(relNode, generator);
+    var rules = PhysicalQueryRuleSet.create(context, queryOptions);
+    for (var ruleAndExecutor : rules) {
+      PRelOptRule rule = ruleAndExecutor.getLeft();
+      RuleExecutor executor = ruleAndExecutor.getRight();
+      pRelNode = executor.execute(pRelNode, rule, context);
+    }
     return pRelNode;
   }
 }

@@ -24,6 +24,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.core.routing.RoutingManager;
+import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.PlanFragment;
 import org.apache.pinot.query.planner.SubPlan;
@@ -48,10 +49,13 @@ public class PinotLogicalQueryPlanner {
       @Nullable TransformationTracker.Builder<PlanNode, RelNode> tracker, boolean useSpools,
       RoutingManager routingManager, long requestId, PlannerContext plannerContext) {
     // Step-1: Convert RelNode tree to a PRelNode
+    PhysicalPlannerContext physicalPlannerContext = plannerContext.getPhysicalPlannerContext();
     NewRelToPRelConverter relToPrelConverter = new NewRelToPRelConverter(requestId, plannerContext);
-    PRelNode pRelNode = relToPrelConverter.toPRelNode(relRoot.rel);
+    // PRelNode pRelNode = relToPrelConverter.toPRelNode(relRoot.rel);
+    PRelNode pRelNode = relToPrelConverter.toPRelNodeV2(relRoot.rel, physicalPlannerContext,
+        plannerContext.getOptions());
     Blah blah = new Blah();
-    Blah.Result blahResult = blah.compute(pRelNode, plannerContext.getPhysicalPlannerContext());
+    Blah.Result blahResult = blah.compute(pRelNode, physicalPlannerContext);
     PlanFragment rootFragment = blahResult._planFragmentMap.get(0);
     // Step-3: Create plan fragments.
     SubPlan subPlan = new SubPlan(rootFragment,
