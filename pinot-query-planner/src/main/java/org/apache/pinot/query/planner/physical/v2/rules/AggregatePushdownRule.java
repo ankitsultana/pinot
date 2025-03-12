@@ -1,39 +1,55 @@
 package org.apache.pinot.query.planner.physical.v2.rules;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
-import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.rules.AggregateExtractProjectRule;
+import org.apache.calcite.rel.core.Exchange;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.Union;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.tools.RelBuilder;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlOperandTypeChecker;
+import org.apache.calcite.sql.type.SqlReturnTypeInference;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.apache.calcite.util.mapping.Mapping;
-import org.apache.calcite.util.mapping.MappingType;
-import org.apache.calcite.util.mapping.Mappings;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
+import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
+import org.apache.pinot.calcite.rel.logical.PinotPhysicalExchange;
+import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
+import org.apache.pinot.common.function.sql.PinotSqlAggFunction;
+import org.apache.pinot.query.planner.logical.rel2plan.MappingGen;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 import org.apache.pinot.query.planner.physical.v2.PRelOptRule;
 import org.apache.pinot.query.planner.physical.v2.PRelOptRuleCall;
-import org.apache.pinot.query.planner.plannode.AggregateNode;
+import org.apache.pinot.query.planner.plannode.AggregateNode.AggType;
+import org.apache.pinot.segment.spi.AggregationFunctionType;
 
 
 /**
  * Does the following:
  * 1. Converts agg calls to their proper forms.
- * 2. Splits aggregations based on hints and current data partitioning.
+ * 2. Adds aggregate under Exchange, if exchange is an input.
  * 3. Handles leafReturnFinalResult thing.
  */
 public class AggregatePushdownRule extends PRelOptRule {
+  public static final AggregatePushdownRule INSTANCE = new AggregatePushdownRule();
+
   @Override
   public boolean matches(PRelOptRuleCall call) {
     return call._currentNode.getRelNode() instanceof Aggregate;
@@ -41,9 +57,8 @@ public class AggregatePushdownRule extends PRelOptRule {
 
   @Override
   public PRelNode onMatch(PRelOptRuleCall call) {
-    // Honor existing logic for is_skip_leaf_stage_group_by and is_partitioned_by_group_by_keys first.
-    // Then check
     Aggregate aggRel = (Aggregate) call._currentNode.getRelNode();
+    Preconditions.checkState(aggRel instanceof PinotLogicalAggregate, "Expected PinotLogicalAggregate, got %s", aggRel);
     boolean hasGroupBy = !aggRel.getGroupSet().isEmpty();
     RelCollation withinGroupCollation = extractWithinGroupCollation(aggRel);
     Map<String, String> hintOptions =
@@ -51,18 +66,57 @@ public class AggregatePushdownRule extends PRelOptRule {
     if (hintOptions == null) {
       hintOptions = Map.of();
     }
-    if (withinGroupCollation != null || (hasGroupBy && Boolean.parseBoolean(
-        hintOptions.get(PinotHintOptions.AggregateOptions.IS_SKIP_LEAF_STAGE_GROUP_BY)))) {
-      // TODO: transform agg calls.
-      return call._currentNode;
-    } else if (hasGroupBy && Boolean.parseBoolean(
-        hintOptions.get(PinotHintOptions.AggregateOptions.IS_PARTITIONED_BY_GROUP_BY_KEYS))) {
-      // TODO: transform agg calls.
-      // TODO: Check partitioning (check exchange).
-      // TODO: If exchange due to leaf stage, push aggregate past exchange
-      return call._currentNode;
+    boolean isInputExchange = call._currentNode.getRelNode().getInput(0) instanceof Exchange;
+    if (!isInputExchange || withinGroupCollation != null || (hasGroupBy && Boolean.parseBoolean(
+            hintOptions.get(PinotHintOptions.AggregateOptions.IS_SKIP_LEAF_STAGE_GROUP_BY)))) {
+      return skipPartialAggregate(call._currentNode);
     }
-    // TODO: If exchange exists under aggregate, push aggregate past exchange. Also update current aggregate type.
+    return addPartialAggregate(call._currentNode, hintOptions);
+  }
+
+  private static PRelNode skipPartialAggregate(PRelNode aggPRelNode) {
+    PinotLogicalAggregate aggRel = (PinotLogicalAggregate) aggPRelNode.getRelNode();
+    RelNode input = aggRel.getInput();
+    Preconditions.checkState(!aggRel.isLeafReturnFinalResult(),
+        "leaf return final result can only be set for leaf aggregate");
+    List<AggregateCall> newAggCalls = buildAggCalls(aggRel, AggType.DIRECT, false);
+    PinotLogicalAggregate newAggRel = new PinotLogicalAggregate(aggRel, input, newAggCalls, AggType.DIRECT,
+        false, aggRel.getCollations(), aggRel.getLimit());
+    return new PRelNode(aggPRelNode.getNodeId(), newAggRel, aggPRelNode.getPinotDataDistribution(),
+        ImmutableList.of(aggPRelNode.getInput(0)));
+  }
+
+  private static PRelNode addPartialAggregate(PRelNode aggPRelNode, Map<String, String> hintOptions) {
+    // Old: Aggregate (o0) > Exchange (o1) > Input (o2)
+    // New: Aggregate (n0) > Exchange (n1) > Aggregate (n2) > Input (o2)
+    boolean leafReturnFinalResult =
+        Boolean.parseBoolean(hintOptions.get(PinotHintOptions.AggregateOptions.IS_LEAF_RETURN_FINAL_RESULT));
+    // init old PRelNodes
+    PRelNode o0PRelNode = aggPRelNode;
+    PRelNode o1PRelNode = o0PRelNode.getInput(0);
+    PRelNode o2PRelNode = o1PRelNode.getInput(0);
+    // init old nodes
+    PinotLogicalAggregate o0 = (PinotLogicalAggregate) aggPRelNode.getRelNode();
+    PinotPhysicalExchange o1 = (PinotPhysicalExchange) o0.getInput();
+    RelNode o2 = o1.getInput();
+    // create new rel nodes
+    PinotLogicalAggregate n2 = new PinotLogicalAggregate(o0.getCluster(), RelTraitSet.createEmpty(), o0.getHints(),
+        o2, o0.getGroupSet(), o0.getGroupSets(), buildAggCalls(o0, AggType.LEAF, leafReturnFinalResult), AggType.LEAF,
+        leafReturnFinalResult, o0.getCollations(), o0.getLimit());
+    Map<Integer, List<Integer>> newMapping = MappingGen.compute(o2, n2, null);
+    PinotPhysicalExchange n1 = new PinotPhysicalExchange(n2,
+        MappingGen.apply(newMapping, o1.getKeys(), () -> {
+          throw new IllegalStateException("Multiple mappings found in Agg");
+        }), o1.getExchangeStrategy());
+    PinotLogicalAggregate n0 = convertAggFromIntermediateInput(o0, n1, AggType.FINAL, leafReturnFinalResult,
+        o0.getCollations(), o0.getLimit());
+    PRelNode n2PRelNode = new PRelNode(-1, n2, o2PRelNode.getPinotDataDistributionOrThrow().apply(newMapping),
+        ImmutableList.of(o2PRelNode), o2PRelNode.isLeafStage(), o2PRelNode.isLeafStage());
+    PRelNode n1PRelNode = new PRelNode(-1, n1, o1PRelNode.getPinotDataDistributionOrThrow().apply(newMapping),
+        ImmutableList.of(n2PRelNode), false, false);
+    // return n0
+    return new PRelNode(-1, n0, n1PRelNode.getPinotDataDistributionOrThrow(),
+        ImmutableList.of(n1PRelNode), false, false);
   }
 
   // TODO: Currently it only handles one WITHIN GROUP collation across all AggregateCalls.
@@ -77,58 +131,48 @@ public class AggregatePushdownRule extends PRelOptRule {
     return null;
   }
 
-  /**
-   * The following is copied from {@link AggregateExtractProjectRule#onMatch(RelOptRuleCall)} with modification to take
-   * aggregate input as input.
-   */
-  private static RelNode generateProjectUnderAggregate(RelOptRuleCall call, Aggregate aggregate) {
-    // --------------- MODIFIED ---------------
-    final RelNode input = aggregate.getInput();
-    // final Aggregate aggregate = call.rel(0);
-    // final RelNode input = call.rel(1);
-    // ------------- END MODIFIED -------------
+  private static PinotLogicalAggregate convertAggFromIntermediateInput(Aggregate aggRel, PinotPhysicalExchange exchange,
+      AggType aggType, boolean leafReturnFinalResult, @Nullable List<RelFieldCollation> collations, int limit) {
+    RelNode input = aggRel.getInput();
+    List<RexNode> projects = findImmediateProjects(input);
 
-    // Compute which input fields are used.
-    // 1. group fields are always used
-    final ImmutableBitSet.Builder inputFieldsUsed = aggregate.getGroupSet().rebuild();
-    // 2. agg functions
-    for (AggregateCall aggCall : aggregate.getAggCallList()) {
-      for (int i : aggCall.getArgList()) {
-        inputFieldsUsed.set(i);
+    // Create new AggregateCalls from exchange input. Exchange produces results with group keys followed by intermediate
+    // aggregate results.
+    int groupCount = aggRel.getGroupCount();
+    List<AggregateCall> orgAggCalls = aggRel.getAggCallList();
+    int numAggCalls = orgAggCalls.size();
+    List<AggregateCall> aggCalls = new ArrayList<>(numAggCalls);
+    for (int i = 0; i < numAggCalls; i++) {
+      AggregateCall orgAggCall = orgAggCalls.get(i);
+      List<Integer> argList = orgAggCall.getArgList();
+      int index = groupCount + i;
+      RexInputRef inputRef = RexInputRef.of(index, aggRel.getRowType());
+      // Generate rexList from argList and replace literal reference with literal. Keep the first argument as is.
+      int numArguments = argList.size();
+      List<RexNode> rexList;
+      if (numArguments <= 1) {
+        rexList = ImmutableList.of(inputRef);
+      } else {
+        rexList = new ArrayList<>(numArguments);
+        rexList.add(inputRef);
+        for (int j = 1; j < numArguments; j++) {
+          int argument = argList.get(j);
+          if (projects != null && projects.get(argument) instanceof RexLiteral) {
+            rexList.add(projects.get(argument));
+          } else {
+            // Replace all the input reference in the rexList to the new input reference.
+            rexList.add(inputRef);
+          }
+        }
       }
-      if (aggCall.filterArg >= 0) {
-        inputFieldsUsed.set(aggCall.filterArg);
-      }
-    }
-    final RelBuilder relBuilder = call.builder().push(input);
-    final List<RexNode> projects = new ArrayList<>();
-    final Mapping mapping =
-        Mappings.create(MappingType.INVERSE_SURJECTION, aggregate.getInput().getRowType().getFieldCount(),
-            inputFieldsUsed.cardinality());
-    int j = 0;
-    for (int i : inputFieldsUsed.build()) {
-      projects.add(relBuilder.field(i));
-      mapping.set(i, j++);
+      aggCalls.add(buildAggCall(exchange, orgAggCall, rexList, groupCount, aggType, leafReturnFinalResult));
     }
 
-    relBuilder.project(projects);
-
-    final ImmutableBitSet newGroupSet = Mappings.apply(mapping, aggregate.getGroupSet());
-    final List<ImmutableBitSet> newGroupSets = aggregate.getGroupSets()
-        .stream()
-        .map(bitSet -> Mappings.apply(mapping, bitSet))
-        .collect(ImmutableList.toImmutableList());
-    final List<RelBuilder.AggCall> newAggCallList = aggregate.getAggCallList()
-        .stream()
-        .map(aggCall -> relBuilder.aggregateCall(aggCall, mapping))
-        .collect(ImmutableList.toImmutableList());
-
-    final RelBuilder.GroupKey groupKey = relBuilder.groupKey(newGroupSet, newGroupSets);
-    relBuilder.aggregate(groupKey, newAggCallList);
-    return relBuilder.build();
+    return new PinotLogicalAggregate(aggRel, exchange, ImmutableBitSet.range(groupCount), aggCalls, aggType,
+        leafReturnFinalResult, collations, limit);
   }
 
-  public static List<AggregateCall> buildAggCalls(Aggregate aggRel, AggregateNode.AggType aggType, boolean leafReturnFinalResult) {
+  public static List<AggregateCall> buildAggCalls(Aggregate aggRel, AggType aggType, boolean leafReturnFinalResult) {
     RelNode input = aggRel.getInput();
     List<RexNode> projects = findImmediateProjects(input);
     List<AggregateCall> orgAggCalls = aggRel.getAggCallList();
@@ -198,5 +242,16 @@ public class AggregatePushdownRule extends PRelOptRule {
     return AggregateCall.create(sqlAggFunction, false, orgAggCall.isApproximate(), orgAggCall.ignoreNulls(), rexList,
         ImmutableList.of(), aggType.isInputIntermediateFormat() ? -1 : orgAggCall.filterArg, orgAggCall.distinctKeys,
         orgAggCall.collation, numGroups, input, returnType, null);
+  }
+
+  @Nullable
+  private static List<RexNode> findImmediateProjects(RelNode relNode) {
+    relNode = PinotRuleUtils.unboxRel(relNode);
+    if (relNode instanceof Project) {
+      return ((Project) relNode).getProjects();
+    } else if (relNode instanceof Union) {
+      return findImmediateProjects(relNode.getInput(0));
+    }
+    return null;
   }
 }

@@ -31,6 +31,7 @@ public class PostOrderRuleExecutor extends RuleExecutor {
     if (rule.matches(call)) {
       currentNode = rule.onMatch(call);
     }
+    currentNode = rule.onDone(currentNode);
     return currentNode;
   }
 }

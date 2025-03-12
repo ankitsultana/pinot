@@ -37,7 +37,7 @@ public enum PinotPhysicalExchangeType {
    */
   PARTITIONING_EXCHANGE,
   /**
-   * 1-to-1 but the exchange is a permutation.
+   * 1-to-1 but the exchange is a permutation of worker-ids.
    */
   PERMUTATION_EXCHANGE,
   /**

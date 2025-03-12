@@ -10,17 +10,23 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.calcite.rel.RelDistributions;
+import org.apache.calcite.rel.core.Aggregate;
+import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
+import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.core.routing.TablePartitionInfo;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
+import org.apache.pinot.query.planner.logical.rel2plan.MappingGen;
 import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 import org.apache.pinot.query.planner.physical.v2.PRelOptRule;
 import org.apache.pinot.query.planner.physical.v2.PRelOptRuleCall;
@@ -31,26 +37,63 @@ import org.apache.pinot.spi.utils.builder.TableNameBuilder;
 import org.apache.pinot.sql.parsers.CalciteSqlCompiler;
 
 
-public class TableScanWorkerAssignmentRule extends PRelOptRule {
+public class LeafStageWorkerAssignmentRule extends PRelOptRule {
   private final RoutingManager _routingManager;
   private final PhysicalPlannerContext _physicalPlannerContext;
+  private final Map<Integer, PinotDataDistribution> _leafAggregateDistribution = new HashMap<>();
 
-  public TableScanWorkerAssignmentRule(PhysicalPlannerContext physicalPlannerContext) {
+  public LeafStageWorkerAssignmentRule(PhysicalPlannerContext physicalPlannerContext) {
     _routingManager = physicalPlannerContext.getRoutingManager();
     _physicalPlannerContext = physicalPlannerContext;
   }
 
   @Override
   public boolean matches(PRelOptRuleCall call) {
-    return call._currentNode.getRelNode() instanceof TableScan;
+    if (call._currentNode.isLeafStage()) {
+      return true;
+    }
+    if (call._currentNode.getRelNode() instanceof Aggregate && call._currentNode.getInput(0).isLeafStage()
+        && isProjectFilterOrScan(call._currentNode.getInput(0))) {
+      // If aggregate is partitioned or forced-partitioned, then promote it to leaf stage if it exists on the boundary.
+      Aggregate aggRel = (Aggregate) call._currentNode.getRelNode();
+      boolean hasGroupBy = !aggRel.getGroupSet().isEmpty();
+      if (!hasGroupBy) {
+        return false;
+      }
+      Map<String, String> hintOptions =
+          PinotHintStrategyTable.getHintOptions(aggRel.getHints(), PinotHintOptions.AGGREGATE_HINT_OPTIONS);
+      hintOptions = hintOptions == null ? Map.of() : hintOptions;
+      if (Boolean.parseBoolean(hintOptions.get(PinotHintOptions.AggregateOptions.IS_PARTITIONED_BY_GROUP_BY_KEYS))) {
+        return true;
+      }
+      PinotDataDistribution inputDistribution = call._currentNode.getInput(0).getPinotDataDistributionOrThrow();
+      if (inputDistribution.getType() != PinotDataDistribution.Type.HASH_PARTITIONED) {
+        return false;
+      }
+      PinotDataDistribution.HashDistributionDesc partitionDesc = inputDistribution.getHashDistributionDesc().iterator()
+          .next();
+      return aggRel.getGroupSet().asSet().stream().anyMatch(x -> partitionDesc.getKeyIndexes().contains(x));
+    }
+    return false;
   }
 
   @Override
   public PRelNode onMatch(PRelOptRuleCall call) {
-    return assign(call._currentNode);
+    if (call._currentNode.getRelNode() instanceof TableScan) {
+      return assignTableScan(call._currentNode);
+    }
+    PRelNode currentNode = call._currentNode;
+    int currentNodeId = currentNode.getNodeId();
+    Preconditions.checkState(currentNode.isLeafStage() || currentNode.getRelNode() instanceof Aggregate);
+    currentNode = currentNode.isLeafStage() ? currentNode : currentNode.asLeafStage(() -> currentNodeId, true);
+    Map<Integer, List<Integer>> mapping = MappingGen.compute(currentNode.getInput(0).getRelNode(),
+        currentNode.getRelNode(), null);
+    PinotDataDistribution derivedDistribution = currentNode.getInput(0).getPinotDataDistributionOrThrow()
+        .apply(mapping);
+    return currentNode.withPinotDataDistribution(derivedDistribution);
   }
 
-  private PRelNode assign(PRelNode pRelNode) {
+  private PRelNode assignTableScan(PRelNode pRelNode) {
     TableScan tableScan = (TableScan) pRelNode.getRelNode();
     String tableName = tableScan.getTable().getQualifiedName().get(1);
     // TODO: Support server pruning based on filter. Filter can be extracted from parent stack.
@@ -244,5 +287,10 @@ public class TableScanWorkerAssignmentRule extends PRelOptRule {
         TableNameBuilder.forType(tableType).tableNameWithType(TableNameBuilder.extractRawTableName(tableName));
     return _routingManager.getRoutingTable(
         CalciteSqlCompiler.compileToBrokerRequest("SELECT * FROM \"" + tableNameWithType + "\""), requestId);
+  }
+
+  private static boolean isProjectFilterOrScan(PRelNode pRelNode) {
+    return pRelNode.getRelNode() instanceof TableScan || pRelNode.getRelNode() instanceof Project
+        || pRelNode.getRelNode() instanceof Filter;
   }
 }

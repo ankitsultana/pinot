@@ -128,6 +128,9 @@ public class PinotQueryRuleSets {
 
   // Pinot specific rules that should be run AFTER all other rules
   public static final List<RelOptRule> PINOT_POST_RULES = List.of(
+      PinotLogicalAggregateRule.SortProjectAggregate.INSTANCE,
+      PinotLogicalAggregateRule.SortAggregate.INSTANCE,
+      PinotLogicalAggregateRule.WithoutSort.INSTANCE,
       PinotSingleValueAggregateRemoveRule.INSTANCE,
       // TODO: Consider removing this rule and directly handle SEARCH in RexExpressionUtils.
       PinotFilterExpandSearchRule.INSTANCE,

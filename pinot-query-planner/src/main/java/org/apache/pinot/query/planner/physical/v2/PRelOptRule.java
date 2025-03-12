@@ -12,4 +12,8 @@ public abstract class PRelOptRule {
   }
 
   public abstract PRelNode onMatch(PRelOptRuleCall call);
+
+  public PRelNode onDone(PRelNode currentNode) {
+    return currentNode;
+  }
 }

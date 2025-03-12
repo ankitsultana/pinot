@@ -2,6 +2,7 @@ package org.apache.pinot.query.planner.logical.rel2plan;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,10 +26,33 @@ public class MappingGen {
   private MappingGen() {
   }
 
+  public static List<Integer> apply(Map<Integer, List<Integer>> mapping, List<Integer> keys,
+      Runnable multiMappedKeyHandler) {
+    if (keys.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<Integer> newKeys = new ArrayList<>();
+    boolean anyMappingNotPresent = false;
+    for (int key : keys) {
+      List<Integer> mappedKeys = mapping.get(key);
+      if (mappedKeys == null || mappedKeys.isEmpty()) {
+        anyMappingNotPresent = true;
+        break;
+      }
+      newKeys.add(mappedKeys.get(0));
+      if (mappedKeys.size() > 1) {
+        multiMappedKeyHandler.run();
+      }
+    }
+    if (anyMappingNotPresent) {
+      return Collections.emptyList();
+    }
+    return newKeys;
+  }
+
   /**
    * Source to destination mapping.
    */
-  @Nullable
   public static Map<Integer, List<Integer>> compute(RelNode source, RelNode destination,
       @Nullable List<RelNode> leadingSiblings) {
     if (destination instanceof Project) {

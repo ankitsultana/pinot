@@ -34,6 +34,9 @@ public class InOrderRuleExecutor extends RuleExecutor {
     for (int index = 1; index < currentNode.getInputs().size(); index++) {
       newInputs.set(index, execute(currentNode.getInput(index), rule, context));
     }
-    return currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNode.getPinotDataDistributionOrThrow());
+    currentNode = currentNode.withNewInputs(currentNode.getNodeId(), newInputs,
+        currentNode.getPinotDataDistributionOrThrow());
+    currentNode = rule.onDone(currentNode);
+    return currentNode;
   }
 }

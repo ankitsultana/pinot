@@ -72,6 +72,10 @@ public class PinotDataDistribution {
     return _hashDistributionDesc;
   }
 
+  public RelCollation getCollation() {
+    return _collation;
+  }
+
   /**
    * <pre>
    *   Input: distribution required logically for correctness.
