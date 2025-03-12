@@ -23,10 +23,10 @@ import java.util.Map;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.planner.physical.v2.rules.AggregatePushdownRule;
-import org.apache.pinot.query.planner.physical.v2.rules.WorkerExchangeAssignmentRule;
 import org.apache.pinot.query.planner.physical.v2.rules.LeafStageBoundaryRule;
-import org.apache.pinot.query.planner.physical.v2.rules.SortPushdownRule;
 import org.apache.pinot.query.planner.physical.v2.rules.LeafStageWorkerAssignmentRule;
+import org.apache.pinot.query.planner.physical.v2.rules.SortPushdownRule;
+import org.apache.pinot.query.planner.physical.v2.rules.WorkerExchangeAssignmentRule;
 
 
 public class PhysicalQueryRuleSet {
