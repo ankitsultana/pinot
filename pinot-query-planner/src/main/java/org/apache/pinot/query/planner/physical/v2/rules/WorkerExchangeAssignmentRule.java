@@ -157,8 +157,8 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
     Set<PinotDataDistribution.HashDistributionDesc> newDistributionSet =
         new HashSet<>(currentNode.getPinotDataDistributionOrThrow().getHashDistributionDesc());
     List<RelNode> leadingSiblings = new ArrayList<>();
-    leadingSiblings.add(currentNode.getRelNode());
     for (int inputIndex = 1; inputIndex < currentNode.getInputs().size(); inputIndex++) {
+      leadingSiblings.add(currentNode.getRelNode().getInput(inputIndex - 1));
       PinotDataDistribution inputDistribution = currentNode.getInput(inputIndex).getPinotDataDistributionOrThrow();
       if (inputDistribution.getType() == PinotDataDistribution.Type.HASH_PARTITIONED) {
         PinotDataDistribution inheritedDist = inputDistribution.apply(MappingGen.compute(

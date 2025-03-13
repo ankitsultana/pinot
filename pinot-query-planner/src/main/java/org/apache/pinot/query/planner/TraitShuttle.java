@@ -128,7 +128,8 @@ public class TraitShuttle extends RelShuttleImpl {
         }
       }
     }
-    if (!joinInfo.isEqui()) {
+    // TODO: only checking rightKeys.isEmpty(). should check left keys too?
+    if (!joinInfo.isEqui() || joinInfo.rightKeys.isEmpty()) {
       rightInput = rightInput.copy(rightInput.getTraitSet().plus(RelDistributions.BROADCAST_DISTRIBUTED),
           rightInput.getInputs());
       return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
