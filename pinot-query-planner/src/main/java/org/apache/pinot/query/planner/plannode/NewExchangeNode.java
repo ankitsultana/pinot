@@ -22,48 +22,42 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
-import org.apache.calcite.rel.RelDistribution;
-import org.apache.calcite.rel.RelFieldCollation;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.pinot.calcite.rel.PinotPhysicalExchangeType;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.common.utils.DataSchema;
 
 
-/**
- * ExchangeNode represents the exchange stage in the query plan.
- * It is used to exchange the data between the instances.
- */
-public class ExchangeNode extends BasePlanNode {
+public class NewExchangeNode extends BasePlanNode {
   private final PinotRelExchangeType _exchangeType;
-  private final RelDistribution.Type _distributionType;
+  private final PinotPhysicalExchangeType _pinotPhysicalExchangeType;
   private final List<Integer> _keys;
-  private final boolean _prePartitioned;
-  private final List<RelFieldCollation> _collations;
+  private final RelCollation _collation;
   private final boolean _sortOnSender;
   private final boolean _sortOnReceiver;
-  // Table names should be set for SUB_PLAN exchange type.
+  // TODO: Table names should be set for SUB_PLAN exchange type.
   private final Set<String> _tableNames;
 
-  public ExchangeNode(int stageId, DataSchema dataSchema, List<PlanNode> inputs, PinotRelExchangeType exchangeType,
-      RelDistribution.Type distributionType, @Nullable List<Integer> keys, boolean prePartitioned,
-      @Nullable List<RelFieldCollation> collations, boolean sortOnSender, boolean sortOnReceiver,
-      @Nullable Set<String> tableNames) {
+  public NewExchangeNode(int stageId, DataSchema dataSchema, List<PlanNode> inputs, PinotRelExchangeType exchangeType,
+      @Nullable List<Integer> keys,
+      @Nullable RelCollation collation, boolean sortOnSender, boolean sortOnReceiver,
+      @Nullable Set<String> tableNames, @Nullable PinotPhysicalExchangeType desc) {
     super(stageId, dataSchema, null, inputs);
     _exchangeType = exchangeType;
-    _distributionType = distributionType;
     _keys = keys;
-    _prePartitioned = prePartitioned;
-    _collations = collations;
+    _collation = collation;
     _sortOnSender = sortOnSender;
     _sortOnReceiver = sortOnReceiver;
     _tableNames = tableNames;
+    _pinotPhysicalExchangeType = desc;
+  }
+
+  public PinotPhysicalExchangeType getPinotExchangeDesc() {
+    return _pinotPhysicalExchangeType;
   }
 
   public PinotRelExchangeType getExchangeType() {
     return _exchangeType;
-  }
-
-  public RelDistribution.Type getDistributionType() {
-    return _distributionType;
   }
 
   @Nullable
@@ -71,13 +65,9 @@ public class ExchangeNode extends BasePlanNode {
     return _keys;
   }
 
-  public boolean isPrePartitioned() {
-    return _prePartitioned;
-  }
-
   @Nullable
-  public List<RelFieldCollation> getCollations() {
-    return _collations;
+  public RelCollation getCollation() {
+    return _collation;
   }
 
   public boolean isSortOnSender() {
@@ -95,18 +85,18 @@ public class ExchangeNode extends BasePlanNode {
 
   @Override
   public String explain() {
-    return "EXCHANGE";
+    return "NEW_EXCHANGE";
   }
 
   @Override
   public <T, C> T visit(PlanNodeVisitor<T, C> visitor, C context) {
-    return visitor.visitExchange(this, context);
+    return visitor.visitNewExchange(this, context);
   }
 
   @Override
   public PlanNode withInputs(List<PlanNode> inputs) {
-    return new ExchangeNode(_stageId, _dataSchema, inputs, _exchangeType, _distributionType, _keys, _prePartitioned,
-        _collations, _sortOnSender, _sortOnReceiver, _tableNames);
+    return new NewExchangeNode(_stageId, _dataSchema, inputs, _exchangeType, _keys,
+        _collation, _sortOnSender, _sortOnReceiver, _tableNames, _pinotPhysicalExchangeType);
   }
 
   @Override
@@ -114,22 +104,22 @@ public class ExchangeNode extends BasePlanNode {
     if (this == o) {
       return true;
     }
-    if (!(o instanceof ExchangeNode)) {
+    if (!(o instanceof NewExchangeNode)) {
       return false;
     }
     if (!super.equals(o)) {
       return false;
     }
-    ExchangeNode that = (ExchangeNode) o;
+    NewExchangeNode that = (NewExchangeNode) o;
     return _sortOnSender == that._sortOnSender && _sortOnReceiver == that._sortOnReceiver
-        && _prePartitioned == that._prePartitioned && _exchangeType == that._exchangeType
-        && _distributionType == that._distributionType && Objects.equals(_keys, that._keys) && Objects.equals(
-        _collations, that._collations) && Objects.equals(_tableNames, that._tableNames);
+        && _exchangeType == that._exchangeType
+        && Objects.equals(_keys, that._keys) && Objects.equals(_collation, that._collation)
+        && Objects.equals(_tableNames, that._tableNames);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(super.hashCode(), _exchangeType, _distributionType, _keys, _sortOnSender, _sortOnReceiver,
-        _prePartitioned, _collations, _tableNames);
+    return Objects.hash(super.hashCode(), _exchangeType, _keys, _sortOnSender, _sortOnReceiver,
+        _collation, _tableNames);
   }
 }

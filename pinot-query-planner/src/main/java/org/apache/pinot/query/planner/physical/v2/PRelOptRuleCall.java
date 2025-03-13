@@ -16,37 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.query.planner;
+package org.apache.pinot.query.planner.physical.v2;
 
-import java.util.List;
-import org.apache.pinot.query.planner.plannode.PlanNode;
+import java.util.Deque;
+import org.apache.pinot.query.context.PhysicalPlannerContext;
+import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 
 
-/**
- * The {@code PlanFragment} corresponds to a stage in the query.
- */
-public class PlanFragment {
+public class PRelOptRuleCall {
+  public final PhysicalPlannerContext _physicalPlannerContext;
+  public final PRelNode _currentNode;
+  public final Deque<PRelNode> _parents;
 
-  private final int _fragmentId;
-  private final PlanNode _fragmentRoot;
-
-  private final List<PlanFragment> _children;
-
-  public PlanFragment(int fragmentId, PlanNode fragmentRoot, List<PlanFragment> children) {
-    _fragmentId = fragmentId;
-    _fragmentRoot = fragmentRoot;
-    _children = children;
-  }
-
-  public int getFragmentId() {
-    return _fragmentId;
-  }
-
-  public PlanNode getFragmentRoot() {
-    return _fragmentRoot;
-  }
-
-  public List<PlanFragment> getChildren() {
-    return _children;
+  public PRelOptRuleCall(PRelNode currentNode, Deque<PRelNode> parents, PhysicalPlannerContext physicalPlannerContext) {
+    _currentNode = currentNode;
+    _parents = parents;
+    _physicalPlannerContext = physicalPlannerContext;
   }
 }

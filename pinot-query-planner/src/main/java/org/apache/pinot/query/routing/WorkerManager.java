@@ -78,6 +78,18 @@ public class WorkerManager {
     _routingManager = routingManager;
   }
 
+  public RoutingManager getRoutingManager() {
+    return _routingManager;
+  }
+
+  public String getHostName() {
+    return _hostName;
+  }
+
+  public int getPort() {
+    return _port;
+  }
+
   public void assignWorkers(PlanFragment rootFragment, DispatchablePlanContext context) {
     // ROOT stage doesn't have a QueryServer as it is strictly only reducing results, so here we simply assign the
     // worker instance with identical server/mailbox port number.

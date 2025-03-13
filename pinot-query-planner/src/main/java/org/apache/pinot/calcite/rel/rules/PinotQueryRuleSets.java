@@ -128,30 +128,10 @@ public class PinotQueryRuleSets {
 
   // Pinot specific rules that should be run AFTER all other rules
   public static final List<RelOptRule> PINOT_POST_RULES = List.of(
-      // TODO: Merge the following 2 rules into a single rule
-      // add an extra exchange for sort
-      PinotSortExchangeNodeInsertRule.INSTANCE,
-      // copy exchanges down, this must be done after SortExchangeNodeInsertRule
-      PinotSortExchangeCopyRule.SORT_EXCHANGE_COPY,
-
+      PinotLogicalAggregateRule.SortProjectAggregate.INSTANCE,
+      PinotLogicalAggregateRule.SortAggregate.INSTANCE,
+      PinotLogicalAggregateRule.WithoutSort.INSTANCE,
       PinotSingleValueAggregateRemoveRule.INSTANCE,
-      PinotJoinExchangeNodeInsertRule.INSTANCE,
-      PinotAggregateExchangeNodeInsertRule.SortProjectAggregate.INSTANCE,
-      PinotAggregateExchangeNodeInsertRule.SortAggregate.INSTANCE,
-      PinotAggregateExchangeNodeInsertRule.WithoutSort.INSTANCE,
-      PinotWindowExchangeNodeInsertRule.INSTANCE,
-      PinotSetOpExchangeNodeInsertRule.INSTANCE,
-
-      // apply dynamic broadcast rule after exchange is inserted/
-      PinotJoinToDynamicBroadcastRule.INSTANCE,
-
-      // remove exchanges when there's duplicates
-      PinotExchangeEliminationRule.INSTANCE,
-
-      // Expand all SEARCH nodes to simplified filter nodes. SEARCH nodes get created for queries with range predicates,
-      // in-clauses, etc.
-      // NOTE: Keep this rule at the end because it can potentially create a lot of predicates joined by OR/AND for IN/
-      //       NOT IN clause, which can be expensive to process in other rules.
       // TODO: Consider removing this rule and directly handle SEARCH in RexExpressionUtils.
       PinotFilterExpandSearchRule.INSTANCE,
       // Evaluate the Literal filter nodes

@@ -16,37 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.query.planner;
+package org.apache.pinot.query.planner.logical.rel2plan.workers;
 
-import java.util.List;
-import org.apache.pinot.query.planner.plannode.PlanNode;
+import org.apache.pinot.query.planner.logical.rel2plan.PRelNode;
 
 
-/**
- * The {@code PlanFragment} corresponds to a stage in the query.
- */
-public class PlanFragment {
-
-  private final int _fragmentId;
-  private final PlanNode _fragmentRoot;
-
-  private final List<PlanFragment> _children;
-
-  public PlanFragment(int fragmentId, PlanNode fragmentRoot, List<PlanFragment> children) {
-    _fragmentId = fragmentId;
-    _fragmentRoot = fragmentRoot;
-    _children = children;
-  }
-
-  public int getFragmentId() {
-    return _fragmentId;
-  }
-
-  public PlanNode getFragmentRoot() {
-    return _fragmentRoot;
-  }
-
-  public List<PlanFragment> getChildren() {
-    return _children;
-  }
+public abstract class BaseWorkerExchangeAssignment {
+  public abstract PRelNode assign(PRelNode rootNode);
 }

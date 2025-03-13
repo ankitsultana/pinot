@@ -16,37 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.query.planner;
+package org.apache.pinot.query.planner.logical.rel2plan;
 
-import java.util.List;
-import org.apache.pinot.query.planner.plannode.PlanNode;
+import java.util.function.Supplier;
 
 
-/**
- * The {@code PlanFragment} corresponds to a stage in the query.
- */
-public class PlanFragment {
+public class PlanIdGenerator implements Supplier<Integer> {
+  private int _id = 0;
 
-  private final int _fragmentId;
-  private final PlanNode _fragmentRoot;
-
-  private final List<PlanFragment> _children;
-
-  public PlanFragment(int fragmentId, PlanNode fragmentRoot, List<PlanFragment> children) {
-    _fragmentId = fragmentId;
-    _fragmentRoot = fragmentRoot;
-    _children = children;
-  }
-
-  public int getFragmentId() {
-    return _fragmentId;
-  }
-
-  public PlanNode getFragmentRoot() {
-    return _fragmentRoot;
-  }
-
-  public List<PlanFragment> getChildren() {
-    return _children;
+  @Override
+  public Integer get() {
+    return _id++;
   }
 }

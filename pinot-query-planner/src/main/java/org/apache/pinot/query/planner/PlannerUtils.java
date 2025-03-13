@@ -20,6 +20,7 @@ package org.apache.pinot.query.planner;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
@@ -79,5 +80,25 @@ public class PlannerUtils {
     relRoot.explain(planWriter);
     pw.flush();
     return sw.toString();
+  }
+
+  public static String explainPlanWithTraits(RelNode relNode) {
+    StringWriter stringWriter = new StringWriter();
+    PrintWriter printWriter = new PrintWriter(stringWriter);
+    explainPlanWithTraitsInternal(relNode, printWriter, 0);
+    return stringWriter.toString();
+  }
+
+  private static void explainPlanWithTraitsInternal(RelNode relRoot, PrintWriter pw, int level) {
+    List<String> fields = relRoot.getRowType().getFieldNames();
+    String traitStr = String.format("traits(dist=%s, collation=%s)", relRoot.getTraitSet().getDistribution(),
+        relRoot.getTraitSet().getCollation());
+    for (int i = 0; i < level; i++) {
+      pw.print("  ");
+    }
+    pw.println(String.format("%s(%s %s)", relRoot.getRelTypeName(), fields, traitStr));
+    for (RelNode input : relRoot.getInputs()) {
+      explainPlanWithTraitsInternal(input, pw, level + 1);
+    }
   }
 }

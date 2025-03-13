@@ -1,0 +1,252 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.pinot.calcite.rel;
+
+import com.google.common.base.Preconditions;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelDistributions;
+
+
+public class PinotDataDistribution {
+  private final Type _type;
+  private final List<String> _workers;
+  private final long _workerHash;
+  private final Set<HashDistributionDesc> _hashDistributionDesc;
+  private final RelCollation _collation;
+
+  public PinotDataDistribution(Type type, List<String> workers, long workerHash,
+      @Nullable Set<HashDistributionDesc> desc, @Nullable RelCollation collation) {
+    _type = type;
+    _workers = workers;
+    _workerHash = workerHash;
+    _hashDistributionDesc = desc == null ? Collections.emptySet() : desc;
+    _collation = collation == null ? RelCollations.EMPTY : collation;
+    validate();
+  }
+
+  public PinotDataDistribution withCollation(RelCollation collation) {
+    return new PinotDataDistribution(_type, _workers, _workerHash, _hashDistributionDesc, collation);
+  }
+
+  public Type getType() {
+    return _type;
+  }
+
+  public List<String> getWorkers() {
+    return _workers;
+  }
+
+  public long getWorkerHash() {
+    return _workerHash;
+  }
+
+  public Set<HashDistributionDesc> getHashDistributionDesc() {
+    return _hashDistributionDesc;
+  }
+
+  public RelCollation getCollation() {
+    return _collation;
+  }
+
+  /**
+   * <pre>
+   *   Input: distribution required logically for correctness.
+   *   Output: whether this physical distribution meets the input constraint.
+   * </pre>
+   */
+  public boolean satisfies(@Nullable RelDistribution distributionConstraint) {
+    if (distributionConstraint == null) {
+      return true;
+    }
+    if (distributionConstraint == RelDistributions.ANY
+        || distributionConstraint == RelDistributions.RANDOM_DISTRIBUTED) {
+      return true;
+    } else if (distributionConstraint == RelDistributions.BROADCAST_DISTRIBUTED) {
+      // TODO: We could do better when the input node is only on a single worker.
+      return _type == Type.BROADCAST;
+    } else if (distributionConstraint == RelDistributions.SINGLETON) {
+      return _type == Type.SINGLETON;
+    }
+    if (distributionConstraint.getType() != RelDistribution.Type.HASH_DISTRIBUTED) {
+      throw new IllegalStateException("Unexpected rel distribution type: " + distributionConstraint.getType());
+    }
+    if (_type != Type.HASH_PARTITIONED) {
+      return false;
+    }
+    HashDistributionDesc hashDistributionDesc = satisfiesHashDistributionConstraint(distributionConstraint);
+    return hashDistributionDesc != null;
+  }
+
+  public boolean satisfies(@Nullable RelCollation relCollation) {
+    if (relCollation == null || relCollation == RelCollations.EMPTY || relCollation.getKeys().isEmpty()) {
+      return true;
+    }
+    if (_collation == null) {
+      return false;
+    }
+    return _collation.satisfies(relCollation);
+  }
+
+  public PinotDataDistribution apply(@Nullable Map<Integer, List<Integer>> mapping) {
+    if (mapping == null) {
+      return new PinotDataDistribution(Type.RANDOM, _workers, _workerHash, null, null);
+    }
+    Set<HashDistributionDesc> newHashDesc = new HashSet<>();
+    if (_hashDistributionDesc != null) {
+      for (HashDistributionDesc desc : _hashDistributionDesc) {
+        Set<HashDistributionDesc> newDescs = desc.apply(mapping);
+        if (newDescs != null) {
+          newHashDesc.addAll(newDescs);
+        }
+      }
+    }
+    Type newType = _type;
+    if (newType == Type.HASH_PARTITIONED && newHashDesc.isEmpty()) {
+      newType = Type.RANDOM;
+    }
+    // TODO: Preserve collation too.
+    RelCollation newCollation = RelCollations.EMPTY;
+    return new PinotDataDistribution(newType, _workers, _workerHash, newHashDesc, newCollation);
+  }
+
+  @Nullable
+  public HashDistributionDesc satisfiesHashDistributionConstraint(RelDistribution hashConstraint) {
+    Preconditions.checkNotNull(_hashDistributionDesc, "Found hashDistributionDesc null in satisfies");
+    /* TODO: once we add support for non-strict distributions, we can just check partial distributions.
+    for (HashDistributionDesc desc : _hashDistributionDesc) {
+      if (new HashSet<>(desc._keyIndexes).containsAll(hashConstraint.getKeys())) {
+        return desc;
+      }
+    } */
+    return _hashDistributionDesc.stream().filter(x -> x.getKeyIndexes().equals(hashConstraint.getKeys())).findFirst()
+        .orElse(null);
+  }
+
+  public enum Type {
+    SINGLETON,
+    HASH_PARTITIONED,
+    BROADCAST,
+    RANDOM
+  }
+
+  public static class HashDistributionDesc {
+    List<Integer> _keyIndexes = Collections.emptyList();
+    String _hashFunction;
+    int _numPartitions;
+
+    public HashDistributionDesc() {
+    }
+
+    public HashDistributionDesc(List<Integer> keyIndexes, String hashFunction, int numPartitions) {
+      _keyIndexes = keyIndexes;
+      _hashFunction = hashFunction;
+      _numPartitions = numPartitions;
+    }
+
+    public List<Integer> getKeyIndexes() {
+      return _keyIndexes;
+    }
+
+    public String getHashFunction() {
+      return _hashFunction;
+    }
+
+    public int getNumPartitions() {
+      return _numPartitions;
+    }
+
+    @Nullable
+    Set<HashDistributionDesc> apply(Map<Integer, List<Integer>> mapping) {
+      for (Integer currentKeyIndex : _keyIndexes) {
+        if (!mapping.containsKey(currentKeyIndex) || mapping.get(currentKeyIndex).isEmpty()) {
+          return null;
+        }
+      }
+      List<List<Integer>> allNewKeys = new ArrayList<>();
+      compute(0, _keyIndexes, mapping, new ArrayDeque<>(), allNewKeys);
+      Set<HashDistributionDesc> result = new HashSet<>();
+      for (List<Integer> newKey : allNewKeys) {
+        HashDistributionDesc desc = new HashDistributionDesc();
+        desc._keyIndexes = newKey;
+        desc._hashFunction = _hashFunction;
+        desc._numPartitions = _numPartitions;
+        result.add(desc);
+      }
+      return result;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      HashDistributionDesc that = (HashDistributionDesc) o;
+      return _numPartitions == that._numPartitions && Objects.equals(_keyIndexes, that._keyIndexes) && Objects.equals(
+          _hashFunction, that._hashFunction);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(_keyIndexes, _hashFunction, _numPartitions);
+    }
+  }
+
+  private List<Integer> createMappingList(Map<Integer, Integer> mp) {
+    List<Integer> result = new ArrayList<>();
+    for (int i = 0; i < mp.size(); i++) {
+      result.add(mp.get(i));
+    }
+    return result;
+  }
+
+  private static void compute(int keyNum, List<Integer> existingKeys, Map<Integer, List<Integer>> mapping,
+      Deque<Integer> runningKey, List<List<Integer>> newKeys) {
+    if (keyNum == existingKeys.size()) {
+      newKeys.add(new ArrayList<>(runningKey));
+      return;
+    }
+    List<Integer> possibilities = mapping.get(existingKeys.get(keyNum));
+    for (int currentKeyPossibility : possibilities) {
+      runningKey.addLast(currentKeyPossibility);
+      compute(keyNum + 1, existingKeys, mapping, runningKey, newKeys);
+      runningKey.removeLast();
+    }
+  }
+
+  private void validate() {
+    if (_type == Type.SINGLETON && _workers.size() > 1) {
+      throw new IllegalStateException(String.format("Singleton distribution with %s workers", _workers.size()));
+    }
+  }
+}
