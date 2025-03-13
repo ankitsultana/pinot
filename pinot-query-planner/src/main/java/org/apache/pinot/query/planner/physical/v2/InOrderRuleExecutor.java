@@ -35,26 +35,29 @@ public class InOrderRuleExecutor extends RuleExecutor {
 
   public PRelNode execute(PRelNode currentNode, PRelOptRule rule, PhysicalPlannerContext context) {
     if (!currentNode.getInputs().isEmpty()) {
+      _parents.addLast(currentNode);
       PRelNode modifiedInput = execute(currentNode.getInput(0), rule, context);
+      _parents.removeLast();
       if (modifiedInput != currentNode.getInput(0)) {
         ImmutableList.Builder<PRelNode> listBuilder = ImmutableList.builder();
         listBuilder.add(modifiedInput);
         listBuilder.addAll(currentNode.getInputs().subList(1, currentNode.getInputs().size()));
         currentNode = currentNode.withNewInputs(currentNode.getNodeId(), listBuilder.build(),
-            currentNode.getPinotDataDistributionOrThrow());
+            currentNode.getPinotDataDistribution());
       }
     }
     PRelOptRuleCall call = new PRelOptRuleCall(currentNode, _parents, context);
     if (rule.matches(call)) {
       currentNode = rule.onMatch(call);
     }
+    _parents.addLast(currentNode);
     List<PRelNode> newInputs = new ArrayList<>(currentNode.getInputs());
     for (int index = 1; index < currentNode.getInputs().size(); index++) {
       newInputs.set(index, execute(currentNode.getInput(index), rule, context));
     }
-    currentNode = currentNode.withNewInputs(currentNode.getNodeId(), newInputs,
-        currentNode.getPinotDataDistributionOrThrow());
+    currentNode = currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNode.getPinotDataDistribution());
     currentNode = rule.onDone(currentNode);
+    _parents.removeLast();
     return currentNode;
   }
 }

@@ -41,6 +41,7 @@ import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
+import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
 import org.apache.pinot.calcite.rel.logical.PinotTableScan;
 import org.apache.pinot.calcite.rel.logical.traits.PinotExecStrategyTrait;
 import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
@@ -79,6 +80,8 @@ public class TraitShuttle extends RelShuttleImpl {
   public RelNode visit(RelNode other) {
     if (other instanceof LogicalWindow) {
       return visitWindow((LogicalWindow) other);
+    } else if (other instanceof PinotLogicalAggregate) {
+      return visitAggregate((PinotLogicalAggregate) other);
     }
     return super.visit(other);
   }
@@ -152,10 +155,10 @@ public class TraitShuttle extends RelShuttleImpl {
     return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, rightInput));
   }
 
-  @Override public RelNode visit(LogicalAggregate aggregate) {
+  private RelNode visitAggregate(PinotLogicalAggregate aggregate) {
     Preconditions.checkState(aggregate.getInput(0).getTraitSet().getDistribution() == null,
         "aggregate input already has distribution trait");
-    aggregate = (LogicalAggregate) super.visit(aggregate);
+    aggregate = (PinotLogicalAggregate) super.visit(aggregate);
     RelNode newInput = aggregate.getInput(0);
     if (aggregate.getGroupCount() == 0) {
       newInput = newInput.copy(newInput.getTraitSet().plus(RelDistributions.SINGLETON), newInput.getInputs());

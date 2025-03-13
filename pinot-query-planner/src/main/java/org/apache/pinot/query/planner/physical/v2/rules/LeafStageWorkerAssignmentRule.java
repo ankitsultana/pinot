@@ -182,8 +182,25 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
     }
     _physicalPlannerContext.getWorkerIdToSegmentsMap().computeIfAbsent(
         pRelNode.getNodeId(), (x) -> new HashMap<>()).putAll(workerIdToSegmentsMap);
-    PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
-        workers, workers.hashCode(), null, null);
+    PinotDataDistribution pinotDataDistribution;
+    String partitionColumn = PinotHintStrategyTable.getHintOption(tableScan.getHints(),
+        PinotHintOptions.TABLE_HINT_OPTIONS,  PinotHintOptions.TableHintOptions.PARTITION_KEY);
+    if (partitionColumn == null) {
+      pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.RANDOM,
+          workers, workers.hashCode(), null, null);
+    } else {
+      String hashFunction = PinotHintStrategyTable.getHintOption(tableScan.getHints(),
+          PinotHintOptions.TABLE_HINT_OPTIONS,  PinotHintOptions.TableHintOptions.PARTITION_FUNCTION);
+      hashFunction = hashFunction == null ? "murmur" : hashFunction;
+      String partitionSize = PinotHintStrategyTable.getHintOption(tableScan.getHints(),
+          PinotHintOptions.TABLE_HINT_OPTIONS,  PinotHintOptions.TableHintOptions.PARTITION_SIZE);
+      Preconditions.checkNotNull(partitionSize, "partition size should be set");
+      PinotDataDistribution.HashDistributionDesc desc = new PinotDataDistribution.HashDistributionDesc(
+          ImmutableList.of(tableScan.getRowType().getFieldNames().indexOf(partitionColumn)),
+          hashFunction, Integer.parseInt(partitionSize));
+      pinotDataDistribution = new PinotDataDistribution(PinotDataDistribution.Type.HASH_PARTITIONED,
+          workers, workers.hashCode(), ImmutableSet.of(desc), null);
+    }
     return pRelNode.withPinotDataDistribution(pinotDataDistribution);
   }
 

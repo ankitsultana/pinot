@@ -82,6 +82,7 @@ public class NewRelToPRelConverter {
       RuleExecutor executor = ruleAndExecutor.getRight();
       pRelNode = executor.execute(pRelNode, rule, context);
     }
+    PRelNode.printWrappedRelNode(pRelNode, 0);
     return pRelNode;
   }
 }

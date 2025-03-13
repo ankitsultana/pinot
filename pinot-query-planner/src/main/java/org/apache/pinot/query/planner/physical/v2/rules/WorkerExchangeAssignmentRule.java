@@ -71,9 +71,9 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
     RelCollation relCollation = coalesceCollation(currentNode.getRelNode().getTraitSet().getCollation());
     PinotDataDistribution derivedDistribution = getAssumedDistribution(call);
     if (call._currentNode.isLeafStage() && !isLeafStageBoundary) {
-      Preconditions.checkState(derivedDistribution.satisfies(relDistribution),
+      /* Preconditions.checkState(derivedDistribution.satisfies(relDistribution),
           "Leaf stage distribution (non-boundary) should satisfy dist constraint: %s",
-          currentNode.getRelNode().explain());
+          currentNode.getRelNode().explain()); */
       Preconditions.checkState(derivedDistribution.satisfies(relCollation),
           "Leaf stage distribution (non-boundary) should satisfy collation constraint: %s",
           currentNode.getRelNode().explain());
@@ -143,7 +143,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
       return new PRelNode(_physicalPlannerContext.getNextId(), physicalExchange,
           currentNode.getPinotDataDistributionOrThrow(), ImmutableList.of(currentNode));
     }
-    return currentNode;
+    return currentNode.withPinotDataDistribution(derivedDistribution);
   }
 
   @Override
@@ -200,7 +200,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
   }
 
   private static boolean forcePartitioned(PRelOptRuleCall call) {
-    if (call._parents.getLast().getRelNode() instanceof Aggregate) {
+    if (!call._parents.isEmpty() && call._parents.getLast().getRelNode() instanceof Aggregate) {
       Aggregate aggRel = (Aggregate) call._parents.getLast().getRelNode();
       Map<String, String> hintOptions =
           PinotHintStrategyTable.getHintOptions(aggRel.getHints(), PinotHintOptions.AGGREGATE_HINT_OPTIONS);

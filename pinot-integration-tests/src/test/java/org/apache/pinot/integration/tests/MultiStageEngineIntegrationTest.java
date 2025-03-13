@@ -183,12 +183,19 @@ public class MultiStageEngineIntegrationTest extends BaseClusterIntegrationTestS
   public void testSimpleQuerySuccess()
       throws Exception {
     List<String> queries = new ArrayList<>();
-    queries.add("select ActualElapsedTime FROM mytable limit 10");
-    queries.add("select ActualElapsedTime FROM mytable order by OriginStateName limit 10");
+    // queries.add("select ActualElapsedTime FROM mytable limit 10");
+    // queries.add("select ActualElapsedTime FROM mytable order by OriginStateName limit 10");
+    queries.add("SELECT /*+ aggOptions(is_partitioned_by_group_by_keys='true') */ COUNT(*) FROM mytable GROUP BY OriginStateName");
+    queries.add("SELECT /*+ aggOptions(is_skip_leaf_stage_group_by='true') */ COUNT(*) FROM mytable GROUP BY OriginStateName");
     queries.add("SELECT COUNT(*) FROM mytable GROUP BY OriginStateName");
-    queries.add("SELECT COUNT(*) FROM mytable GROUP BY OriginStateName limit 10");
-    queries.add("SELECT OriginStateName, COUNT(*) FROM mytable GROUP BY OriginStateName ORDER BY 2 limit 10");
+    queries.add("SELECT /*+ aggOptions(is_enable_group_trim='true',num_groups_limit='50') */ COUNT(*) FROM mytable GROUP BY OriginStateName");
+    queries.add("SELECT /*+ aggOptions(is_enable_group_trim='true',num_groups_limit='50') */ COUNT(*) FROM mytable GROUP BY OriginStateName limit 100");
+    queries.add("SELECT /*+ tableOptions(partition_size='16', partition_key='OriginStateName') */ COUNT(*) FROM mytable GROUP BY OriginStateName limit 100");
+    // queries.add("SELECT COUNT(*) FROM mytable GROUP BY OriginStateName");
+    // queries.add("SELECT COUNT(*) FROM mytable GROUP BY OriginStateName limit 10");
+    // queries.add("SELECT OriginStateName, COUNT(*) FROM mytable GROUP BY OriginStateName ORDER BY 2 limit 10");
     for (String query : queries) {
+      System.err.println(query);
       JsonNode jsonNode = postQuery(query);
       long expectedResult = jsonNode.get("resultTable").get("rows").size();
       // The query of `SELECT avg(ActualElapsedTime) FROM mytable` is -1412.435033969449

@@ -43,8 +43,7 @@ public class PostOrderRuleExecutor extends RuleExecutor {
     } finally {
       _parents.removeLast();
     }
-    currentNode = currentNode.withNewInputs(currentNode.getNodeId(), newInputs,
-        currentNode.getPinotDataDistributionOrThrow());
+    currentNode = currentNode.withNewInputs(currentNode.getNodeId(), newInputs, currentNode.getPinotDataDistribution());
     PRelOptRuleCall call = new PRelOptRuleCall(currentNode, _parents, context);
     if (rule.matches(call)) {
       currentNode = rule.onMatch(call);

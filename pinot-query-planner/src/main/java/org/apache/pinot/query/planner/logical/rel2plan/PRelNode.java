@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.pinot.calcite.rel.PinotDataDistribution;
+import org.apache.pinot.calcite.rel.logical.PinotLogicalAggregate;
 
 
 /**
@@ -139,9 +140,19 @@ public class PRelNode {
     for (int i = 0; i < level * 4; i++) {
       System.err.print("-");
     }
-    System.err.printf("%s (nodeId=%d) %n", currentNode.getRelNode().getRelTypeName(), currentNode.getNodeId());
+    System.err.printf("%s (nodeId=%d) %n", printRelDetails(currentNode.getRelNode()), currentNode.getNodeId());
     for (PRelNode input : currentNode.getInputs()) {
       printWrappedRelNode(input, level + 1);
     }
+  }
+
+  private static String printRelDetails(RelNode relNode) {
+    if (relNode instanceof PinotLogicalAggregate) {
+      PinotLogicalAggregate aggregate = (PinotLogicalAggregate) relNode;
+      return String.format("%s (aggType=%s, limit=%s, collations=%s, leafReturnFinalResult=%s)",
+          aggregate.getRelTypeName(), aggregate.getAggType(), aggregate.getLimit(), aggregate.getCollations(),
+          aggregate.isLeafReturnFinalResult());
+    }
+    return relNode.getRelTypeName();
   }
 }

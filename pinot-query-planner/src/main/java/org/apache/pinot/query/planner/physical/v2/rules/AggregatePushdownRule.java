@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
@@ -89,7 +90,7 @@ public class AggregatePushdownRule extends PRelOptRule {
             hintOptions.get(PinotHintOptions.AggregateOptions.IS_SKIP_LEAF_STAGE_GROUP_BY)))) {
       return skipPartialAggregate(call._currentNode);
     }
-    return addPartialAggregate(call._currentNode, hintOptions);
+    return addPartialAggregate(call._currentNode, hintOptions, call._physicalPlannerContext.getIdGenerator());
   }
 
   private static PRelNode skipPartialAggregate(PRelNode aggPRelNode) {
@@ -104,7 +105,8 @@ public class AggregatePushdownRule extends PRelOptRule {
         ImmutableList.of(aggPRelNode.getInput(0)));
   }
 
-  private static PRelNode addPartialAggregate(PRelNode aggPRelNode, Map<String, String> hintOptions) {
+  private static PRelNode addPartialAggregate(PRelNode aggPRelNode, Map<String, String> hintOptions,
+      Supplier<Integer> idGenerator) {
     // Old: Aggregate (o0) > Exchange (o1) > Input (o2)
     // New: Aggregate (n0) > Exchange (n1) > Aggregate (n2) > Input (o2)
     boolean leafReturnFinalResult =
@@ -128,12 +130,12 @@ public class AggregatePushdownRule extends PRelOptRule {
         }), o1.getExchangeStrategy());
     PinotLogicalAggregate n0 = convertAggFromIntermediateInput(o0, n1, AggType.FINAL, leafReturnFinalResult,
         o0.getCollations(), o0.getLimit());
-    PRelNode n2PRelNode = new PRelNode(-1, n2, o2PRelNode.getPinotDataDistributionOrThrow().apply(newMapping),
+    PRelNode n2PRelNode = new PRelNode(idGenerator.get(), n2, o2PRelNode.getPinotDataDistributionOrThrow().apply(newMapping),
         ImmutableList.of(o2PRelNode), o2PRelNode.isLeafStage(), o2PRelNode.isLeafStage());
-    PRelNode n1PRelNode = new PRelNode(-1, n1, o1PRelNode.getPinotDataDistributionOrThrow().apply(newMapping),
+    PRelNode n1PRelNode = new PRelNode(idGenerator.get(), n1, o1PRelNode.getPinotDataDistributionOrThrow().apply(newMapping),
         ImmutableList.of(n2PRelNode), false, false);
     // return n0
-    return new PRelNode(-1, n0, n1PRelNode.getPinotDataDistributionOrThrow(),
+    return new PRelNode(idGenerator.get(), n0, n1PRelNode.getPinotDataDistributionOrThrow(),
         ImmutableList.of(n1PRelNode), false, false);
   }
 
