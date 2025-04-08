@@ -220,8 +220,10 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
       }
       workers.add(String.format("%s@%s", workers.size(), instanceId));
     }
-    PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(RelDistribution.Type.RANDOM_DISTRIBUTED,
-        workers, workers.hashCode(), null, null);
+    RelDistribution.Type distType = workers.size() == 1 ? RelDistribution.Type.SINGLETON
+        : RelDistribution.Type.RANDOM_DISTRIBUTED;
+    PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(distType, workers, workers.hashCode(),
+        null, null);
     return new TableScanWorkerAssignmentResult(pinotDataDistribution, workerIdToSegmentsMap);
   }
 

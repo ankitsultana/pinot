@@ -119,10 +119,13 @@ public class TraitAssignment {
       }
     }
     // Case-3: Default case.
+    Preconditions.checkState(joinInfo.leftKeys.size() == joinInfo.rightKeys.size(),
+        "Always expect left and right keys to be same size. Found: %s and %s",
+        joinInfo.leftKeys, joinInfo.rightKeys);
     RelDistribution leftDistribution = joinInfo.leftKeys.isEmpty() ? RelDistributions.RANDOM_DISTRIBUTED
         : RelDistributions.hash(joinInfo.leftKeys);
-    RelDistribution rightDistribution = joinInfo.rightKeys.isEmpty() ? RelDistributions.BROADCAST_DISTRIBUTED
-        : RelDistributions.hash(joinInfo.rightKeys);
+    RelDistribution rightDistribution = joinInfo.isEqui() && !joinInfo.rightKeys.isEmpty()
+        ? RelDistributions.hash(joinInfo.rightKeys) : RelDistributions.BROADCAST_DISTRIBUTED;
     // left-input
     RelNode leftInput = join.getInput(0);
     RelTraitSet leftTraitSet = leftInput.getTraitSet().plus(leftDistribution);

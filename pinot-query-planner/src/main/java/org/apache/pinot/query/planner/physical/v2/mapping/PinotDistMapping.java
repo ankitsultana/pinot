@@ -24,6 +24,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 
 
 /**
@@ -78,5 +81,20 @@ public class PinotDistMapping {
       }
     }
     return result;
+  }
+
+  public static RelCollation apply(RelCollation relCollation, PinotDistMapping mapping) {
+    if (relCollation.getKeys().isEmpty()) {
+      return relCollation;
+    }
+    List<RelFieldCollation> newFieldCollations = new ArrayList<>();
+    for (RelFieldCollation fieldCollation : relCollation.getFieldCollations()) {
+      int newFieldIndex = mapping.getTarget(fieldCollation.getFieldIndex());
+      if (newFieldIndex == -1) {
+        break;
+      }
+      newFieldCollations.add(fieldCollation.withFieldIndex(newFieldIndex));
+    }
+    return RelCollations.of(newFieldCollations);
   }
 }

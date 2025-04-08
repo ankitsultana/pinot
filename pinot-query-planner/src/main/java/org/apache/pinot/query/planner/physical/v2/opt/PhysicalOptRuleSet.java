@@ -22,8 +22,10 @@ import java.util.List;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
+import org.apache.pinot.query.planner.physical.v2.opt.rules.AggregatePushdownRule;
 import org.apache.pinot.query.planner.physical.v2.opt.rules.LeafStageBoundaryRule;
 import org.apache.pinot.query.planner.physical.v2.opt.rules.LeafStageWorkerAssignmentRule;
+import org.apache.pinot.query.planner.physical.v2.opt.rules.WorkerExchangeAssignmentRule;
 
 
 public class PhysicalOptRuleSet {
@@ -34,9 +36,9 @@ public class PhysicalOptRuleSet {
       TableCache tableCache) {
     return List.of(
         Pair.of(LeafStageBoundaryRule.INSTANCE, RuleExecutors.Type.POST_ORDER),
-        Pair.of(new LeafStageWorkerAssignmentRule(context, tableCache), RuleExecutors.Type.POST_ORDER));
-        // Pair.of(new WorkerExchangeAssignmentRule(context), RuleExecutors.Type.IN_ORDER),
-        // Pair.of(AggregatePushdownRule.INSTANCE, RuleExecutors.Type.POST_ORDER),
+        Pair.of(new LeafStageWorkerAssignmentRule(context, tableCache), RuleExecutors.Type.POST_ORDER),
+        Pair.of(new WorkerExchangeAssignmentRule(context), RuleExecutors.Type.IN_ORDER),
+        Pair.of(new AggregatePushdownRule(context), RuleExecutors.Type.POST_ORDER));
         // Pair.of(SortPushdownRule.INSTANCE, RuleExecutors.Type.POST_ORDER));
   }
 }
