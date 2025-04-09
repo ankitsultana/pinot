@@ -29,6 +29,9 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Exchange;
+import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
+import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
+import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTraitDef;
 import org.apache.pinot.query.planner.physical.v2.ExchangeStrategy;
 import org.apache.pinot.query.planner.physical.v2.PRelNode;
 import org.apache.pinot.query.planner.physical.v2.PinotDataDistribution;
@@ -117,6 +120,26 @@ public class PhysicalExchange extends Exchange implements PRelNode {
   @Override
   public boolean isLeafStage() {
     return false;
+  }
+
+  public List<Integer> getDistributionKeys() {
+    return _distributionKeys;
+  }
+
+  public ExchangeStrategy getExchangeStrategy() {
+    return _exchangeStrategy;
+  }
+
+  public RelCollation getRelCollation() {
+    return _relCollation;
+  }
+
+  public PinotRelExchangeType getRelExchangeType() {
+    PinotExecStrategyTrait trait = traitSet.getTrait(PinotExecStrategyTraitDef.INSTANCE);
+    if (trait == null) {
+      return PinotExecStrategyTrait.getDefaultExecStrategy().getType();
+    }
+    return trait.getType();
   }
 
   @Override
