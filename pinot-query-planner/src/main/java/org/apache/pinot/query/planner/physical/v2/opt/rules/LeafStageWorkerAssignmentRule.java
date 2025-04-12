@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.commons.collections4.CollectionUtils;
@@ -220,8 +221,10 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
       }
       workers.add(String.format("%s@%s", workers.size(), instanceId));
     }
-    PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(RelDistribution.Type.RANDOM_DISTRIBUTED,
-        workers, workers.hashCode(), null, null);
+    RelDistribution.Type distType = workers.size() == 1 ? RelDistribution.Type.SINGLETON
+        : RelDistribution.Type.RANDOM_DISTRIBUTED;
+    PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(distType, workers, workers.hashCode(),
+        null, null);
     return new TableScanWorkerAssignmentResult(pinotDataDistribution, workerIdToSegmentsMap);
   }
 

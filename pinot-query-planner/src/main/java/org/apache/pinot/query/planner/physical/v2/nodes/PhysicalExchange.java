@@ -27,8 +27,12 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Exchange;
+import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
+import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
+import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTraitDef;
 import org.apache.pinot.query.planner.physical.v2.ExchangeStrategy;
 import org.apache.pinot.query.planner.physical.v2.PRelNode;
 import org.apache.pinot.query.planner.physical.v2.PinotDataDistribution;
@@ -73,10 +77,10 @@ public class PhysicalExchange extends Exchange implements PRelNode {
    */
   private final RelCollation _relCollation;
 
-  public PhysicalExchange(RelOptCluster cluster, RelDistribution distribution,
-      int nodeId, PRelNode input, @Nullable PinotDataDistribution pinotDataDistribution,
+  public PhysicalExchange(int nodeId, PRelNode input, @Nullable PinotDataDistribution pinotDataDistribution,
       List<Integer> distributionKeys, ExchangeStrategy exchangeStrategy, @Nullable RelCollation relCollation) {
-    super(cluster, EMPTY_TRAIT_SET, input.unwrap(), distribution);
+    super(input.unwrap().getCluster(), EMPTY_TRAIT_SET, input.unwrap(),
+        getRelDistribution(exchangeStrategy, distributionKeys));
     _nodeId = nodeId;
     _pRelInputs = Collections.singletonList(input);
     _pinotDataDistribution = pinotDataDistribution;
@@ -89,8 +93,8 @@ public class PhysicalExchange extends Exchange implements PRelNode {
   public Exchange copy(RelTraitSet traitSet, RelNode newInput, RelDistribution newDistribution) {
     Preconditions.checkState(newInput instanceof PRelNode, "Expected input of PhysicalExchange to be a PRelNode");
     Preconditions.checkState(traitSet.isEmpty(), "Expected empty trait set for PhysicalExchange");
-    return new PhysicalExchange(getCluster(), newDistribution, _nodeId, (PRelNode) newInput, _pinotDataDistribution,
-        _distributionKeys, _exchangeStrategy, _relCollation);
+    return new PhysicalExchange(_nodeId, (PRelNode) newInput, _pinotDataDistribution, _distributionKeys,
+        _exchangeStrategy, _relCollation);
   }
 
   @Override
@@ -119,9 +123,47 @@ public class PhysicalExchange extends Exchange implements PRelNode {
     return false;
   }
 
+  public List<Integer> getDistributionKeys() {
+    return _distributionKeys;
+  }
+
+  public ExchangeStrategy getExchangeStrategy() {
+    return _exchangeStrategy;
+  }
+
+  public RelCollation getRelCollation() {
+    return _relCollation;
+  }
+
+  public PinotRelExchangeType getRelExchangeType() {
+    PinotExecStrategyTrait trait = traitSet.getTrait(PinotExecStrategyTraitDef.INSTANCE);
+    if (trait == null) {
+      return PinotExecStrategyTrait.getDefaultExecStrategy().getType();
+    }
+    return trait.getType();
+  }
+
   @Override
   public PRelNode with(int newNodeId, List<PRelNode> newInputs, PinotDataDistribution newDistribution) {
-    return new PhysicalExchange(getCluster(), getDistribution(), newNodeId, newInputs.get(0), newDistribution,
-        _distributionKeys, _exchangeStrategy, _relCollation);
+    return new PhysicalExchange(newNodeId, newInputs.get(0), newDistribution, _distributionKeys, _exchangeStrategy,
+        _relCollation);
+  }
+
+  private static RelDistribution getRelDistribution(ExchangeStrategy exchangeStrategy, List<Integer> keys) {
+    switch (exchangeStrategy) {
+      case IDENTITY_EXCHANGE:
+      case PARTITIONING_EXCHANGE:
+      case SUB_PARTITIONING_HASH_EXCHANGE:
+      case COALESCING_PARTITIONING_EXCHANGE:
+        return RelDistributions.hash(keys);
+      case BROADCAST_EXCHANGE:
+        return RelDistributions.BROADCAST_DISTRIBUTED;
+      case SINGLETON_EXCHANGE:
+        return RelDistributions.SINGLETON;
+      case SUB_PARTITIONING_RR_EXCHANGE:
+        return RelDistributions.ROUND_ROBIN_DISTRIBUTED;
+      default:
+        throw new IllegalStateException(String.format("Unexpected exchange strategy: %s", exchangeStrategy));
+    }
   }
 }

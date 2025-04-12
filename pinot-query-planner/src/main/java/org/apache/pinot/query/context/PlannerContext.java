@@ -34,6 +34,7 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.pinot.query.QueryEnvironment;
 import org.apache.pinot.query.planner.logical.LogicalPlanner;
 import org.apache.pinot.query.validate.Validator;
+import org.apache.pinot.spi.utils.BooleanUtils;
 
 
 /**
@@ -98,5 +99,9 @@ public class PlannerContext implements AutoCloseable {
 
   public SqlExplainFormat getSqlExplainFormat() {
     return _sqlExplainFormat;
+  }
+
+  public boolean usePhysicalOptimizer() {
+    return _options != null && BooleanUtils.toBoolean(_options.getOrDefault("usePhysicalOptimizer", "false"));
   }
 }
