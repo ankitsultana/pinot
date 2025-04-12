@@ -153,7 +153,9 @@ public class QueryEnvironment {
    */
   private PlannerContext getPlannerContext(SqlNodeAndOptions sqlNodeAndOptions) {
     WorkerManager workerManager = getWorkerManager(sqlNodeAndOptions);
-    HepProgram traitProgram = getTraitProgram(workerManager, _envConfig);
+    boolean usePhysicalOptimizer = Boolean.parseBoolean(sqlNodeAndOptions.getOptions().getOrDefault(
+        "usePhysicalOptimizer", "false"));
+    HepProgram traitProgram = getTraitProgram(workerManager, _envConfig, usePhysicalOptimizer);
     SqlExplainFormat format = SqlExplainFormat.DOT;
     if (sqlNodeAndOptions.getSqlNode().getKind().equals(SqlKind.EXPLAIN)) {
       SqlExplain explain = (SqlExplain) sqlNodeAndOptions.getSqlNode();
@@ -435,8 +437,8 @@ public class QueryEnvironment {
           workerManager.getHostName(), workerManager.getPort(), requestId, workerManager.getInstanceId());
       Pair<SubPlan, PlanFragmentAndMailboxAssignment.Result> plan = PinotLogicalQueryPlanner.makePlanV2(relRoot,
           physicalPlannerContext, _envConfig.getTableCache());
-      PinotDispatchPlanner pinotDispatchPlanner = new PinotDispatchPlanner(plannerContext, _envConfig.getWorkerManager(),
-          requestId, _envConfig.getTableCache());
+      PinotDispatchPlanner pinotDispatchPlanner = new PinotDispatchPlanner(plannerContext,
+          _envConfig.getWorkerManager(), requestId, _envConfig.getTableCache());
       return pinotDispatchPlanner.createDispatchableSubPlanV2(plan.getLeft(), plan.getRight());
     }
     SubPlan plan = PinotLogicalQueryPlanner.makePlan(relRoot, tracker,
@@ -480,7 +482,8 @@ public class QueryEnvironment {
     return hepProgramBuilder.build();
   }
 
-  private static HepProgram getTraitProgram(@Nullable WorkerManager workerManager, Config config) {
+  private static HepProgram getTraitProgram(@Nullable WorkerManager workerManager, Config config,
+      boolean usePhysicalOptimizer) {
     HepProgramBuilder hepProgramBuilder = new HepProgramBuilder();
 
     // Set the match order as BOTTOM_UP.
@@ -488,18 +491,26 @@ public class QueryEnvironment {
 
     // ----
     // Run pinot specific rules that should run after all other rules, using 1 HepInstruction per rule.
-    for (RelOptRule relOptRule : PinotQueryRuleSets.PINOT_POST_RULES) {
-      if (isEligibleQueryPostRule(relOptRule, config)) {
-        hepProgramBuilder.addRuleInstance(relOptRule);
+    if (!usePhysicalOptimizer) {
+      for (RelOptRule relOptRule : PinotQueryRuleSets.PINOT_POST_RULES) {
+        if (isEligibleQueryPostRule(relOptRule, config)) {
+          hepProgramBuilder.addRuleInstance(relOptRule);
+        }
+      }
+    } else {
+      for (RelOptRule relOptRule : PinotQueryRuleSets.PINOT_POST_RULES_V2) {
+        if (isEligibleQueryPostRule(relOptRule, config)) {
+          hepProgramBuilder.addRuleInstance(relOptRule);
+        }
       }
     }
-
     // apply RelDistribution trait to all nodes
-    if (workerManager != null) {
+    if (workerManager != null && !usePhysicalOptimizer) {
       hepProgramBuilder.addRuleInstance(PinotImplicitTableHintRule.withWorkerManager(workerManager));
     }
-    hepProgramBuilder.addRuleInstance(PinotRelDistributionTraitRule.INSTANCE);
-
+    if (!usePhysicalOptimizer) {
+      hepProgramBuilder.addRuleInstance(PinotRelDistributionTraitRule.INSTANCE);
+    }
     return hepProgramBuilder.build();
   }
 
