@@ -80,7 +80,7 @@ public class LeafStageAggregateRule extends PRelOptRule {
         currentNode.unwrap(), null);
     PinotDataDistribution derivedDistribution = currentNode.getPRelInput(0).getPinotDataDistributionOrThrow()
         .apply(mapping);
-    return currentNode.with(currentNode.getPRelInputs(), derivedDistribution);
+    return currentNode.with(currentNode.getPRelInputs(), derivedDistribution).asLeafStage();
   }
 
   private static boolean isPartitionedByHintPresent(PhysicalAggregate aggRel) {

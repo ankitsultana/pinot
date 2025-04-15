@@ -22,10 +22,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +57,6 @@ import org.slf4j.LoggerFactory;
 public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
   private static final Logger LOGGER = LoggerFactory.getLogger(WorkerExchangeAssignmentRule.class);
   private final PhysicalPlannerContext _physicalPlannerContext;
-  private final Deque<PRelNode> _parents = new ArrayDeque<>();
 
   public WorkerExchangeAssignmentRule(PhysicalPlannerContext context) {
     _physicalPlannerContext = context;
@@ -67,40 +64,49 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
 
   @Override
   public PRelNode execute(PRelNode currentNode) {
-    if (currentNode.isLeafStage() && !isLeafStageBoundary(currentNode, getParentNode())) {
+    return executeInternal(currentNode, null);
+  }
+
+  public PRelNode executeInternal(PRelNode currentNode, @Nullable PRelNode parent) {
+    if (currentNode.isLeafStage() && !isLeafStageBoundary(currentNode, parent)) {
       return currentNode;
     }
     if (currentNode.getPRelInputs().isEmpty()) {
-      return processCurrentNode(currentNode);
+      return processCurrentNode(currentNode, parent);
     }
     if (currentNode.getPRelInputs().size() == 1) {
-      try (WithNode withNode = new WithNode(currentNode, _parents)) {
-        List<PRelNode> newInputs = List.of(execute(currentNode.getPRelInput(0)));
-        currentNode = currentNode.with(newInputs);
-      }
-      return processCurrentNode(currentNode);
-    }
-    try (WithNode withNode = new WithNode(currentNode, _parents)) {
-      List<PRelNode> newInputs = new ArrayList<>();
-      newInputs.add(execute(currentNode.getPRelInput(0)));
-      newInputs.addAll(currentNode.getPRelInputs().subList(1, currentNode.getPRelInputs().size()));
+      List<PRelNode> newInputs = List.of(executeInternal(currentNode.getPRelInput(0), currentNode));
       currentNode = currentNode.with(newInputs);
+      return processCurrentNode(currentNode, parent);
     }
-    currentNode = processCurrentNode(currentNode);
-    PRelNode nonExchangeNode = currentNode instanceof PhysicalExchange ? currentNode.getPRelInput(0)
-        : currentNode;
+    // Process first input.
     List<PRelNode> newInputs = new ArrayList<>();
-    newInputs.add(nonExchangeNode.getPRelInput(0));
-    for (int index = 1; index < nonExchangeNode.getPRelInputs().size(); index++) {
-      newInputs.add(execute(nonExchangeNode.getPRelInput(index)));
+    newInputs.add(executeInternal(currentNode.getPRelInput(0), currentNode));
+    newInputs.addAll(currentNode.getPRelInputs().subList(1, currentNode.getPRelInputs().size()));
+    currentNode = currentNode.with(newInputs);
+    // Process current node.
+    currentNode = processCurrentNode(currentNode, parent);
+    // Process remaining inputs.
+    if (currentNode instanceof PhysicalExchange) {
+      PhysicalExchange exchange = (PhysicalExchange) currentNode;
+      currentNode = exchange.getPRelInput(0);
+      for (int index = 1; index < currentNode.getPRelInputs().size(); index++) {
+        newInputs.set(index, executeInternal(currentNode.getPRelInput(index), currentNode));
+      }
+      currentNode = currentNode.with(newInputs);
+      currentNode = inheritDistDescFromInputs(currentNode);
+      return exchange.with(List.of(currentNode));
     }
-    nonExchangeNode = nonExchangeNode.with(newInputs);
-    return currentNode instanceof PhysicalExchange ? currentNode.with(List.of(nonExchangeNode)) : nonExchangeNode;
+    for (int index = 1; index < currentNode.getPRelInputs().size(); index++) {
+      newInputs.set(index, executeInternal(currentNode.getPRelInput(index), currentNode));
+    }
+    currentNode = currentNode.with(newInputs);
+    currentNode = inheritDistDescFromInputs(currentNode);
+    return currentNode;
   }
 
-  public PRelNode processCurrentNode(PRelNode currentNode) {
+  PRelNode processCurrentNode(PRelNode currentNode, @Nullable PRelNode parentNode) {
     // Step-1: Initialize variables.
-    PRelNode parentNode = getParentNode();
     boolean isLeafStageBoundary = isLeafStageBoundary(currentNode, parentNode);
     // Step-2: Get current node's distribution. If the current node already has a distribution attached, use that.
     //         Otherwise, compute it using DistMappingGenerator.
@@ -117,7 +123,7 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
           currentNodeExchange.getPinotDataDistributionOrThrow());
       return currentNodeExchange;
     }
-    if (isLeafStageBoundary && !_parents.isEmpty()) {
+    if (isLeafStageBoundary && parentNode != null) {
       currentNode = currentNode.with(currentNode.getPRelInputs(), currentNodeDistribution);
       // Update current node with its distribution, and since this is a leaf stage boundary, add an identity exchange.
       return new PhysicalExchange(nodeId(), currentNode,
@@ -128,7 +134,7 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
     return currentNode.with(currentNode.getPRelInputs(), currentNodeDistribution);
   }
 
-  public PRelNode onDone(PRelNode currentNode) {
+  PRelNode inheritDistDescFromInputs(PRelNode currentNode) {
     // Inherit distribution trait from inputs (except left-most input, which is already inherited).
     if (currentNode.getPRelInputs().size() <= 1
         || currentNode.getPinotDataDistributionOrThrow().getType() != RelDistribution.Type.HASH_DISTRIBUTED) {
@@ -264,7 +270,7 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
       PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(
           RelDistribution.Type.HASH_DISTRIBUTED, currentNodeDistribution.getWorkers(),
           currentNodeDistribution.getWorkerHash(), ImmutableSet.of(desc), null);
-      return new PhysicalExchange(nodeId(), currentNode, pinotDataDistribution, List.of(),
+      return new PhysicalExchange(nodeId(), currentNode, pinotDataDistribution, distributionConstraint.getKeys(),
           ExchangeStrategy.PARTITIONING_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
     }
     throw new IllegalStateException("Distribution constraint not met: " + distributionConstraint.getType());
@@ -313,7 +319,7 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
     }
     Preconditions.checkState(relDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED,
         "Unexpected distribution constraint: %s", relDistribution.getType());
-    Preconditions.checkState(parent instanceof PhysicalJoin);
+    Preconditions.checkState(parent instanceof PhysicalJoin, "Expected parent to be join. Found: %s", parent);
     PhysicalJoin parentJoin = (PhysicalJoin) parent;
     // TODO(mse-physical): add support for sub-partitioning and coalescing exchange.
     HashDistributionDesc hashDistToMatch = getLeftInputHashDistributionDesc(parentJoin).orElseThrow();
@@ -371,11 +377,6 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
         .findFirst();
   }
 
-  @Nullable
-  private PRelNode getParentNode() {
-    return _parents.isEmpty() ? null : _parents.getLast();
-  }
-
   private static boolean isLeafStageBoundary(PRelNode currentNode, @Nullable PRelNode parentNode) {
     if (currentNode.isLeafStage()) {
       return parentNode == null || !parentNode.isLeafStage();
@@ -403,21 +404,5 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
 
   private static RelCollation coalesceCollation(@Nullable RelCollation collation) {
     return collation == null ? RelCollations.EMPTY : collation;
-  }
-
-  static class WithNode implements AutoCloseable {
-    final PRelNode _currentNode;
-    final Deque<PRelNode> _parents;
-
-    WithNode(PRelNode currentNode, Deque<PRelNode> parents) {
-      _currentNode = currentNode;
-      _parents = parents;
-      _parents.add(currentNode);
-    }
-
-    @Override
-    public void close() {
-      _parents.removeLast();
-    }
   }
 }

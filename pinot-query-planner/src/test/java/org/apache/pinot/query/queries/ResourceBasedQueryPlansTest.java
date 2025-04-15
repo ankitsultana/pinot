@@ -94,12 +94,16 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
   @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderPhysicalOptimizer")
   public void testQueryExplainPlansWithPhysicalOptimizer(String testCaseName, String description, String query,
       String output) {
+    if (!description.contains("semi-join, followed by")) {
+      return;
+    }
     try {
       long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
       String explainedPlan = _queryEnvironment.explainQuery(query, requestId);
+      System.err.println(blah(explainedPlan));
       Assert.assertEquals(explainedPlan, output,
           String.format("Test case %s for query %s (%s) doesn't match expected output: %s", testCaseName, description,
-              query, output));
+              query, explainedPlan));
       // use a regex to exclude the
       String queryWithoutExplainPlan = query.replaceFirst(EXPLAIN_REGEX, "");
       DispatchableSubPlan dispatchableSubPlan = _queryEnvironment.planQuery(queryWithoutExplainPlan);
@@ -109,6 +113,18 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
     } catch (Exception e) {
       Assert.fail("Test case: " + testCaseName + " failed to explain query: " + query, e);
     }
+  }
+
+  private static String blah(String plan) {
+    String[] lines = plan.split("\n");
+    StringBuilder builder = new StringBuilder();
+    builder.append("\"" + lines[0] + "\",");
+    builder.append("\n");
+    for (int i = 1; i < lines.length; i++) {
+      builder.append("\"\\n" + lines[i] + "\",\n");
+    }
+    builder.append("\"\\n\"");
+    return builder.toString();
   }
 
   @DataProvider

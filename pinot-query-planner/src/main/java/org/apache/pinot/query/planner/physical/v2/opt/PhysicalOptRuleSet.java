@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.planner.physical.v2.opt.rules.AggregatePushdownRule;
+import org.apache.pinot.query.planner.physical.v2.opt.rules.LeafStageAggregateRule;
 import org.apache.pinot.query.planner.physical.v2.opt.rules.LeafStageBoundaryRule;
 import org.apache.pinot.query.planner.physical.v2.opt.rules.LeafStageWorkerAssignmentRule;
 import org.apache.pinot.query.planner.physical.v2.opt.rules.SortPushdownRule;
@@ -38,6 +39,7 @@ public class PhysicalOptRuleSet {
     transformers.add(create(LeafStageBoundaryRule.INSTANCE, RuleExecutors.Type.POST_ORDER, context));
     transformers.add(create(new LeafStageWorkerAssignmentRule(context, tableCache), RuleExecutors.Type.POST_ORDER,
         context));
+    transformers.add(create(new LeafStageAggregateRule(context), RuleExecutors.Type.POST_ORDER, context));
     transformers.add(new WorkerExchangeAssignmentRule(context));
     transformers.add(create(new AggregatePushdownRule(context), RuleExecutors.Type.POST_ORDER, context));
     transformers.add(create(new SortPushdownRule(context), RuleExecutors.Type.POST_ORDER, context));
