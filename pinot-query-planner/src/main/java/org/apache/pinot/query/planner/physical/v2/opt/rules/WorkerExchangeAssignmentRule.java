@@ -22,8 +22,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
+import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.planner.physical.v2.ExchangeStrategy;
 import org.apache.pinot.query.planner.physical.v2.HashDistributionDesc;
@@ -46,33 +49,58 @@ import org.apache.pinot.query.planner.physical.v2.PinotDataDistribution;
 import org.apache.pinot.query.planner.physical.v2.mapping.DistMappingGenerator;
 import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalExchange;
 import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalJoin;
-import org.apache.pinot.query.planner.physical.v2.opt.PRelOptRule;
-import org.apache.pinot.query.planner.physical.v2.opt.PRelOptRuleCall;
+import org.apache.pinot.query.planner.physical.v2.opt.PRelNodeTransformer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 /**
  */
-public class WorkerExchangeAssignmentRule extends PRelOptRule {
+public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
   private static final Logger LOGGER = LoggerFactory.getLogger(WorkerExchangeAssignmentRule.class);
   private final PhysicalPlannerContext _physicalPlannerContext;
+  private final Deque<PRelNode> _parents = new ArrayDeque<>();
 
   public WorkerExchangeAssignmentRule(PhysicalPlannerContext context) {
     _physicalPlannerContext = context;
   }
 
   @Override
-  public boolean matches(PRelOptRuleCall call) {
-    // exclude all leaf stage nodes except the boundary node.
-    return !call._currentNode.isLeafStage() || isLeafStageBoundary(call._currentNode, getParentNode(call));
+  public PRelNode execute(PRelNode currentNode) {
+    if (currentNode.isLeafStage() && !isLeafStageBoundary(currentNode, getParentNode())) {
+      return currentNode;
+    }
+    if (currentNode.getPRelInputs().isEmpty()) {
+      return processCurrentNode(currentNode);
+    }
+    if (currentNode.getPRelInputs().size() == 1) {
+      try (WithNode withNode = new WithNode(currentNode, _parents)) {
+        List<PRelNode> newInputs = List.of(execute(currentNode.getPRelInput(0)));
+        currentNode = currentNode.with(newInputs);
+      }
+      return processCurrentNode(currentNode);
+    }
+    try (WithNode withNode = new WithNode(currentNode, _parents)) {
+      List<PRelNode> newInputs = new ArrayList<>();
+      newInputs.add(execute(currentNode.getPRelInput(0)));
+      newInputs.addAll(currentNode.getPRelInputs().subList(1, currentNode.getPRelInputs().size()));
+      currentNode = currentNode.with(newInputs);
+    }
+    currentNode = processCurrentNode(currentNode);
+    PRelNode nonExchangeNode = currentNode instanceof PhysicalExchange ? currentNode.getPRelInput(0)
+        : currentNode;
+    List<PRelNode> newInputs = new ArrayList<>();
+    newInputs.add(nonExchangeNode.getPRelInput(0));
+    for (int index = 1; index < nonExchangeNode.getPRelInputs().size(); index++) {
+      newInputs.add(execute(nonExchangeNode.getPRelInput(index)));
+    }
+    nonExchangeNode = nonExchangeNode.with(newInputs);
+    return currentNode instanceof PhysicalExchange ? currentNode.with(List.of(nonExchangeNode)) : nonExchangeNode;
   }
 
-  @Override
-  public PRelNode onMatch(PRelOptRuleCall call) {
+  public PRelNode processCurrentNode(PRelNode currentNode) {
     // Step-1: Initialize variables.
-    PRelNode currentNode = call._currentNode;
-    PRelNode parentNode = getParentNode(call);
+    PRelNode parentNode = getParentNode();
     boolean isLeafStageBoundary = isLeafStageBoundary(currentNode, parentNode);
     // Step-2: Get current node's distribution. If the current node already has a distribution attached, use that.
     //         Otherwise, compute it using DistMappingGenerator.
@@ -89,18 +117,17 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
           currentNodeExchange.getPinotDataDistributionOrThrow());
       return currentNodeExchange;
     }
-    if (isLeafStageBoundary) {
+    if (isLeafStageBoundary && !_parents.isEmpty()) {
       currentNode = currentNode.with(currentNode.getPRelInputs(), currentNodeDistribution);
       // Update current node with its distribution, and since this is a leaf stage boundary, add an identity exchange.
       return new PhysicalExchange(nodeId(), currentNode,
           currentNode.getPinotDataDistribution(), Collections.emptyList(), ExchangeStrategy.IDENTITY_EXCHANGE,
-          null);
+          null, PinotExecStrategyTrait.getDefaultExecStrategy());
     }
     // When no exchange, simply update current node with the distribution.
     return currentNode.with(currentNode.getPRelInputs(), currentNodeDistribution);
   }
 
-  @Override
   public PRelNode onDone(PRelNode currentNode) {
     // Inherit distribution trait from inputs (except left-most input, which is already inherited).
     if (currentNode.getPRelInputs().size() <= 1
@@ -176,7 +203,8 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
         // Add new identity exchange for sort.
         PinotDataDistribution newDataDistribution = derivedDistribution.withCollation(relCollation);
         currentNodeExchange = new PhysicalExchange(nodeId(), currentNode,
-            newDataDistribution, Collections.emptyList(), ExchangeStrategy.IDENTITY_EXCHANGE, relCollation);
+            newDataDistribution, Collections.emptyList(), ExchangeStrategy.IDENTITY_EXCHANGE, relCollation,
+            PinotExecStrategyTrait.getDefaultExecStrategy());
       }
     } else {
       if (!relCollation.getKeys().isEmpty()) {
@@ -185,7 +213,8 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
         PinotDataDistribution newDataDistribution = currentNodeExchange.getPinotDataDistributionOrThrow();
         currentNodeExchange = new PhysicalExchange(_physicalPlannerContext.getNodeIdGenerator().get(),
             oldExchange.getPRelInput(0), newDataDistribution.withCollation(relCollation),
-            oldExchange.getDistributionKeys(), oldExchange.getExchangeStrategy(), relCollation);
+            oldExchange.getDistributionKeys(), oldExchange.getExchangeStrategy(), relCollation,
+            PinotExecStrategyTrait.getDefaultExecStrategy());
       }
     }
     return currentNodeExchange;
@@ -220,14 +249,14 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
           RelDistribution.Type.BROADCAST_DISTRIBUTED, currentNodeDistribution.getWorkers(),
           currentNodeDistribution.getWorkerHash(), null, null);
       return new PhysicalExchange(nodeId(), currentNode, pinotDataDistribution, List.of(),
-          ExchangeStrategy.BROADCAST_EXCHANGE, null);
+          ExchangeStrategy.BROADCAST_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
     }
     if (distributionConstraint.getType() == RelDistribution.Type.SINGLETON) {
       List<String> newWorkers = currentNodeDistribution.getWorkers().subList(0, 1);
       PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(RelDistribution.Type.SINGLETON,
           newWorkers, newWorkers.hashCode(), null, null);
       return new PhysicalExchange(nodeId(), currentNode, pinotDataDistribution, List.of(),
-          ExchangeStrategy.SINGLETON_EXCHANGE, null);
+          ExchangeStrategy.SINGLETON_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
     }
     if (distributionConstraint.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
       HashDistributionDesc desc = new HashDistributionDesc(
@@ -236,7 +265,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
           RelDistribution.Type.HASH_DISTRIBUTED, currentNodeDistribution.getWorkers(),
           currentNodeDistribution.getWorkerHash(), ImmutableSet.of(desc), null);
       return new PhysicalExchange(nodeId(), currentNode, pinotDataDistribution, List.of(),
-          ExchangeStrategy.PARTITIONING_EXCHANGE, null);
+          ExchangeStrategy.PARTITIONING_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
     }
     throw new IllegalStateException("Distribution constraint not met: " + distributionConstraint.getType());
   }
@@ -258,7 +287,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
       PinotDataDistribution newDistribution = new PinotDataDistribution(RelDistribution.Type.RANDOM_DISTRIBUTED,
           parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), null, null);
       return new PhysicalExchange(nodeId(), currentNode, newDistribution, List.of(), ExchangeStrategy.RANDOM_EXCHANGE,
-          null);
+          null, PinotExecStrategyTrait.getDefaultExecStrategy());
     } else if (relDistribution.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
       if (assumedDistribution.getType() == RelDistribution.Type.BROADCAST_DISTRIBUTED) {
         if (parentHasSameWorkers) {
@@ -270,7 +299,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
       PinotDataDistribution newDistribution = new PinotDataDistribution(RelDistribution.Type.BROADCAST_DISTRIBUTED,
           parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), null, null);
       return new PhysicalExchange(nodeId(), currentNode, newDistribution, List.of(),
-          ExchangeStrategy.BROADCAST_EXCHANGE, null);
+          ExchangeStrategy.BROADCAST_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
     } else if (relDistribution.getType() == RelDistribution.Type.SINGLETON) {
       if (parentHasSameWorkers) {
         return null;
@@ -280,7 +309,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
       PinotDataDistribution newDistribution = new PinotDataDistribution(RelDistribution.Type.SINGLETON,
           parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), null, null);
       return new PhysicalExchange(nodeId(), currentNode, newDistribution, List.of(),
-          ExchangeStrategy.SINGLETON_EXCHANGE, null);
+          ExchangeStrategy.SINGLETON_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
     }
     Preconditions.checkState(relDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED,
         "Unexpected distribution constraint: %s", relDistribution.getType());
@@ -307,7 +336,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
                 parentDistribution.getWorkers(), parentDistribution.getWorkerHash(),
                 assumedDistribution.getHashDistributionDesc(), assumedDistribution.getCollation());
             return new PhysicalExchange(nodeId(), currentNode, newDistribution, List.of(),
-                ExchangeStrategy.IDENTITY_EXCHANGE, null);
+                ExchangeStrategy.IDENTITY_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
           }
         }
       }
@@ -322,7 +351,7 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
         parentDistribution.getWorkers(), parentDistribution.getWorkerHash(), ImmutableSet.of(newDesc),
         null);
     return new PhysicalExchange(nodeId(), currentNode, newDistribution, relDistribution.getKeys(),
-        ExchangeStrategy.PARTITIONING_EXCHANGE, null);
+        ExchangeStrategy.PARTITIONING_EXCHANGE, null, PinotExecStrategyTrait.getDefaultExecStrategy());
   }
 
   private boolean complicatedButColocated(int partitionOne, int partitionTwo, int numStreams) {
@@ -340,6 +369,11 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
     return join.getPRelInput(0).getPinotDataDistributionOrThrow().getHashDistributionDesc().stream()
         .filter(desc -> desc.getKeys().equals(leftKeys))
         .findFirst();
+  }
+
+  @Nullable
+  private PRelNode getParentNode() {
+    return _parents.isEmpty() ? null : _parents.getLast();
   }
 
   private static boolean isLeafStageBoundary(PRelNode currentNode, @Nullable PRelNode parentNode) {
@@ -369,5 +403,21 @@ public class WorkerExchangeAssignmentRule extends PRelOptRule {
 
   private static RelCollation coalesceCollation(@Nullable RelCollation collation) {
     return collation == null ? RelCollations.EMPTY : collation;
+  }
+
+  static class WithNode implements AutoCloseable {
+    final PRelNode _currentNode;
+    final Deque<PRelNode> _parents;
+
+    WithNode(PRelNode currentNode, Deque<PRelNode> parents) {
+      _currentNode = currentNode;
+      _parents = parents;
+      _parents.add(currentNode);
+    }
+
+    @Override
+    public void close() {
+      _parents.removeLast();
+    }
   }
 }

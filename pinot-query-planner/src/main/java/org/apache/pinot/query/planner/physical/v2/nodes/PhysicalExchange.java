@@ -28,6 +28,7 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.pinot.calcite.rel.logical.PinotRelExchangeType;
 import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
@@ -77,8 +78,9 @@ public class PhysicalExchange extends Exchange implements PRelNode {
   private final RelCollation _relCollation;
 
   public PhysicalExchange(int nodeId, PRelNode input, @Nullable PinotDataDistribution pinotDataDistribution,
-      List<Integer> distributionKeys, ExchangeStrategy exchangeStrategy, @Nullable RelCollation relCollation) {
-    super(input.unwrap().getCluster(), EMPTY_TRAIT_SET, input.unwrap(),
+      List<Integer> distributionKeys, ExchangeStrategy exchangeStrategy, @Nullable RelCollation relCollation,
+      PinotExecStrategyTrait execStrategyTrait) {
+    super(input.unwrap().getCluster(), EMPTY_TRAIT_SET.plus(execStrategyTrait), input.unwrap(),
         getRelDistribution(exchangeStrategy, distributionKeys));
     _nodeId = nodeId;
     _pRelInputs = Collections.singletonList(input);
@@ -93,7 +95,7 @@ public class PhysicalExchange extends Exchange implements PRelNode {
     Preconditions.checkState(newInput instanceof PRelNode, "Expected input of PhysicalExchange to be a PRelNode");
     Preconditions.checkState(traitSet.isEmpty(), "Expected empty trait set for PhysicalExchange");
     return new PhysicalExchange(_nodeId, (PRelNode) newInput, _pinotDataDistribution, _distributionKeys,
-        _exchangeStrategy, _relCollation);
+        _exchangeStrategy, _relCollation, PinotExecStrategyTrait.getDefaultExecStrategy());
   }
 
   @Override
@@ -134,6 +136,14 @@ public class PhysicalExchange extends Exchange implements PRelNode {
     return _relCollation;
   }
 
+  public PinotExecStrategyTrait getExecStrategy() {
+    PinotExecStrategyTrait trait = traitSet.getTrait(PinotExecStrategyTraitDef.INSTANCE);
+    if (trait == null) {
+      return PinotExecStrategyTrait.getDefaultExecStrategy();
+    }
+    return trait;
+  }
+
   public PinotRelExchangeType getRelExchangeType() {
     PinotExecStrategyTrait trait = traitSet.getTrait(PinotExecStrategyTraitDef.INSTANCE);
     if (trait == null) {
@@ -145,7 +155,15 @@ public class PhysicalExchange extends Exchange implements PRelNode {
   @Override
   public PRelNode with(int newNodeId, List<PRelNode> newInputs, PinotDataDistribution newDistribution) {
     return new PhysicalExchange(newNodeId, newInputs.get(0), newDistribution, _distributionKeys, _exchangeStrategy,
-        _relCollation);
+        _relCollation, PinotExecStrategyTrait.getDefaultExecStrategy());
+  }
+
+  @Override public RelWriter explainTerms(RelWriter pw) {
+    return pw.item("input", input)
+        .item("exchangeStrategy", _exchangeStrategy)
+        .item("distKeys", _distributionKeys)
+        .item("execStrategy", getRelExchangeType())
+        .item("collation", _relCollation);
   }
 
   private static RelDistribution getRelDistribution(ExchangeStrategy exchangeStrategy, List<Integer> keys) {

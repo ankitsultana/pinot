@@ -91,6 +91,26 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
     }
   }
 
+  @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderPhysicalOptimizer")
+  public void testQueryExplainPlansWithPhysicalOptimizer(String testCaseName, String description, String query,
+      String output) {
+    try {
+      long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
+      String explainedPlan = _queryEnvironment.explainQuery(query, requestId);
+      Assert.assertEquals(explainedPlan, output,
+          String.format("Test case %s for query %s (%s) doesn't match expected output: %s", testCaseName, description,
+              query, output));
+      // use a regex to exclude the
+      String queryWithoutExplainPlan = query.replaceFirst(EXPLAIN_REGEX, "");
+      DispatchableSubPlan dispatchableSubPlan = _queryEnvironment.planQuery(queryWithoutExplainPlan);
+      Assert.assertNotNull(dispatchableSubPlan,
+          String.format("Test case %s for query %s should not have a null QueryPlan",
+              testCaseName, queryWithoutExplainPlan));
+    } catch (Exception e) {
+      Assert.fail("Test case: " + testCaseName + " failed to explain query: " + query, e);
+    }
+  }
+
   @DataProvider
   private static Object[][] testResourceQueryPlannerTestCaseProviderHappyPath()
       throws Exception {
@@ -141,6 +161,38 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
           String sql = queryCase._sql;
           String exceptionString = queryCase._expectedException;
           Object[] testEntry = new Object[]{testCaseName, sql, exceptionString};
+          providerContent.add(testEntry);
+        }
+      }
+    }
+    return providerContent.toArray(new Object[][]{});
+  }
+
+  @DataProvider
+  private static Object[][] testResourceQueryPlannerTestCaseProviderPhysicalOptimizer()
+      throws Exception {
+    Map<String, QueryPlanTestCase> testCaseMap = getTestCases();
+    List<Object[]> providerContent = new ArrayList<>();
+    for (Map.Entry<String, QueryPlanTestCase> testCaseEntry : testCaseMap.entrySet()) {
+      String testCaseName = testCaseEntry.getKey();
+      if (!testCaseName.startsWith("physical_opt")) {
+        continue;
+      }
+      if (testCaseEntry.getValue()._ignored) {
+        continue;
+      }
+
+      List<QueryPlanTestCase.Query> queryCases = testCaseEntry.getValue()._queries;
+      for (QueryPlanTestCase.Query queryCase : queryCases) {
+        if (queryCase._ignored || queryCase._expectedException != null) {
+          continue;
+        }
+
+        if (queryCase._output != null) {
+          String sql = queryCase._sql;
+          List<String> orgOutput = queryCase._output;
+          String concatenatedOutput = StringUtils.join(orgOutput, "");
+          Object[] testEntry = new Object[]{testCaseName, queryCase._description, sql, concatenatedOutput};
           providerContent.add(testEntry);
         }
       }

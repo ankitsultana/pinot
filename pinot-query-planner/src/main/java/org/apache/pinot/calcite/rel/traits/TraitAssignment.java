@@ -34,7 +34,6 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.Window;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
-import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.planner.physical.v2.PRelNode;
 import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalAggregate;
@@ -113,11 +112,11 @@ public class TraitAssignment {
     }
     // Case-2: Handle dynamic filter for semi joins.
     JoinInfo joinInfo = join.analyzeCondition();
-    if (join.isSemiJoin() && joinInfo.nonEquiConditions.isEmpty() && joinInfo.leftKeys.size() == 1) {
+    /* if (join.isSemiJoin() && joinInfo.nonEquiConditions.isEmpty() && joinInfo.leftKeys.size() == 1) {
       if (PinotRuleUtils.canPushDynamicBroadcastToLeaf(join.getLeft())) {
         return assignDynamicFilterSemiJoin(join);
       }
-    }
+    } */
     // Case-3: Default case.
     Preconditions.checkState(joinInfo.leftKeys.size() == joinInfo.rightKeys.size(),
         "Always expect left and right keys to be same size. Found: %s and %s",
@@ -236,6 +235,7 @@ public class TraitAssignment {
     return join.copy(join.getTraitSet(), ImmutableList.of(leftInput, newProject));
   }
 
+  @SuppressWarnings("unused")
   private RelNode assignDynamicFilterSemiJoin(PhysicalJoin join) {
     /*
      * When dynamic broadcast is enabled, push broadcast trait to right input along with the pipeline breaker

@@ -259,10 +259,10 @@ public class MultiStageEngineIntegrationTest extends BaseClusterIntegrationTestS
   public void testSimpleQuerySuccess()
       throws Exception {
     List<String> queries = new ArrayList<>();
-    /* queries.add("SELECT ActualElapsedTime FROM mytable limit 10");
+    queries.add("SELECT ActualElapsedTime FROM mytable limit 10");
     queries.add("SET usePhysicalOptimizer=true; SELECT ActualElapsedTime FROM mytable limit 10");
     queries.add("SET usePhysicalOptimizer=true; SELECT ActualElapsedTime FROM mytable order by OriginStateName "
-        + "limit 10"); */
+        + "limit 10");
     queries.add("SET usePhysicalOptimizer=true; SELECT /*+ aggOptions(is_partitioned_by_group_by_keys='true') */ "
         + "COUNT(*) FROM mytable GROUP BY OriginStateName");
     queries.add("SET usePhysicalOptimizer=true; SELECT /*+ aggOptions(is_skip_leaf_stage_group_by='true') */ "

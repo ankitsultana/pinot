@@ -186,8 +186,7 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
         String tableType = partitionedTableTypes.iterator().next();
         String tableNameWithType = TableNameBuilder.forType(TableType.valueOf(tableType)).tableNameWithType(tableName);
         TableScanWorkerAssignmentResult assignmentResult = attemptPartitionedDistribution(tableNameWithType,
-            fieldNames, instanceIdToSegments.getSegmentsMap(TableType.valueOf(tableType)),
-            tpiMap.get(tableType));
+            fieldNames, instanceIdToSegments.getSegmentsMap(TableType.valueOf(tableType)), tpiMap.get(tableType));
         if (assignmentResult != null) {
           return assignmentResult;
         }
@@ -235,7 +234,10 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
   @VisibleForTesting
   static TableScanWorkerAssignmentResult attemptPartitionedDistribution(String tableNameWithType,
       List<String> fieldNames, Map<String, List<String>> instanceIdToSegmentsMap,
-      TablePartitionInfo tablePartitionInfo) {
+      @Nullable TablePartitionInfo tablePartitionInfo) {
+    if (tablePartitionInfo == null) {
+      return null;
+    }
     if (CollectionUtils.isNotEmpty(tablePartitionInfo.getSegmentsWithInvalidPartition())) {
       LOGGER.warn("Table {} has {} segments with invalid partition info. Will assume un-partitioned distribution",
           tableNameWithType, tablePartitionInfo.getSegmentsWithInvalidPartition().size());

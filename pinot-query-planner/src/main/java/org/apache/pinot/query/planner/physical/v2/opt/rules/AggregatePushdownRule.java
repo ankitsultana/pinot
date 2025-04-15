@@ -51,6 +51,7 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
+import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
 import org.apache.pinot.common.function.sql.PinotSqlAggFunction;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
 import org.apache.pinot.query.planner.physical.v2.PRelNode;
@@ -137,7 +138,7 @@ public class AggregatePushdownRule extends PRelOptRule {
         : PinotDistMapping.apply(o1.getRelCollation(), mapFromInputToPartialAgg);
     PhysicalExchange n1 = new PhysicalExchange(o1.getNodeId(), n2,
         o1.getPinotDataDistributionOrThrow().apply(mapFromInputToPartialAgg), newDistKeys, o1.getExchangeStrategy(),
-        newCollation);
+        newCollation, PinotExecStrategyTrait.getDefaultExecStrategy());
     return convertAggFromIntermediateInput(aggPRelNode, n1, AggType.FINAL, leafReturnFinalResult,
         PinotDistMapping.apply(RelCollations.of(o0.getCollations()), mapFromInputToPartialAgg).getFieldCollations(),
         aggPRelNode.getLimit(), idGenerator);
