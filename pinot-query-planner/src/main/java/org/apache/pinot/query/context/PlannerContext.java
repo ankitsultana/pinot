@@ -34,6 +34,7 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.pinot.query.QueryEnvironment;
 import org.apache.pinot.query.planner.logical.LogicalPlanner;
 import org.apache.pinot.query.validate.Validator;
+import org.apache.pinot.spi.utils.BooleanUtils;
 
 
 /**
@@ -53,10 +54,11 @@ public class PlannerContext implements AutoCloseable {
   private final Map<String, String> _options;
   private final Map<String, String> _plannerOutput;
   private final SqlExplainFormat _sqlExplainFormat;
+  private final PhysicalPlannerContext _physicalPlannerContext;
 
   public PlannerContext(FrameworkConfig config, Prepare.CatalogReader catalogReader, RelDataTypeFactory typeFactory,
       HepProgram optProgram, HepProgram traitProgram, Map<String, String> options, QueryEnvironment.Config envConfig,
-      SqlExplainFormat sqlExplainFormat) {
+      SqlExplainFormat sqlExplainFormat, PhysicalPlannerContext physicalPlannerContext) {
     _planner = new PlannerImpl(config);
     _validator = new Validator(config.getOperatorTable(), catalogReader, typeFactory);
     _relOptPlanner = new LogicalPlanner(optProgram, Contexts.EMPTY_CONTEXT, config.getTraitDefs());
@@ -65,6 +67,7 @@ public class PlannerContext implements AutoCloseable {
     _options = options;
     _plannerOutput = new HashMap<>();
     _sqlExplainFormat = sqlExplainFormat;
+    _physicalPlannerContext = physicalPlannerContext;
   }
 
   public PlannerImpl getPlanner() {
@@ -98,5 +101,13 @@ public class PlannerContext implements AutoCloseable {
 
   public SqlExplainFormat getSqlExplainFormat() {
     return _sqlExplainFormat;
+  }
+
+  public PhysicalPlannerContext getPhysicalPlannerContext() {
+    return _physicalPlannerContext;
+  }
+
+  public boolean usePhysicalOptimizer() {
+    return _options != null && BooleanUtils.toBoolean(_options.getOrDefault("usePhysicalOptimizer", "false"));
   }
 }
