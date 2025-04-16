@@ -132,8 +132,7 @@ public class AggregatePushdownRule extends PRelOptRule {
         mapFromInputToPartialAgg);
     n2 = (PhysicalAggregate) n2.with(n2.getPRelInputs(), leafAggDataDistribution);
     // Create n1.
-    List<Integer> newDistKeys = o1.getDistributionKeys().stream().map(mapFromInputToPartialAgg::getTarget).collect(
-        Collectors.toList());
+    List<Integer> newDistKeys = mapFromInputToPartialAgg.getMappedKeys(o1.getDistributionKeys()).get(0);
     RelCollation newCollation = o1.getRelCollation() == null ? null
         : PinotDistMapping.apply(o1.getRelCollation(), mapFromInputToPartialAgg);
     PhysicalExchange n1 = new PhysicalExchange(o1.getNodeId(), n2,

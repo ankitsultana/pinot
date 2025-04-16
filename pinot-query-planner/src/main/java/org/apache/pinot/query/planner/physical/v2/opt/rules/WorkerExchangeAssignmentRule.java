@@ -40,6 +40,7 @@ import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
 import org.apache.pinot.query.context.PhysicalPlannerContext;
+import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.planner.physical.v2.ExchangeStrategy;
 import org.apache.pinot.query.planner.physical.v2.HashDistributionDesc;
 import org.apache.pinot.query.planner.physical.v2.PRelNode;
@@ -57,6 +58,7 @@ import org.slf4j.LoggerFactory;
 public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
   private static final Logger LOGGER = LoggerFactory.getLogger(WorkerExchangeAssignmentRule.class);
   private final PhysicalPlannerContext _physicalPlannerContext;
+  private static final String DEFAULT_HASH_FUNCTION = KeySelector.DEFAULT_HASH_ALGORITHM;
 
   public WorkerExchangeAssignmentRule(PhysicalPlannerContext context) {
     _physicalPlannerContext = context;
@@ -267,7 +269,7 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
     }
     if (distributionConstraint.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
       HashDistributionDesc desc = new HashDistributionDesc(
-          distributionConstraint.getKeys(), "murmur", currentNodeDistribution.getWorkers().size());
+          distributionConstraint.getKeys(), DEFAULT_HASH_FUNCTION, currentNodeDistribution.getWorkers().size());
       PinotDataDistribution pinotDataDistribution = new PinotDataDistribution(
           RelDistribution.Type.HASH_DISTRIBUTED, currentNodeDistribution.getWorkers(),
           currentNodeDistribution.getWorkerHash(), ImmutableSet.of(desc), null);

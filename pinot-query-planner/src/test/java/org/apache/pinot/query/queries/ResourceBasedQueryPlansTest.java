@@ -94,9 +94,6 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
   @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderPhysicalOptimizer")
   public void testQueryExplainPlansWithPhysicalOptimizer(String testCaseName, String description, String query,
       String output) {
-    if (!description.startsWith("blah")) {
-      return;
-    }
     try {
       long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
       String explainedPlan = _queryEnvironment.explainQuery(query, requestId);
