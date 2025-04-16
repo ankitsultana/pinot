@@ -111,6 +111,7 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
     // Step-2: Get current node's distribution. If the current node already has a distribution attached, use that.
     //         Otherwise, compute it using DistMappingGenerator.
     PinotDataDistribution currentNodeDistribution = computeCurrentNodeDistribution(currentNode, parentNode);
+    currentNode = currentNode.with(currentNode.getPRelInputs(), currentNodeDistribution);
     // Step-3: Add an optional exchange to meet unmet distribution trait constraint, if it exists. This also takes care
     //         of different workers when the parent already has workers assigned to it (when parent is not a SingleRel).
     PRelNode currentNodeExchange = meetDistributionConstraint(currentNode, currentNodeDistribution, parentNode);

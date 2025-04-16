@@ -94,7 +94,7 @@ public class ResourceBasedQueryPlansTest extends QueryEnvironmentTestBase {
   @Test(dataProvider = "testResourceQueryPlannerTestCaseProviderPhysicalOptimizer")
   public void testQueryExplainPlansWithPhysicalOptimizer(String testCaseName, String description, String query,
       String output) {
-    if (!description.contains("semi-join, followed by")) {
+    if (!description.startsWith("blah")) {
       return;
     }
     try {

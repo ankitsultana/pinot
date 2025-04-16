@@ -59,7 +59,7 @@ public class LeafStageAggregateRule extends PRelOptRule {
     if (!(currentNode.unwrap() instanceof Aggregate)) {
       return false;
     }
-    if (!isProjectFilterOrScan(currentNode.getPRelInput(0).unwrap())) {
+    if (!currentNode.getPRelInput(0).isLeafStage() || !isProjectFilterOrScan(currentNode.getPRelInput(0).unwrap())) {
       return false;
     }
     // ==> We have: "aggregate (non-leaf stage) > project|filter|table-scan (leaf-stage)"

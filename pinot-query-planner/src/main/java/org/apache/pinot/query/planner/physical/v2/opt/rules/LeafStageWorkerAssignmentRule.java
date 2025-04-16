@@ -256,6 +256,9 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
       return null;
     } else if (numPartitions < numSelectedServers) {
       return null;
+    } else if (numSelectedServers == 1) {
+      // ==> scan will have a single stream, so partitioned distribution doesn't matter
+      return null;
     }
     // Pre-compute segmentToServer map for quick lookup later.
     Map<String, String> segmentToServer = new HashMap<>();
@@ -336,7 +339,7 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
       String realtimeTableType = TableNameBuilder.REALTIME.tableNameWithType(tableName);
       TablePartitionInfo tablePartitionInfo = _routingManager.getTablePartitionInfo(realtimeTableType);
       if (tablePartitionInfo != null) {
-        result.put("REALTIME", _routingManager.getTablePartitionInfo(tableName));
+        result.put("REALTIME", tablePartitionInfo);
       }
     }
     return result;
