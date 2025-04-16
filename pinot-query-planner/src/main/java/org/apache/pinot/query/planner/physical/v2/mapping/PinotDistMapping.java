@@ -36,6 +36,7 @@ import org.apache.commons.collections4.CollectionUtils;
  * RelNode pair and is used to track how input fields are mapped to output fields.
  */
 public class PinotDistMapping {
+  private static final int DEFAULT_MAPPING_VALUE = -1;
   private final int _sourceCount;
   private final Map<Integer, List<Integer>> _sourceToTargetMapping = new HashMap<>();
 

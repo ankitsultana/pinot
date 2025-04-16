@@ -47,12 +47,12 @@ public class ExchangeNode extends BasePlanNode {
   // Table names should be set for SUB_PLAN exchange type.
   private final Set<String> _tableNames;
   @Nullable
-  private final ExchangeStrategy _exchangeStrategy;
+  private ExchangeStrategy _exchangeStrategy;
 
   public ExchangeNode(int stageId, DataSchema dataSchema, List<PlanNode> inputs, PinotRelExchangeType exchangeType,
       RelDistribution.Type distributionType, @Nullable List<Integer> keys, boolean prePartitioned,
       @Nullable List<RelFieldCollation> collations, boolean sortOnSender, boolean sortOnReceiver,
-      @Nullable Set<String> tableNames, ExchangeStrategy exchangeStrategy) {
+      @Nullable Set<String> tableNames, @Nullable ExchangeStrategy exchangeStrategy) {
     super(stageId, dataSchema, null, inputs);
     _exchangeType = exchangeType;
     _distributionType = distributionType;
