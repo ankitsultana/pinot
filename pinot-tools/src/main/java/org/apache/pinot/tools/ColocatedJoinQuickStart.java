@@ -33,7 +33,9 @@ public class ColocatedJoinQuickStart extends MultistageEngineQuickStart {
   private static final String QUICKSTART_IDENTIFIER = "COLOCATED_JOIN";
   private static final String[] COLOCATED_JOIN_DIRECTORIES = new String[]{
       "examples/batch/colocated/userAttributes", "examples/batch/colocated/userGroups",
-      "examples/batch/colocated/userFactEvents"
+      "examples/batch/colocated/userFactEvents",
+      "examples/batch/baseballStats",
+      "examples/batch/dimBaseballTeams"
   };
 
   private static final String EXPLICIT = "SELECT COUNT(*) "

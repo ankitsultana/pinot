@@ -35,11 +35,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelDistribution;
+import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
+import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
@@ -63,12 +67,17 @@ import org.apache.pinot.query.planner.physical.v2.PinotDataDistribution;
 import org.apache.pinot.query.planner.physical.v2.TableScanMetadata;
 import org.apache.pinot.query.planner.physical.v2.mapping.DistMappingGenerator;
 import org.apache.pinot.query.planner.physical.v2.mapping.PinotDistMapping;
+import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalFilter;
+import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalJoin;
+import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalProject;
 import org.apache.pinot.query.planner.physical.v2.nodes.PhysicalTableScan;
 import org.apache.pinot.query.planner.physical.v2.opt.PRelOptRule;
 import org.apache.pinot.query.planner.physical.v2.opt.PRelOptRuleCall;
 import org.apache.pinot.query.planner.plannode.PlanNode;
 import org.apache.pinot.query.routing.QueryServerInstance;
+import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableType;
+import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
 import org.apache.pinot.sql.parsers.CalciteSqlCompiler;
 import org.slf4j.Logger;
@@ -100,6 +109,7 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
   private final TableCache _tableCache;
   private final RoutingManager _routingManager;
   private final PhysicalPlannerContext _physicalPlannerContext;
+  private final Set<Integer> _lookupJoinNodeIds = new HashSet<>();
 
   public LeafStageWorkerAssignmentRule(PhysicalPlannerContext physicalPlannerContext, TableCache tableCache) {
     _routingManager = physicalPlannerContext.getRoutingManager();
@@ -131,6 +141,77 @@ public class LeafStageWorkerAssignmentRule extends PRelOptRule {
     PinotDataDistribution derivedDistribution = currentNode.getPRelInput(0).getPinotDataDistributionOrThrow()
         .apply(mapping);
     return currentNode.with(currentNode.getPRelInputs(), derivedDistribution);
+  }
+
+  @Override
+  public PRelNode onDone(PRelNode currentNode) {
+    if (_lookupJoinNodeIds.contains(currentNode.getNodeId())) {
+      PhysicalJoin join = (PhysicalJoin) currentNode;
+      return join.asLookupJoin();
+    }
+    return currentNode;
+  }
+
+  @Nullable
+  private PhysicalTableScan assignTableScanForLookupJoin(PhysicalTableScan tableScan, Deque<PRelNode> parents,
+      List<String> instances) {
+    String tableName = Objects.requireNonNull(getActualTableName(tableScan), "Table not found");
+    if (TableNameBuilder.getTableTypeFromTableName(tableName) == TableType.REALTIME) {
+      return null;
+    }
+    String offlineTableName = TableNameBuilder.OFFLINE.tableNameWithType(tableName);
+    TableConfig tableConfig = _tableCache.getTableConfig(offlineTableName);
+    if (tableConfig == null || !tableConfig.isDimTable()) {
+      return null;
+    }
+    List<PRelNode> parentNodes = new ArrayList<>();
+    parents.descendingIterator().forEachRemaining(parentNodes::add);
+    if (parentNodes.size() < 2) {
+      return null;
+    }
+    // Check if parent is project
+    if (!(parentNodes.get(0) instanceof PhysicalProject)) {
+      return null;
+    }
+    // Check if parent of that is a join
+    if (!(parentNodes.get(1) instanceof PhysicalJoin)) {
+      return null;
+    }
+    PhysicalJoin join = (PhysicalJoin) parentNodes.get(1);
+    // Ensure we are in the right subtree
+    if (join.getPRelInput(1) != parentNodes.get(0)) {
+      return null;
+    }
+    // Check the supported join types
+    if (!PinotRuleUtils.SUPPORTED_JOIN_TYPES_FOR_LOOKUP.contains(join.getJoinType())) {
+      return null;
+    }
+    Schema schema = _tableCache.getSchema(TableNameBuilder.extractRawTableName(tableName));
+    if (schema == null || schema.getPrimaryKeyColumns() == null || schema.getPrimaryKeyColumns().isEmpty()) {
+      return null;
+    }
+    List<Integer> primaryKeyIndices = schema.getPrimaryKeyColumns().stream()
+        .map(tableScan.getRowType().getFieldNames()::indexOf).collect(Collectors.toList());
+    if (primaryKeyIndices.contains(-1)) {
+      return null;
+    }
+    // Check the join condition and ensure that primary key is present in join keys.
+    JoinInfo joinInfo = ((Join) join.unwrap()).analyzeCondition();
+    if (!new HashSet<>(joinInfo.rightKeys).containsAll(primaryKeyIndices)) {
+      return null;
+    }
+    Set<String> servingInstances = _routingManager.getServingInstances(offlineTableName);
+    if (servingInstances != null && servingInstances.containsAll(instances)) {
+      _lookupJoinNodeIds.add(join.getNodeId());
+      List<String> workers = new ArrayList<>();
+      for (int workerId = 0; workerId < instances.size(); workerId++) {
+        workers.add(String.format("%s@%s", workerId, instances.get(workerId)));
+      }
+      PinotDataDistribution pdd = new PinotDataDistribution(RelDistribution.Type.BROADCAST_DISTRIBUTED, workers,
+          workers.hashCode(), null, null);
+      return (PhysicalTableScan) tableScan.with(List.of(), pdd);
+    }
+    return null;
   }
 
   private PhysicalTableScan assignTableScan(PhysicalTableScan tableScan, long requestId, PinotQuery pinotQuery) {

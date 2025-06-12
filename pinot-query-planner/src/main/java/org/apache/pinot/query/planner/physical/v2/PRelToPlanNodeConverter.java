@@ -235,7 +235,7 @@ public class PRelToPlanNodeConverter {
     List<PlanNode> inputs = new ArrayList<>();
     JoinRelType joinType = join.getJoinType();
     JoinNode.JoinStrategy joinStrategy;
-    if (PinotHintOptions.JoinHintOptions.useLookupJoinStrategy(join)) {
+    if (join.isLookupJoin()) {
       joinStrategy = JoinNode.JoinStrategy.LOOKUP;
     } else {
       joinStrategy = JoinNode.JoinStrategy.HASH;

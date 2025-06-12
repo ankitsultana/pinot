@@ -308,14 +308,13 @@ public class QueryDispatcher {
       SendRequest<Worker.QueryRequest, E> sendRequest, Set<QueryServerInstance> serverInstancesOut,
       BiConsumer<E, QueryServerInstance> resultConsumer)
       throws ExecutionException, InterruptedException, TimeoutException {
-
     Deadline deadline = Deadline.after(timeoutMs, TimeUnit.MILLISECONDS);
 
     Map<DispatchablePlanFragment, StageInfo> stageInfos =
         serializePlanFragments(stagePlans, serverInstancesOut, deadline);
 
     if (serverInstancesOut.isEmpty()) {
-      throw new RuntimeException("No server instances to dispatch query to");
+      return;
     }
 
     Map<String, String> requestMetadata =

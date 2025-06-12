@@ -36,6 +36,8 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
+import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.core.Values;
 import org.apache.pinot.calcite.rel.hint.PinotHintOptions;
 import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
 import org.apache.pinot.calcite.rel.traits.PinotExecStrategyTrait;
@@ -82,7 +84,34 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
 
   @Override
   public PRelNode execute(PRelNode currentNode) {
+    if (!hasTableScan(currentNode)) {
+      // If there are no table scans, run everything in the broker.
+      return assignBroker(currentNode);
+    }
     return executeInternal(currentNode, null);
+  }
+
+  PRelNode assignBroker(PRelNode currentNode) {
+    List<String> workers = List.of(String.format("0@%s", _physicalPlannerContext.getInstanceId()));
+    PinotDataDistribution pdd = new PinotDataDistribution(RelDistribution.Type.SINGLETON, workers, workers.hashCode(),
+        null, null);
+    List<PRelNode> newInputs = new ArrayList<>();
+    for (PRelNode input : currentNode.getPRelInputs()) {
+      newInputs.add(assignBroker(input));
+    }
+    return currentNode.with(newInputs, pdd);
+  }
+
+  boolean hasTableScan(PRelNode currentNode) {
+    if (currentNode.unwrap() instanceof TableScan) {
+      return true;
+    }
+    for (PRelNode input : currentNode.getPRelInputs()) {
+      if (hasTableScan(input)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public PRelNode executeInternal(PRelNode currentNode, @Nullable PRelNode parent) {
@@ -90,6 +119,13 @@ public class WorkerExchangeAssignmentRule implements PRelNodeTransformer {
       return currentNode;
     }
     if (currentNode.getPRelInputs().isEmpty()) {
+      // TODO: Values. pick a random worker here.
+      if (currentNode instanceof Values) {
+        String worker = String.format("0@%s", _physicalPlannerContext.getRandomInstanceIdExceptBroker());
+        List<String> workers = List.of(worker);
+        currentNode = currentNode.with(List.of(),
+            new PinotDataDistribution(RelDistribution.Type.SINGLETON, workers, workers.hashCode(), null, null));
+      }
       return processCurrentNode(currentNode, parent);
     }
     if (currentNode.getPRelInputs().size() == 1) {

@@ -38,14 +38,23 @@ public class PhysicalJoin extends Join implements PRelNode {
   private final List<PRelNode> _pRelInputs;
   @Nullable
   private final PinotDataDistribution _pinotDataDistribution;
+  private final boolean _isLookupJoin;
 
   public PhysicalJoin(RelOptCluster cluster, RelTraitSet traitSet, List<RelHint> hints,
       RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType, int nodeId, PRelNode left,
       PRelNode right, @Nullable PinotDataDistribution pinotDataDistribution) {
+    this(cluster, traitSet, hints, condition, variablesSet, joinType, nodeId, left, right,
+        pinotDataDistribution, false);
+  }
+
+  public PhysicalJoin(RelOptCluster cluster, RelTraitSet traitSet, List<RelHint> hints,
+      RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType, int nodeId, PRelNode left,
+      PRelNode right, @Nullable PinotDataDistribution pinotDataDistribution, boolean isLookupJoin) {
     super(cluster, traitSet, hints, left.unwrap(), right.unwrap(), condition, variablesSet, joinType);
     _nodeId = nodeId;
     _pRelInputs = List.of(left, right);
     _pinotDataDistribution = pinotDataDistribution;
+    _isLookupJoin = isLookupJoin;
   }
 
   @Override
@@ -85,5 +94,19 @@ public class PhysicalJoin extends Join implements PRelNode {
   public PRelNode with(int newNodeId, List<PRelNode> newInputs, PinotDataDistribution newDistribution) {
     return new PhysicalJoin(getCluster(), getTraitSet(), getHints(), getCondition(), getVariablesSet(), getJoinType(),
         newNodeId, newInputs.get(0), newInputs.get(1), newDistribution);
+  }
+
+  @Override
+  public JoinRelType getJoinType() {
+    return super.getJoinType();
+  }
+
+  public boolean isLookupJoin() {
+    return _isLookupJoin;
+  }
+
+  public PRelNode asLookupJoin() {
+    return new PhysicalJoin(getCluster(), getTraitSet(), getHints(), getCondition(), getVariablesSet(),
+        getJoinType(), _nodeId, _pRelInputs.get(0), _pRelInputs.get(1), _pinotDataDistribution, true);
   }
 }
