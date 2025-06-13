@@ -64,8 +64,7 @@ public class LiteModeWorkerAssignmentRule implements PRelNodeTransformer {
     if (_runInBroker) {
       workers = List.of(String.format("0@%s", _context.getInstanceId()));
     } else {
-      accumulateWorkers(currentNode, workerSet);
-      workers = List.of(sampleWorker(new ArrayList<>(workerSet)));
+      workers = List.of(String.format("0@%s", _context.getRandomInstanceIdExceptBroker()));
     }
     PinotDataDistribution pdd = new PinotDataDistribution(RelDistribution.Type.SINGLETON, workers, workers.hashCode(),
         null, null);

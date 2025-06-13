@@ -19,9 +19,13 @@
 package org.apache.pinot.query.context;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import org.apache.pinot.common.config.provider.TableCache;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.core.routing.RoutingManager;
 import org.apache.pinot.query.routing.QueryServerInstance;
@@ -31,6 +35,7 @@ import org.apache.pinot.query.routing.QueryServerInstance;
  * Per-query unique context dedicated for the physical planner.
  */
 public class PhysicalPlannerContext {
+  private static final Random RANDOM = new Random();
   private final Supplier<Integer> _nodeIdGenerator = new Supplier<>() {
     private int _id = 0;
 
@@ -73,8 +78,8 @@ public class PhysicalPlannerContext {
     _useLiteMode = false;
   }
 
-  public PhysicalPlannerContext(RoutingManager routingManager, String hostName, int port, long requestId,
-      String instanceId, Map<String, String> queryOptions) {
+  public PhysicalPlannerContext(RoutingManager routingManager, String hostName, int port,
+      long requestId, String instanceId, Map<String, String> queryOptions) {
     _routingManager = routingManager;
     _hostName = hostName;
     _port = port;
@@ -120,6 +125,18 @@ public class PhysicalPlannerContext {
 
   public boolean isUseLiteMode() {
     return _useLiteMode;
+  }
+
+  public String getRandomInstanceIdExceptBroker() {
+    // Exclude the broker instance ID
+    List<String> instancesExceptBroker =
+        _instanceIdToQueryServerInstance.keySet().stream().filter(instanceId -> !instanceId.equals(_instanceId))
+            .collect(Collectors.toList());
+    if  (instancesExceptBroker.isEmpty()) {
+      return _instanceId;
+    }
+    int index = RANDOM.nextInt(instancesExceptBroker.size());
+    return instancesExceptBroker.get(index);
   }
 
   private QueryServerInstance getBrokerQueryServerInstance() {

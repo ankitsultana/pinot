@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.pinot.calcite.rel.rules.PinotRuleUtils;
 import org.apache.pinot.common.datatable.StatMap;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.data.manager.offline.DimensionTableDataManager;
@@ -54,8 +55,6 @@ import org.slf4j.LoggerFactory;
 public class LookupJoinOperator extends MultiStageOperator {
   private static final Logger LOGGER = LoggerFactory.getLogger(LookupJoinOperator.class);
   private static final String EXPLAIN_NAME = "LOOKUP_JOIN";
-  private static final Set<JoinRelType> SUPPORTED_JOIN_TYPES =
-      Set.of(JoinRelType.INNER, JoinRelType.LEFT, JoinRelType.SEMI, JoinRelType.ANTI);
 
   private final MultiStageOperator _leftInput;
   private final LeafOperator _rightInput;
@@ -75,7 +74,7 @@ public class LookupJoinOperator extends MultiStageOperator {
     Preconditions.checkState(rightInput instanceof LeafOperator, "Right input must be leaf operator");
     _rightInput = (LeafOperator) rightInput;
     _joinType = node.getJoinType();
-    Preconditions.checkState(SUPPORTED_JOIN_TYPES.contains(_joinType), "Join type: % is not supported for lookup join",
+    Preconditions.checkState(PinotRuleUtils.SUPPORTED_JOIN_TYPES_FOR_LOOKUP.contains(_joinType), "Join type: % is not supported for lookup join",
         _joinType);
 
     List<Integer> leftKeys = node.getLeftKeys();

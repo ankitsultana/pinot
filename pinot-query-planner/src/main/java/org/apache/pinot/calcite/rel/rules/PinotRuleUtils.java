@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.calcite.rel.rules;
 
+import java.util.Set;
 import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
@@ -25,6 +26,7 @@ import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.rel.core.TableScan;
@@ -39,6 +41,9 @@ import org.apache.pinot.calcite.rel.hint.PinotHintStrategyTable;
 public class PinotRuleUtils {
   private PinotRuleUtils() {
   }
+
+  public static final Set<JoinRelType> SUPPORTED_JOIN_TYPES_FOR_LOOKUP =
+      Set.of(JoinRelType.INNER, JoinRelType.LEFT, JoinRelType.SEMI, JoinRelType.ANTI);
 
   public static final RelBuilder.Config PINOT_REL_CONFIG =
       RelBuilder.Config.DEFAULT.withPruneInputOfAggregate(false).withPushJoinCondition(true).withAggregateUnique(true);

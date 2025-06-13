@@ -1,4 +1,28 @@
 {
+  "physical_opt_constant": {
+    "queries": [
+      {
+        "description": "Constant query",
+        "sql": "SET usePhysicalOptimizer=true; EXPLAIN PLAN FOR SELECT 1",
+        "output": [
+          "Execution Plan",
+          "\nPhysicalValues(tuples=[[{ 1 }]])",
+          "\n"
+        ]
+      },
+      {
+        "description": "Constant query",
+        "sql": "SET usePhysicalOptimizer=true; EXPLAIN PLAN FOR WITH tmp1(id, nm) AS (VALUES (1, 'user-1')), tmp2(user_id, nm2) AS (VALUES (2, 'user-2')) SELECT * FROM tmp1, tmp2 WHERE tmp1.id = tmp2.user_id",
+        "output": [
+          "Execution Plan",
+          "\nPhysicalJoin(condition=[=($0, $2)], joinType=[inner])",
+          "\n  PhysicalValues(tuples=[[]])",
+          "\n  PhysicalValues(tuples=[[]])",
+          "\n"
+        ]
+      }
+    ]
+  },
   "physical_opt_join_planning_tests": {
     "queries": [
       {
@@ -661,4 +685,4 @@
       }
     ]
   }
-}
+},
