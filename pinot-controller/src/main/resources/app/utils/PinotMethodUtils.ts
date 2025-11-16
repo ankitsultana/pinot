@@ -1195,7 +1195,12 @@ const validateRedirectPath = (path: string): boolean => {
   }
 
   const knownAppRoutes = RouterData.map((data) => data.path);
-  const routeMatches = matchPath(pathName, {path: knownAppRoutes, exact: true});
+  // In React Router v6, matchPath doesn't accept array of paths or exact option
+  // Check if any route matches
+  const routeMatches = knownAppRoutes.some(route => {
+    const match = matchPath(route, pathName);
+    return match !== null;
+  });
 
   if(!routeMatches) {
     return false;

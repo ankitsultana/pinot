@@ -49,7 +49,11 @@ const mainReducer = ({ type, message, show, hide }, action) => ({
 });
 
 
-const NotificationContextProvider: React.FC  = (props) =>{
+type NotificationContextProviderProps = {
+  children?: React.ReactNode;
+};
+
+const NotificationContextProvider: React.FC<NotificationContextProviderProps> = (props) => {
   const [state, dispatch] = useReducer(mainReducer, NotificationContextValue);
   return(
     <NotificationContext.Provider value={{...state,dispatch}}>

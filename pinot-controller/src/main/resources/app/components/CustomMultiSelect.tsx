@@ -103,19 +103,26 @@ const CustomMultiSelect = forwardRef(({
       freeSolo
       onChange={handleChange}
       renderTags={(values, getTagProps) =>
-        values.map((option, index) => (
-          <Chip key={index} variant="outlined" label={option} {...getTagProps({ index })} />
-        ))}
-      renderInput={(params: MyParams) => {{
+        values.map((option, index) => {
+          const tagProps = getTagProps({ index }) as any;
+          const { key, ...restTagProps } = tagProps;
+          return (
+            <Chip key={key || index} variant="outlined" label={String(option)} {...restTagProps} />
+          );
+        })}
+      renderInput={(params: MyParams) => {
         params.inputProps.onKeyDown = handleKeyDown;
         return (
-        <TextField
-          inputRef={ref}
-          error={error && error.isError}
-          helperText={error && error.errorMessage}
-          {...params} variant="filled" placeholder="Enter Tags ..."
-        />
-      )}}}
+          <TextField
+            inputRef={ref}
+            error={error && error.isError}
+            helperText={error && error.errorMessage}
+            {...params} 
+            variant="filled" 
+            placeholder="Enter Tags ..."
+          />
+        );
+      }}
     />
   );
 });

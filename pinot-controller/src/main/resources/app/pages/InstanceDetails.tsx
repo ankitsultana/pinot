@@ -30,7 +30,7 @@ import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/material.css';
 import 'codemirror/mode/javascript/javascript';
 import { InstanceState, InstanceType } from 'Models';
-import { RouteComponentProps } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import PinotMethodUtils from '../utils/PinotMethodUtils';
 import AppLoader from '../components/AppLoader';
 import SimpleAccordion from '../components/SimpleAccordion';
@@ -73,9 +73,10 @@ type Props = {
   instanceName: string;
 };
 
-const InstanceDetails = ({ match }: RouteComponentProps<Props>) => {
+const InstanceDetails = () => {
   const classes = useStyles();
-  const { instanceName } = match.params;
+  const params = useParams<Props>();
+  const { instanceName } = params;
   const instanceType = getInstanceTypeFromInstanceName(instanceName);
   const clusterName = localStorage.getItem('pinot_ui:clusterName');
   const [fetching, setFetching] = useState(true);

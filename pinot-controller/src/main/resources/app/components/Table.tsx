@@ -577,7 +577,7 @@ export default function CustomizedTables({
                         }
                         return addLinks && typeof cell === 'string' && !idx ? (
                           <StyledTableCell key={idx}>
-                            <Link to={`${encodeURI(`${url}${encodeURIComponent(cell)}`)}`}>{cell}</Link>
+                            <Link to={`${encodeURI(`${url}${encodeURIComponent(cell as string)}`)}`}>{cell as string}</Link>
                           </StyledTableCell>
                         ) : (
                           <StyledTableCell

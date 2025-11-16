@@ -46,7 +46,7 @@ import SimpleAccordion from '../components/SimpleAccordion';
 import PinotMethodUtils from '../utils/PinotMethodUtils';
 import '../styles/styles.css';
 import {Resizable} from "re-resizable";
-import { useHistory, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import sqlFormatter from '@sqltools/formatter';
 import { VisualizeQueryStageStats } from '../components/Query/VisualizeQueryStageStats';
 
@@ -220,7 +220,7 @@ const errorCodeDescription = (errorCode) => {
 
 const QueryPage = () => {
   const classes = useStyles();
-  const history = useHistory();
+  const navigate = useNavigate();
   let queryParam = useQuery();
   const [fetching, setFetching] = useState(true);
   const [queryLoader, setQueryLoader] = useState(false);
@@ -375,10 +375,7 @@ const QueryPage = () => {
       if(queryTimeout !== undefined && queryTimeout !== ''){
         queryParam.set('timeout', queryTimeout.toString());
       }
-      history.push({
-        pathname: '/query',
-        search: `?${queryParam.toString()}`
-      })
+      navigate(`/query?${queryParam.toString()}`)
     }
 
     const results = await PinotMethodUtils.getQueryResults(params);

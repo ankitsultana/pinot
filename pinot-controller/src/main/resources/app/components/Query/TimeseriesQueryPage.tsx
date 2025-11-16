@@ -39,7 +39,7 @@ import 'codemirror/lib/codemirror.css';
 import 'codemirror/theme/material.css';
 import 'codemirror/mode/javascript/javascript';
 import { getTimeSeriesQueryResult, getTimeSeriesLanguages } from '../../requests';
-import { useHistory, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import TableToolbar from '../TableToolbar';
 import { Resizable } from 're-resizable';
 import SimpleAccordion from '../SimpleAccordion';
@@ -248,7 +248,7 @@ interface TimeseriesQueryConfig {
 
 const TimeseriesQueryPage = () => {
   const classes = useStyles();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const getCurrentTimestamp = () => Math.floor(Date.now() / 1000).toString();
@@ -334,11 +334,8 @@ const TimeseriesQueryPage = () => {
     }
 
     const newURL = params.toString() ? `?${params.toString()}` : '';
-    history.push({
-      pathname: location.pathname,
-      search: newURL
-    });
-  }, [history, location.pathname]);
+    navigate(`${location.pathname}${newURL}`);
+  }, [navigate, location.pathname]);
 
   const handleConfigChange = (field: keyof TimeseriesQueryConfig, value: string | number | boolean) => {
     setConfig(prev => ({ ...prev, [field]: value }));

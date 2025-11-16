@@ -23,11 +23,17 @@ import CustomNotification from "./components/CustomNotification";
 import { NotificationContextProvider } from "./components/Notification/NotificationContextProvider";
 import theme from "./theme";
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { HashRouter } from "react-router-dom";
 
-ReactDOM.render(
+const container = document.getElementById('app');
+if (!container) {
+  throw new Error('Failed to find the root element');
+}
+const root = createRoot(container);
+
+root.render(
     <HashRouter>
         <MuiThemeProvider theme={theme}>
             <NotificationContextProvider>
@@ -37,6 +43,5 @@ ReactDOM.render(
                 </AuthProvider>
             </NotificationContextProvider>
         </MuiThemeProvider>
-    </HashRouter>,
-    document.getElementById('app')
+    </HashRouter>
 );

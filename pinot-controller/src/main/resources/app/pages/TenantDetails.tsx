@@ -21,7 +21,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { makeStyles } from '@material-ui/core/styles';
 import { Box, Button, Checkbox, FormControlLabel, Grid, Switch, Tooltip, Typography, CircularProgress, Menu, MenuItem, Chip } from '@material-ui/core';
 import ArrowDropDownIcon from '@material-ui/icons/ArrowDropDown';
-import { RouteComponentProps, useHistory, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { UnControlled as CodeMirror } from 'react-codemirror2';
 import { DISPLAY_SEGMENT_STATUS, InstanceState, TableData, TableSegmentJobs, TableType, ConsumingSegmentsInfo, PauseStatusDetails } from 'Models';
 import AppLoader from '../components/AppLoader';
@@ -125,16 +125,17 @@ type Summary = {
   estimatedSize: number;
 };
 
-const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
-  const { tenantName, tableName, instanceName } = match.params;
+const TenantPageDetails = () => {
+  const params = useParams<Props>();
+  const { tenantName, tableName, instanceName } = params;
   const classes = useStyles();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   const [fetching, setFetching] = useState(true);
   const [tableNotFound, setTableNotFound] = useState(false);
 
   const initialTableSummary: Summary = {
-    tableName: match.params.tableName,
+    tableName: params.tableName || '',
     reportedSize: null,
     estimatedSize: null,
   };
@@ -445,9 +446,9 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
       if (tableDeleted) {
         setTimeout(() => {
           if (tenantName) {
-            history.push(Utils.navigateToPreviousPage(location, true));
+            navigate(Utils.navigateToPreviousPage(location, true));
           } else {
-            history.push('/tables');
+            navigate('/tables');
           }
         }, 1000);
       }

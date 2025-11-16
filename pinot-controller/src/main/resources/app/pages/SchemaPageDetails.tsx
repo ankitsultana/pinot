@@ -27,7 +27,7 @@ import {
   IconButton,
   Tooltip,
 } from '@material-ui/core';
-import { RouteComponentProps, useHistory } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { UnControlled as CodeMirror } from 'react-codemirror2';
 import { TableData } from 'Models';
 import AppLoader from '../components/AppLoader';
@@ -102,14 +102,15 @@ type Summary = {
   estimatedSize: string | number;
 };
 
-const SchemaPageDetails = ({ match }: RouteComponentProps<Props>) => {
-  const { schemaName } = match.params;
+const SchemaPageDetails = () => {
+  const params = useParams<Props>();
+  const { schemaName } = params;
   const classes = useStyles();
-  const history = useHistory();
+  const navigate = useNavigate();
   const [fetching, setFetching] = useState(true);
   const [schemaNotFound, setSchemaNotFound] = useState(false);
   const [] = useState<Summary>({
-    schemaName: match.params.schemaName,
+    schemaName: params.schemaName || '',
     reportedSize: '',
     estimatedSize: '',
   });
@@ -211,7 +212,7 @@ const SchemaPageDetails = ({ match }: RouteComponentProps<Props>) => {
   const deleteSchema = async () => {
     const result = await PinotMethodUtils.deleteSchemaOp(schemaJSON.schemaName);
     syncResponse(result);
-    history.push('/tables');
+    navigate('/tables');
   };
 
   const closeDialog = () => {

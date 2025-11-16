@@ -19,6 +19,7 @@
 
 import React from 'react';
 import { Box, Button, createStyles, makeStyles, TextField, Theme } from '@material-ui/core';
+import { useNavigate } from 'react-router-dom';
 import Logo from '../components/SvgIcons/Logo';
 import { useForm } from 'react-hook-form';
 import PinotMethodUtils from '../utils/PinotMethodUtils';
@@ -71,6 +72,7 @@ const useStyles = makeStyles((theme: Theme) => {
 const LoginPage = (props) => {
   const { handleSubmit, register } = useForm<FormData>();
   const [invalidToken, setInvalidToken] = React.useState(null);
+  const navigate = useNavigate();
 
   const onSubmit = handleSubmit(async (data) => {
     const authToken = "Basic "+btoa(data.username+":"+data.password);
@@ -80,7 +82,7 @@ const LoginPage = (props) => {
       props.setIsAuthenticated(true);
       app_state.authWorkflow = AuthWorkflow.BASIC;
       app_state.authToken = authToken;
-      props.history.push(app_state.queryConsoleOnlyView ? '/query' : '/');
+      navigate(app_state.queryConsoleOnlyView ? '/query' : '/');
       app_state.username = data.username;
     } else {
       setInvalidToken(true);

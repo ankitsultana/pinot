@@ -18,7 +18,7 @@
  */
 
 import React from 'react';
-import { useLocation, Link as RouterLink, RouteComponentProps } from 'react-router-dom';
+import { useLocation, Link as RouterLink, useParams } from 'react-router-dom';
 
 import Breadcrumbs from '@material-ui/core/Breadcrumbs';
 import Typography from '@material-ui/core/Typography';
@@ -42,11 +42,9 @@ interface LinkRouterProps extends LinkProps {
 }
 
 const LinkRouter = (props: LinkRouterProps) => (
-  // We ignore this for now as there is a more complex setup required
-  // to make component={RouterLink} work correctly with typescript.
-  // See https://mui.com/guides/routing/
-  // @ts-ignore
-  <Link {...props} component={RouterLink} />
+  // Material-UI Link with React Router Link component
+  // In React 18, we need to ensure proper typing
+  <Link {...(props as any)} component={RouterLink as any} />
 );
 
 const breadcrumbNameMap: { [key: string]: string } = {
@@ -64,8 +62,9 @@ const breadcrumbNameMap: { [key: string]: string } = {
   '/user': 'User Console'
 };
 
-const BreadcrumbsComponent = ({ ...props }) => {
+const BreadcrumbsComponent = () => {
   const location = useLocation();
+  const params = useParams();
   const pathNames = location.pathname.split('/').filter((x) => x);
   const classes = useStyles();
 
@@ -96,9 +95,9 @@ const BreadcrumbsComponent = ({ ...props }) => {
       return getLabel(breadcrumbNameMap['/']);
     }
     const breadcrumbs = [getClickableLabel(breadcrumbNameMap['/'], '/')];
-    const paramsKeys = keys(props.match.params);
+    const paramsKeys = keys(params);
     if(paramsKeys.length){
-      const {tenantName, tableName, segmentName, instanceName, schemaName, query, taskType, queueTableName, taskID, subTaskID} = props.match.params;
+      const {tenantName, tableName, segmentName, instanceName, schemaName, query, taskType, queueTableName, taskID, subTaskID} = params as any;
       if((tenantName || instanceName) && tableName){
         breadcrumbs.push(
           getClickableLabel(

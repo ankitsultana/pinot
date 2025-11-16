@@ -19,7 +19,7 @@
 
 import { AuthLocalStorageKeys, AuthWorkflow } from 'Models';
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { useHistory, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { baseApi, getAxiosErrorInterceptor, getAxiosRequestInterceptor, getAxiosResponseInterceptor, transformApi } from '../../utils/axios-config';
 import PinotMethodUtils from '../../utils/PinotMethodUtils';
 import { AppLoadingIndicator } from '../AppLoadingIndicator';
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
     const [authenticated, setAuthenticated] = useState<boolean>(false);
     const [authorizationEndpoint, setAuthorizationEndpoint] = useState<string | null>(null);
     const [autoLogout, setAutoLogout] = useState<boolean>(false);
-    const history = useHistory();
+    const navigate = useNavigate();
     const location = useLocation();
     const [axiosRequestInterceptorIds, setAxiosRequestInterceptorIds] =
         useState([0, 1]);
@@ -206,7 +206,7 @@ export const AuthProvider = ({ children }) => {
         const redirectLocation = getAuthLocalStorageValue(AuthLocalStorageKeys.RedirectLocation);
         if (redirectLocation && redirectLocation !== "/login" && redirectLocation !== "/logout") {
             setAuthLocalStorageValue(AuthLocalStorageKeys.RedirectLocation, "");
-            history.push(redirectLocation);
+            navigate(redirectLocation);
         }
     }
 

@@ -23,7 +23,7 @@ import { useTimezone } from '../contexts/TimezoneContext';
 import { keys } from 'lodash';
 import { makeStyles } from '@material-ui/core/styles';
 import { Grid } from '@material-ui/core';
-import { RouteComponentProps, useHistory, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { UnControlled as CodeMirror } from 'react-codemirror2';
 import TableToolbar from '../components/TableToolbar';
 import 'codemirror/lib/codemirror.css';
@@ -107,12 +107,13 @@ type Summary = {
   endTime?: number;   // End time converted to milliseconds for timezone-aware formatting
 };
 
-const SegmentDetails = ({ match }: RouteComponentProps<Props>) => {
+const SegmentDetails = () => {
   const classes = useStyles();
   const { currentTimezone } = useTimezone();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
-  const { tableName, segmentName: encodedSegmentName } = match.params;
+  const params = useParams<Props>();
+  const { tableName, segmentName: encodedSegmentName } = params;
   const segmentName = Utils.encodeString(encodedSegmentName);
 
   const [confirmDialog, setConfirmDialog] = React.useState(false);
@@ -333,7 +334,7 @@ const SegmentDetails = ({ match }: RouteComponentProps<Props>) => {
     }
     closeDialog();
     setTimeout(() => {
-      history.push(Utils.navigateToPreviousPage(location, false));
+      navigate(Utils.navigateToPreviousPage(location, false));
     }, 1000);
   };
 

@@ -35,7 +35,14 @@ let navigationItems = [
   { id: 4, name: 'Swagger REST API', link: 'help', target: '_blank', icon: <SwaggerIcon /> }
 ];
 
-const Layout = (props) => {
+type LayoutProps = {
+  children?: React.ReactNode;
+  role?: string;
+  clusterName?: string;
+  [key: string]: any;
+};
+
+const Layout = (props: LayoutProps) => {
   const role = props.role;
   if(role === 'ADMIN'){
     if(navigationItems.length <5){

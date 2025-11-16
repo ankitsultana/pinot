@@ -27,7 +27,7 @@ import { TableData } from 'Models';
 import CustomizedTables from '../Table';
 import QueryIcon from '@material-ui/icons/QueryBuilder';
 import TimelineIcon from '@material-ui/icons/Timeline';
-import { useHistory, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const drawerWidth = 300;
 
@@ -86,7 +86,7 @@ type Props = {
 
 const Sidebar = ({ tableList, fetchSQLData, tableSchema, selectedTable, queryLoader }: Props) => {
   const classes = useStyles();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const isSqlQuery = location.pathname === '/query';
@@ -112,7 +112,7 @@ const Sidebar = ({ tableList, fetchSQLData, tableSchema, selectedTable, queryLoa
               <ListItem
                 button
                 selected={isSqlQuery}
-                onClick={() => history.push('/query')}
+                onClick={() => navigate('/query')}
                 className={classes.itemContainer}
               >
                 <ListItemIcon>
@@ -123,7 +123,7 @@ const Sidebar = ({ tableList, fetchSQLData, tableSchema, selectedTable, queryLoa
               <ListItem
                 button
                 selected={isTimeseriesQuery}
-                onClick={() => history.push('/query/timeseries')}
+                onClick={() => navigate('/query/timeseries')}
                 className={classes.itemContainer}
               >
                 <ListItemIcon>

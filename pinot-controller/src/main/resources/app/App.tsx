@@ -18,7 +18,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Switch, Route, Redirect, useHistory } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import RouterData from './router';
 import PinotMethodUtils from './utils/PinotMethodUtils';
@@ -34,7 +34,7 @@ export const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [role, setRole] = useState('');
   const { authUserName, authUserEmail, authenticated, authWorkflow } = useAuthProvider();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // authentication already handled by authProvider
@@ -112,8 +112,8 @@ export const App = () => {
 
   const loginRender = (Component, props) => {
     if(isAuthenticated) {
-      history.push("/");
-      return;
+      navigate("/");
+      return null;
     }
 
     return (
@@ -139,32 +139,37 @@ export const App = () => {
 
   return (
     <TimezoneProvider>
-      <Switch>
+      <Routes>
         {getRouterData().map(({ path, Component }, key) => (
           <Route
-            exact
-            path={path}
             key={key}
-            render={(props) => {
-              if (path === '/login') {
-                return loginRender(Component, props);
-              } else if (isAuthenticated) {
-                // default render
-                return componentRender(Component, props, role);
-              } else {
-                return <Redirect to="/login" />;
-              }
-            }}
+            path={path}
+            element={
+              (() => {
+                if (path === '/login') {
+                  return loginRender(Component, {});
+                } else if (isAuthenticated) {
+                  // default render
+                  return componentRender(Component, {}, role);
+                } else {
+                  return <Navigate to="/login" replace />;
+                }
+              })()
+            }
           />
         ))}
-        <Route path="*">
-          <Redirect
-            to={PinotMethodUtils.getURLWithoutAccessToken(
-              app_state.queryConsoleOnlyView ? '/query' : '/'
-            )}
-          />
-        </Route>
-      </Switch>
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={PinotMethodUtils.getURLWithoutAccessToken(
+                app_state.queryConsoleOnlyView ? '/query' : '/'
+              )}
+              replace
+            />
+          }
+        />
+      </Routes>
     </TimezoneProvider>
   );
 };

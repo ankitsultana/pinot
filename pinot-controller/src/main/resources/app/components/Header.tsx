@@ -29,7 +29,7 @@ type Props = {
   highlightSidebarLink: (id: number) => void;
   showHideSideBarHandler: () => void;
   openSidebar: boolean;
-  clusterName: string;
+  clusterName?: string;
 };
 
 const useStyles = makeStyles((theme) => ({
@@ -105,7 +105,7 @@ const Header = ({ highlightSidebarLink, showHideSideBarHandler, openSidebar, clu
         <Box textAlign="center" marginY="11.5px" borderLeft="1px solid rgba(255,255,255,0.5)">
           <Paper className={classes.paper}>
             <h4>Cluster Name</h4>
-            <h2>{clusterName}</h2>
+            <h2>{clusterName || ''}</h2>
           </Paper>
         </Box>
       </Box>

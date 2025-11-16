@@ -197,13 +197,13 @@ export default function ReloadStatusOp({
                         if(idx === 0) {
                           return (
                             <StyledTableCell align="left" key={idx}>
-                              <Link underline='always' component="button" variant="body2" onClick={() => handleSegmentJobIdClick(data as string)}>{data}</Link>
+                              <Link underline='always' component="button" variant="body2" onClick={() => handleSegmentJobIdClick(data as string)}>{String(data)}</Link>
                             </StyledTableCell>
                           )
                         }
                         return (
                           <StyledTableCell align="left" key={idx}>
-                            {data}
+                            {String(data)}
                           </StyledTableCell>
                         )
                       })}

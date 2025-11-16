@@ -20,7 +20,7 @@
 import React, { useEffect, useState } from 'react';
 import { Grid, makeStyles } from '@material-ui/core';
 import { InstanceType } from 'Models';
-import { RouteComponentProps } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import SimpleAccordion from '../components/SimpleAccordion';
 import AsyncPinotTables from '../components/AsyncPinotTables';
 import CustomButton from '../components/CustomButton';
@@ -39,8 +39,9 @@ type Props = {
   tenantName: string;
 };
 
-const TenantPage = ({ match }: RouteComponentProps<Props>) => {
-  const { tenantName } = match.params;
+const TenantPage = () => {
+  const params = useParams<Props>();
+  const { tenantName } = params;
   const classes = useStyles();
   const [instanceNames, setInstanceNames] = useState({
     [InstanceType.BROKER]: null,
